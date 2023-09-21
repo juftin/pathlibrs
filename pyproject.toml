@@ -13,3 +13,18 @@ classifiers = [
 
 [tool.maturin]
 features = ["pyo3/extension-module"]
+
+
+[tool.hatch.envs.default]
+dependencies = [
+    "maturin>=1.2,<2.0",
+    "build",
+    "pytest",
+]
+path = ".venv"
+
+[tool.hatch.envs.default.scripts]
+develop = "python -m maturin develop"
+build = "python -m build"
+test = ["develop", "python -m pytest"]
+
