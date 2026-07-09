@@ -67,11 +67,10 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v5
 
-      - name: Install maturin
-        run: uv tool install maturin
-
       - name: Build wheel
-        run: maturin build --release --out dist
+        run: |
+          uv sync --group dev
+          uv run maturin build --release --out dist
 
       - uses: actions/upload-artifact@v4
         with:
