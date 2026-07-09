@@ -28,6 +28,7 @@ bindings = "pyo3"
 
 [dependency-groups]
 dev = [
+    "maturin>=1.8,<2",
     "pytest>=8",
     "ruff>=0.8",
 ]
