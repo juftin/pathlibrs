@@ -1,37 +1,64 @@
-# pathlib.rs
+# pathlibrs
 
-A ⚡️fast⚡️ implementation of the [pathlib.Path](https://docs.python.org/3/library/pathlib.html) class.
-Written in Rust, built for Python.
+A fast pure-Rust implementation of Python's pathlib, with drop-in replacement classes.
 
-## Usage
+## Phase 1 — Pure Paths
 
-```python
-from pathlibrs import Path
+Pure (non-IO) path classes matching CPython 3.12 pathlib:
 
-p = Path("foo/bar")
-p.mkdir(parents=True)
-baz_file = p / "baz.txt"
-baz_file.write_text("Hello, world!")
+- `PurePath` — base class
+- `PurePosixPath` — POSIX-style paths (`/` separator, no drive letters)
+- `PureWindowsPath` — Windows-style paths (drive letters, UNC, both `\` and `/`)
+
+## Installation
+
+```bash
+pip install pathlibrs
 ```
 
-## Performance
+Or from source:
 
-`pathlibrs` is much faster than the standard library's `pathlib` module
-for certain operations. For example, traversing a directory tree can be
-~4x faster:
+```bash
+maturin develop
+```
+
+## Quick Start
 
 ```python
-from pathlib import Path
-from pathlibrs import Path as PathRS
+from pathlibrs import PurePosixPath, PureWindowsPath
 
-p = Path("~/Downloads")
-r = PathRS("~/Downloads")
+# POSIX
+p = PurePosixPath("/usr/local/bin/python3")
+print(p.parts)    # ('', '/', 'usr', 'local', 'bin', 'python3')
+print(p.parent)   # /usr/local/bin
+print(p.name)     # python3
+print(p.stem)     # python
+print(p.suffix)   # 3
 
-%timeit
-list(p.glob("**/*"))
-# 1.03 s ± 6.04 ms per loop (mean ± std. dev. of 7 runs, 1 loop each)
+# Windows
+p = PureWindowsPath("C:\\Users\\Name\\Documents")
+print(p.drive)    # C:
+print(p.root)     # \
+print(p.parts)    # ('C:', '\\', 'Users', 'Name', 'Documents')
 
-%timeit
-list(r.glob("**/*"))
-# 253 ms ± 1.04 ms per loop (mean ± std. dev. of 7 runs, 1 loop each)
+# Join paths
+base = PurePosixPath("/home/user")
+full = base / "projects" / "pathlibrs"
+
+# Pattern matching
+p = PurePosixPath("/path/to/file.py")
+p.match("*.py")   # True
+```
+
+## Development
+
+```bash
+# Build and install for development
+maturin develop
+
+# Run tests
+python -m pytest tests/
+
+# Build release wheel
+maturin build --release
 ```
