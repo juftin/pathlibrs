@@ -370,7 +370,7 @@ The litmus test: **pass CPython's own `test_pathlib.py` unchanged.**
    ```python
    import sys
    sys.modules['pathlib'] = __import__('pathlibrs')
-   
+
    # Now run test_pathlib.py as-is
    ```
 
