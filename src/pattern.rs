@@ -21,7 +21,7 @@ impl GlobPattern {
     /// Compile a fnmatch-style pattern string.
     pub fn new(pattern: &OsStr, case_sensitive: bool) -> Self {
         let bytes = pattern.as_bytes();
-        let is_absolute = bytes.first().map_or(false, |&b| b == b'/');
+        let is_absolute = bytes.first().is_some_and(|&b| b == b'/');
 
         let segments: Vec<Vec<u8>> = if bytes.is_empty() {
             vec![vec![]]
@@ -94,8 +94,13 @@ impl GlobPattern {
         }
 
         // All segments except the last must match exactly
-        for i in 0..self.segments.len().saturating_sub(1) {
-            if !bytes_equal(&self.segments[i], path_segments[i], self.case_sensitive) {
+        for (i, segment) in self
+            .segments
+            .iter()
+            .enumerate()
+            .take(self.segments.len().saturating_sub(1))
+        {
+            if !bytes_equal(segment, path_segments[i], self.case_sensitive) {
                 return false;
             }
         }
@@ -150,39 +155,37 @@ pub fn fnmatch_bytes(pattern: &[u8], name: &[u8], case_sensitive: bool) -> bool 
                     pi += 1;
                     continue;
                 }
-                b'[' => {
+                b'[' if ni < name.len() => {
                     // Character class: [abc] or [!abc]
-                    if ni < name.len() {
-                        let class_end = match pattern[pi..].iter().position(|&b| b == b']') {
-                            Some(pos) => pi + pos,
-                            None => {
-                                // Unclosed bracket — treat literally
-                                if bytes_match_one(pattern[pi], name[ni], case_sensitive) {
-                                    pi += 1;
-                                    ni += 1;
-                                    continue;
-                                } else {
-                                    break;
-                                }
+                    let class_end = match pattern[pi..].iter().position(|&b| b == b']') {
+                        Some(pos) => pi + pos,
+                        None => {
+                            // Unclosed bracket — treat literally
+                            if bytes_match_one(pattern[pi], name[ni], case_sensitive) {
+                                pi += 1;
+                                ni += 1;
+                                continue;
+                            } else {
+                                break;
                             }
-                        };
-
-                        let class_body = &pattern[pi + 1..class_end];
-                        let negated = class_body.first() == Some(&b'!');
-                        let chars = if negated {
-                            &class_body[1..]
-                        } else {
-                            class_body
-                        };
-
-                        let matched = chars
-                            .iter()
-                            .any(|&c| bytes_match_one(c, name[ni], case_sensitive));
-                        if (matched && !negated) || (!matched && negated) {
-                            pi = class_end + 1;
-                            ni += 1;
-                            continue;
                         }
+                    };
+
+                    let class_body = &pattern[pi + 1..class_end];
+                    let negated = class_body.first() == Some(&b'!');
+                    let chars = if negated {
+                        &class_body[1..]
+                    } else {
+                        class_body
+                    };
+
+                    let matched = chars
+                        .iter()
+                        .any(|&c| bytes_match_one(c, name[ni], case_sensitive));
+                    if (matched && !negated) || (!matched && negated) {
+                        pi = class_end + 1;
+                        ni += 1;
+                        continue;
                     }
                 }
                 _ => {}
@@ -190,12 +193,13 @@ pub fn fnmatch_bytes(pattern: &[u8], name: &[u8], case_sensitive: bool) -> bool 
         }
 
         // Literal match fallback or star backtracking
-        if pi < pattern.len() && ni < name.len() {
-            if bytes_match_one(pattern[pi], name[ni], case_sensitive) {
-                pi += 1;
-                ni += 1;
-                continue;
-            }
+        if pi < pattern.len()
+            && ni < name.len()
+            && bytes_match_one(pattern[pi], name[ni], case_sensitive)
+        {
+            pi += 1;
+            ni += 1;
+            continue;
         }
 
         // Backtrack on '*'

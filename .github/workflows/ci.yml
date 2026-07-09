@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main, phase-*]
+    branches: [main]
   pull_request:
     branches: [main]
 
@@ -43,14 +43,8 @@ jobs:
       - name: Rust tests
         run: cargo test
 
-      - name: Install Python dev dependencies
-        run: uv sync --no-build --group dev
-
-      - name: Build and install pathlibrs
-        run: uv run maturin develop
-
-      - name: Python tests
-        run: uv run pytest tests/ -v
+      - name: Build and run Python tests
+        run: uv sync --group dev && uv run pytest tests/ -v
 
   build:
     strategy:

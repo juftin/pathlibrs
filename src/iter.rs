@@ -158,6 +158,6 @@ impl ParentsIter {
         let result = self.cls.call1(py, args)?;
 
         self.part_count = self.part_count.saturating_sub(1);
-        Ok(Some(result.into()))
+        Ok(Some(result))
     }
 }

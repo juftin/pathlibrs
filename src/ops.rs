@@ -21,11 +21,7 @@ pub fn is_sep(b: u8, is_windows: bool) -> bool {
 /// or is empty after the anchor).
 ///
 /// The `anchor_end` is the byte offset where the anchor (drive+root) ends.
-pub fn name_from_bytes<'a>(
-    bytes: &'a [u8],
-    anchor_end: usize,
-    is_windows: bool,
-) -> Option<&'a OsStr> {
+pub fn name_from_bytes(bytes: &[u8], anchor_end: usize, is_windows: bool) -> Option<&OsStr> {
     let tail = &bytes[anchor_end..];
 
     // Strip trailing separators (e.g. "foo/" → "foo")
