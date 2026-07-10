@@ -13,6 +13,18 @@ import pathlibrs
 
 sys.modules["pathlib"] = pathlibrs
 
+# ── Patch test.support with missing symbols from CPython 3.14 ─────────────────
+# The vendored CPython 3.14 test suite imports symbols (e.g. is_wasm32)
+# that only exist in Python 3.14+. Patch them onto the real module.
+import test.support
+
+if not hasattr(test.support, "is_wasm32"):
+    test.support.is_wasm32 = False
+if not hasattr(test.support, "is_emscripten"):
+    test.support.is_emscripten = False
+if not hasattr(test.support, "is_wasi"):
+    test.support.is_wasi = False
+
 # ── Skip tests listed in skips.txt ───────────────────────────────────────────
 
 
