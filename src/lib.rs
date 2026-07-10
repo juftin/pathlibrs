@@ -15,6 +15,17 @@ pub mod pure;
 pub mod repr;
 
 use pyo3::prelude::*;
+use std::ffi::OsStr;
+
+/// Cross-platform `OsStr::from_bytes` replacement.
+///
+/// On Unix, `OsStr::from_bytes` exists via `OsStrExt`. On Windows it doesn't.
+/// `OsStr::from_encoded_bytes_unchecked` works everywhere. All our call sites
+/// pass bytes that originated from a valid `OsStr`, so this is safe.
+#[inline]
+pub(crate) fn from_os_bytes(bytes: &[u8]) -> &OsStr {
+    unsafe { OsStr::from_encoded_bytes_unchecked(bytes) }
+}
 
 /// The ``pathlibrs`` Python module.
 #[pymodule]

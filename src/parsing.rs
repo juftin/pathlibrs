@@ -4,7 +4,6 @@
 //! CPython 3.12+ pathlib behaviour.
 
 use std::ffi::{OsStr, OsString};
-use std::os::unix::ffi::OsStrExt;
 
 use crate::repr::{ParsedPath, PathFlavour};
 
@@ -25,7 +24,7 @@ const POSIX_SEP: u8 = b'/';
 
 /// Parse a POSIX path.
 fn parse_posix(path: &OsStr) -> ParsedPath {
-    let bytes = path.as_bytes();
+    let bytes = path.as_encoded_bytes();
 
     if bytes.is_empty() {
         return ParsedPath {
@@ -44,7 +43,7 @@ fn parse_posix(path: &OsStr) -> ParsedPath {
     let parts: Vec<OsString> = rest
         .split(|&b| b == POSIX_SEP)
         .filter(|s| !s.is_empty())
-        .map(|s| OsStr::from_bytes(s).to_os_string())
+        .map(|s| crate::from_os_bytes(s).to_os_string())
         .collect();
 
     let has_name = !parts.is_empty();
@@ -76,10 +75,10 @@ fn parse_posix_root(bytes: &[u8]) -> (Option<OsString>, usize) {
         // with the third character being non-slash or end-of-string.
         // If we have exactly 2 bytes and both are '/', root is "//".
         // If we have more and the third is not '/', root is "//".
-        (Some(OsStr::from_bytes(&bytes[..2]).to_os_string()), 2)
+        (Some(crate::from_os_bytes(&bytes[..2]).to_os_string()), 2)
     } else {
         // 1 or 3+ slashes → root is "/"
-        (Some(OsStr::from_bytes(b"/").to_os_string()), 1)
+        (Some(crate::from_os_bytes(b"/").to_os_string()), 1)
     }
 }
 
@@ -93,7 +92,7 @@ fn parse_posix_root(bytes: &[u8]) -> (Option<OsString>, usize) {
 /// extended-length prefixes. Both ``\\`` and ``/`` are treated
 /// as separators.
 fn parse_windows(path: &OsStr) -> ParsedPath {
-    let bytes = path.as_bytes();
+    let bytes = path.as_encoded_bytes();
 
     if bytes.is_empty() {
         return ParsedPath {
@@ -186,8 +185,8 @@ fn parse_windows_drive_root(bytes: &[u8]) -> (Option<OsString>, Option<OsString>
                         drive_str.extend_from_slice(share);
 
                         return (
-                            Some(OsStr::from_bytes(&drive_str).to_os_string()),
-                            Some(OsStr::from_bytes(b"\\").to_os_string()),
+                            Some(crate::from_os_bytes(&drive_str).to_os_string()),
+                            Some(crate::from_os_bytes(b"\\").to_os_string()),
                             anchor_end.min(len),
                         );
                     }
@@ -202,9 +201,9 @@ fn parse_windows_drive_root(bytes: &[u8]) -> (Option<OsString>, Option<OsString>
             let anchor_end = if has_root { drive_end + 1 } else { drive_end };
 
             return (
-                Some(OsStr::from_bytes(&bytes[..drive_end]).to_os_string()),
+                Some(crate::from_os_bytes(&bytes[..drive_end]).to_os_string()),
                 if has_root {
-                    Some(OsStr::from_bytes(b"\\").to_os_string())
+                    Some(crate::from_os_bytes(b"\\").to_os_string())
                 } else {
                     None
                 },
@@ -214,8 +213,8 @@ fn parse_windows_drive_root(bytes: &[u8]) -> (Option<OsString>, Option<OsString>
 
         // Extended prefix without drive (unusual but valid)
         return (
-            Some(OsStr::from_bytes(prefix).to_os_string()),
-            Some(OsStr::from_bytes(b"\\").to_os_string()),
+            Some(crate::from_os_bytes(prefix).to_os_string()),
+            Some(crate::from_os_bytes(b"\\").to_os_string()),
             4.min(len),
         );
     }
@@ -239,8 +238,8 @@ fn parse_windows_drive_root(bytes: &[u8]) -> (Option<OsString>, Option<OsString>
                 drive_str.extend_from_slice(share);
 
                 return (
-                    Some(OsStr::from_bytes(&drive_str).to_os_string()),
-                    Some(OsStr::from_bytes(b"\\").to_os_string()),
+                    Some(crate::from_os_bytes(&drive_str).to_os_string()),
+                    Some(crate::from_os_bytes(b"\\").to_os_string()),
                     anchor_end.min(len),
                 );
             }
@@ -249,7 +248,7 @@ fn parse_windows_drive_root(bytes: &[u8]) -> (Option<OsString>, Option<OsString>
         // Just \\ with no server\share — treat as root only
         return (
             None,
-            Some(OsStr::from_bytes(b"\\").to_os_string()),
+            Some(crate::from_os_bytes(b"\\").to_os_string()),
             1.min(len),
         );
     }
@@ -260,9 +259,9 @@ fn parse_windows_drive_root(bytes: &[u8]) -> (Option<OsString>, Option<OsString>
         let anchor_end = if has_root { 3 } else { 2 };
 
         return (
-            Some(OsStr::from_bytes(&bytes[..2]).to_os_string()),
+            Some(crate::from_os_bytes(&bytes[..2]).to_os_string()),
             if has_root {
-                Some(OsStr::from_bytes(b"\\").to_os_string())
+                Some(crate::from_os_bytes(b"\\").to_os_string())
             } else {
                 None
             },
@@ -272,7 +271,7 @@ fn parse_windows_drive_root(bytes: &[u8]) -> (Option<OsString>, Option<OsString>
 
     // ── Root-only: \ or /  ─────────────────────────────────────────────
     if !bytes.is_empty() && is_win_sep(bytes[0]) {
-        return (None, Some(OsStr::from_bytes(b"\\").to_os_string()), 1);
+        return (None, Some(crate::from_os_bytes(b"\\").to_os_string()), 1);
     }
 
     // ── Relative path, no anchor  ──────────────────────────────────────
@@ -287,14 +286,14 @@ fn split_windows_parts(bytes: &[u8]) -> Vec<OsString> {
     for (i, &b) in bytes.iter().enumerate() {
         if is_win_sep(b) {
             if i > start {
-                parts.push(OsStr::from_bytes(&bytes[start..i]).to_os_string());
+                parts.push(crate::from_os_bytes(&bytes[start..i]).to_os_string());
             }
             start = i + 1;
         }
     }
 
     if start < bytes.len() {
-        parts.push(OsStr::from_bytes(&bytes[start..]).to_os_string());
+        parts.push(crate::from_os_bytes(&bytes[start..]).to_os_string());
     }
 
     parts

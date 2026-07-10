@@ -3,7 +3,6 @@
 //! These work directly on byte slices to avoid allocating new strings.
 
 use std::ffi::{OsStr, OsString};
-use std::os::unix::ffi::OsStrExt;
 
 /// Separator predicate for the given flavour.
 #[inline]
@@ -43,7 +42,7 @@ pub fn name_from_bytes(bytes: &[u8], anchor_end: usize, is_windows: bool) -> Opt
     if name_bytes.is_empty() {
         None
     } else {
-        Some(OsStr::from_bytes(name_bytes))
+        Some(crate::from_os_bytes(name_bytes))
     }
 }
 
@@ -52,7 +51,7 @@ pub fn name_from_bytes(bytes: &[u8], anchor_end: usize, is_windows: bool) -> Opt
 /// Returns [`None`] if there is no suffix. A leading dot (``".bashrc"``)
 /// does NOT count as a suffix.
 pub fn suffix_from_name(name: &OsStr) -> Option<&OsStr> {
-    let name_bytes = name.as_bytes();
+    let name_bytes = name.as_encoded_bytes();
     if name_bytes.is_empty() || name_bytes == b"." || name_bytes == b".." {
         return None;
     }
@@ -62,7 +61,7 @@ pub fn suffix_from_name(name: &OsStr) -> Option<&OsStr> {
     match dot_pos {
         Some(pos) => {
             let actual_pos = pos + 1; // adjust for [1..] offset
-            Some(OsStr::from_bytes(&name_bytes[actual_pos..]))
+            Some(crate::from_os_bytes(&name_bytes[actual_pos..]))
         }
         None => None,
     }
@@ -70,7 +69,7 @@ pub fn suffix_from_name(name: &OsStr) -> Option<&OsStr> {
 
 /// Extract all suffixes from a name (e.g. ``".tar.gz"`` → ``[".tar", ".gz"]``).
 pub fn suffixes_from_name(name: &OsStr) -> Vec<OsString> {
-    let name_bytes = name.as_bytes();
+    let name_bytes = name.as_encoded_bytes();
     let mut result = Vec::new();
 
     if name_bytes.len() <= 1 || name_bytes == b".." {
@@ -98,7 +97,7 @@ pub fn suffixes_from_name(name: &OsStr) -> Vec<OsString> {
         } else {
             name_bytes.len()
         };
-        result.push(OsStr::from_bytes(&name_bytes[start..end]).to_os_string());
+        result.push(crate::from_os_bytes(&name_bytes[start..end]).to_os_string());
     }
 
     result
@@ -109,21 +108,21 @@ pub fn suffixes_from_name(name: &OsStr) -> Vec<OsString> {
 /// For ``"foo.tar.gz"``, returns ``Some("foo.tar")``.
 /// For ``".bashrc"``, returns ``Some(".bashrc")`` (leading dot is not a suffix).
 pub fn stem_from_name(name: &OsStr) -> Option<&OsStr> {
-    let name_bytes = name.as_bytes();
+    let name_bytes = name.as_encoded_bytes();
     if name_bytes.is_empty() || name_bytes == b"." || name_bytes == b".." {
         return Some(name);
     }
 
     match suffix_from_name(name) {
         Some(suffix) => {
-            let suffix_len = suffix.as_bytes().len();
+            let suffix_len = suffix.as_encoded_bytes().len();
             let stem_end = name_bytes.len() - suffix_len;
             if stem_end == 0 {
                 // Name was just the suffix — shouldn't happen with our suffix logic,
                 // but handle gracefully.
                 Some(name)
             } else {
-                Some(OsStr::from_bytes(&name_bytes[..stem_end]))
+                Some(crate::from_os_bytes(&name_bytes[..stem_end]))
             }
         }
         None => Some(name),
@@ -193,12 +192,12 @@ mod tests {
     #[test]
     fn test_name_posix() {
         assert_eq!(
-            name_from_bytes(b"/foo/bar.txt", 1, false).map(|s| s.as_bytes()),
+            name_from_bytes(b"/foo/bar.txt", 1, false).map(|s| s.as_encoded_bytes()),
             Some(&b"bar.txt"[..])
         );
         assert_eq!(name_from_bytes(b"/", 1, false), None);
         assert_eq!(
-            name_from_bytes(b"foo.txt", 0, false).map(|s| s.as_bytes()),
+            name_from_bytes(b"foo.txt", 0, false).map(|s| s.as_encoded_bytes()),
             Some(&b"foo.txt"[..])
         );
     }
@@ -206,12 +205,12 @@ mod tests {
     #[test]
     fn test_name_windows() {
         assert_eq!(
-            name_from_bytes(b"C:\\foo\\bar.txt", 3, true).map(|s| s.as_bytes()),
+            name_from_bytes(b"C:\\foo\\bar.txt", 3, true).map(|s| s.as_encoded_bytes()),
             Some(&b"bar.txt"[..])
         );
         assert_eq!(name_from_bytes(b"C:\\", 3, true), None);
         assert_eq!(
-            name_from_bytes(b"C:foo.txt", 2, true).map(|s| s.as_bytes()),
+            name_from_bytes(b"C:foo.txt", 2, true).map(|s| s.as_encoded_bytes()),
             Some(&b"foo.txt"[..])
         );
     }
@@ -219,11 +218,11 @@ mod tests {
     #[test]
     fn test_suffix() {
         assert_eq!(
-            suffix_from_name(OsStr::new("bar.txt")).map(|s| s.as_bytes()),
+            suffix_from_name(OsStr::new("bar.txt")).map(|s| s.as_encoded_bytes()),
             Some(&b".txt"[..])
         );
         assert_eq!(
-            suffix_from_name(OsStr::new("foo.tar.gz")).map(|s| s.as_bytes()),
+            suffix_from_name(OsStr::new("foo.tar.gz")).map(|s| s.as_encoded_bytes()),
             Some(&b".gz"[..])
         );
         assert_eq!(suffix_from_name(OsStr::new(".bashrc")), None);
@@ -250,19 +249,19 @@ mod tests {
     #[test]
     fn test_stem() {
         assert_eq!(
-            stem_from_name(OsStr::new("bar.txt")).map(|s| s.as_bytes()),
+            stem_from_name(OsStr::new("bar.txt")).map(|s| s.as_encoded_bytes()),
             Some(&b"bar"[..])
         );
         assert_eq!(
-            stem_from_name(OsStr::new("foo.tar.gz")).map(|s| s.as_bytes()),
+            stem_from_name(OsStr::new("foo.tar.gz")).map(|s| s.as_encoded_bytes()),
             Some(&b"foo.tar"[..])
         );
         assert_eq!(
-            stem_from_name(OsStr::new(".bashrc")).map(|s| s.as_bytes()),
+            stem_from_name(OsStr::new(".bashrc")).map(|s| s.as_encoded_bytes()),
             Some(&b".bashrc"[..])
         );
         assert_eq!(
-            stem_from_name(OsStr::new("Makefile")).map(|s| s.as_bytes()),
+            stem_from_name(OsStr::new("Makefile")).map(|s| s.as_encoded_bytes()),
             Some(&b"Makefile"[..])
         );
     }

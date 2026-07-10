@@ -4,7 +4,6 @@
 
 use std::ffi::{OsStr, OsString};
 use std::hash::{Hash, Hasher};
-use std::os::unix::ffi::OsStrExt;
 
 use pyo3::prelude::*;
 use pyo3::types::{PyAnyMethods, PyString, PyTuple};
@@ -88,18 +87,18 @@ impl PurePath {
         let sep = self._sep();
         let mut result = Vec::<u8>::new();
         if let Some(d) = drive {
-            result.extend_from_slice(d.as_bytes());
+            result.extend_from_slice(d.as_encoded_bytes());
         }
         if let Some(r) = root {
-            result.extend_from_slice(r.as_bytes());
+            result.extend_from_slice(r.as_encoded_bytes());
         }
         for (i, part) in parts.iter().enumerate() {
             if i > 0 {
                 result.push(sep);
             }
-            result.extend_from_slice(part.as_bytes());
+            result.extend_from_slice(part.as_encoded_bytes());
         }
-        OsStr::from_bytes(&result).to_os_string()
+        crate::from_os_bytes(&result).to_os_string()
     }
 
     fn _parent_raw(&self) -> OsString {
@@ -123,14 +122,14 @@ impl PurePath {
 
     fn _with_name_raw(&self, name: &str) -> OsString {
         let parent_raw = self._parent_raw();
-        if parent_raw.as_bytes().is_empty() {
+        if parent_raw.as_encoded_bytes().is_empty() {
             OsString::from(name)
         } else {
             let sep = self._sep();
-            let mut buf = parent_raw.as_bytes().to_vec();
+            let mut buf = parent_raw.as_encoded_bytes().to_vec();
             buf.push(sep);
             buf.extend_from_slice(name.as_bytes());
-            OsStr::from_bytes(&buf).to_os_string()
+            crate::from_os_bytes(&buf).to_os_string()
         }
     }
 }
@@ -281,14 +280,14 @@ impl PurePath {
             for arg in tuple.iter() {
                 let s: String = arg.extract()?;
                 if !s.is_empty() {
-                    if result.as_bytes().is_empty() {
+                    if result.as_encoded_bytes().is_empty() {
                         result = OsString::from(&s);
                     } else {
                         let sep = slf._sep();
-                        let mut buf = result.as_bytes().to_vec();
+                        let mut buf = result.as_encoded_bytes().to_vec();
                         buf.push(sep);
                         buf.extend_from_slice(s.as_bytes());
-                        result = OsStr::from_bytes(&buf).to_os_string();
+                        result = crate::from_os_bytes(&buf).to_os_string();
                     }
                 }
             }
@@ -359,12 +358,12 @@ impl PurePath {
             if i > 0 {
                 buf.push(sep);
             }
-            buf.extend_from_slice(part.as_bytes());
+            buf.extend_from_slice(part.as_encoded_bytes());
         }
         let new_raw = if buf.is_empty() {
             OsString::from(".")
         } else {
-            OsStr::from_bytes(&buf).to_os_string()
+            crate::from_os_bytes(&buf).to_os_string()
         };
         PurePath::_make_child(py, ptr, new_raw)
     }
@@ -388,7 +387,7 @@ impl PurePath {
     }
 
     fn as_posix(&self) -> String {
-        let raw = self.inner.raw().as_bytes();
+        let raw = self.inner.raw().as_encoded_bytes();
         let mut result = Vec::with_capacity(raw.len());
         for &b in raw {
             result.push(if b == b'\\' { b'/' } else { b });
@@ -414,7 +413,7 @@ impl PurePath {
                             .replace('\\', "/")
                             .trim_start_matches('/')
                             .to_string();
-                        let rest: Vec<u8> = self.inner.raw().as_bytes()[p.anchor_length..]
+                        let rest: Vec<u8> = self.inner.raw().as_encoded_bytes()[p.anchor_length..]
                             .iter()
                             .map(|&b| if b == b'\\' { b'/' } else { b })
                             .collect();
@@ -424,7 +423,7 @@ impl PurePath {
                         Ok(format!("file://{}/{}", trimmed, rest_str))
                     } else {
                         let drive_letter = drive_str.trim_end_matches(':');
-                        let rest: Vec<u8> = self.inner.raw().as_bytes()[p.anchor_length..]
+                        let rest: Vec<u8> = self.inner.raw().as_encoded_bytes()[p.anchor_length..]
                             .iter()
                             .map(|&b| if b == b'\\' { b'/' } else { b })
                             .collect();
@@ -457,13 +456,13 @@ impl PurePath {
         let ptr = slf.as_ptr();
         let other_str = _extract_path_str(other)?;
         let mut raw = slf.inner.raw().to_os_string();
-        if !raw.as_bytes().is_empty() && !other_str.is_empty() {
+        if !raw.as_encoded_bytes().is_empty() && !other_str.is_empty() {
             let sep = slf._sep();
-            let mut buf = raw.as_bytes().to_vec();
+            let mut buf = raw.as_encoded_bytes().to_vec();
             buf.push(sep);
             buf.extend_from_slice(other_str.as_bytes());
-            raw = OsStr::from_bytes(&buf).to_os_string();
-        } else if raw.as_bytes().is_empty() {
+            raw = crate::from_os_bytes(&buf).to_os_string();
+        } else if raw.as_encoded_bytes().is_empty() {
             raw = OsString::from(&other_str);
         }
         PurePath::_make_child(py, ptr, raw)
@@ -476,14 +475,14 @@ impl PurePath {
         let path_raw = slf.inner.raw().to_os_string();
         let raw = if other_str.is_empty() {
             path_raw
-        } else if path_raw.as_bytes().is_empty() {
+        } else if path_raw.as_encoded_bytes().is_empty() {
             OsString::from(&other_str)
         } else {
             let sep = slf._sep();
             let mut buf = other_str.as_bytes().to_vec();
             buf.push(sep);
-            buf.extend_from_slice(path_raw.as_bytes());
-            OsStr::from_bytes(&buf).to_os_string()
+            buf.extend_from_slice(path_raw.as_encoded_bytes());
+            crate::from_os_bytes(&buf).to_os_string()
         };
         PurePath::_make_child(py, ptr, raw)
     }
@@ -504,7 +503,7 @@ impl PurePath {
 
     fn __lt__(&self, other: &Bound<'_, PyAny>) -> PyResult<bool> {
         let other_str = _extract_path_str(other)?;
-        Ok(self.inner.raw().as_bytes() < other_str.as_bytes())
+        Ok(self.inner.raw().as_encoded_bytes() < other_str.as_bytes())
     }
 
     fn __str__(&self) -> String {

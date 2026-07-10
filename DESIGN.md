@@ -8,7 +8,7 @@ Python's `pathlib` (`Lib/pathlib.py`) is one of the most commonly imported stand
 2. **String allocation churn** — Operations like `.parent`, `.stem`, `.with_suffix()`, and `.joinpath()` allocate new Python `str` objects on every call, which then get garbage collected.
 3. **Serial method dispatch** — All method resolution goes through Python's MRO, attribute lookup, and `_flavour` routing. Rust can monomorphize or use static dispatch.
 
-Goal: a drop-in replacement that passes CPython's own `test_pathlib.py` while using 2–4× less memory and completing common operations 3–10× faster.
+Goal: a drop-in replacement that passes CPython's own `test_pathlib.py` while using 2–4× less memory and completing common operations 3–10× faster. The library targets the Python 3.14 `pathlib` API surface and supports Python 3.10 through 3.14.
 
 ---
 
@@ -266,7 +266,7 @@ impl From<PathError> for PyErr {
 }
 ```
 
-For error messages, we match CPython's exact wording where the test suite checks for it, and use clear descriptive messages elsewhere. The vendored test patches (section 6) handle cases where CPython's internal error formatting differs unavoidably.
+For error messages, we match CPython's exact wording where the test suite checks for it, and use clear descriptive messages elsewhere. The vendored test skip list (section 6) handles cases where CPython's internal error formatting differs unavoidably.
 
 ### 4.8 Windows Path Parsing Details
 
@@ -360,34 +360,47 @@ This means:
 
 ## 6. Testing Strategy — The Critical Part
 
-The litmus test: **pass CPython's own `test_pathlib.py` unchanged.**
+The litmus test: **pass CPython's own `test_pathlib.py` from Python 3.14, unchanged, on Python 3.10 through 3.14.**
 
-### Approach
+### 6.1 Approach
 
-1. **Vendored test suite**: Vendor a snapshot of CPython's `Lib/test/test_pathlib.py` (and supporting `test_support.py`) from Python 3.12 (our minimum supported version).
+1. **Vendored test suite**: Vendor an unmodified snapshot of CPython's `Lib/test/test_pathlib.py` (and supporting modules like `test_support.py`) from the Python 3.14 release tag. These live in `tests/vendored/` and are **never modified**.
 
-2. **Run against our module**: The tests import `pathlib` directly. We provide a test runner that:
+2. **Run against our module**: The tests import `pathlib` directly. We provide a test runner that redirects the import:
    ```python
    import sys
    sys.modules['pathlib'] = __import__('pathlibrs')
 
-   # Now run test_pathlib.py as-is
+   # Now run vendored test_pathlib.py as-is
    ```
 
-3. **CI gating**: Every CI run must execute the full vendored test suite. A regression in a test that previously passed is a blocker.
+3. **CI gating**: Every CI run executes the full vendored test suite across the full Python version matrix. A regression in a test that previously passed is a blocker.
 
-4. **Test-specific patches**: Some tests may probe CPython internals (`pathlib._flavour`, `pathlib._WIN`, exception message formatting). We maintain a small patch file for these with inline comments, and keep them as close to the original as possible.
+4. **Private API tests — skipped, not patched**: Some tests in `test_pathlib.py` probe CPython internals that are not part of the public API contract:
+   - `pathlib._flavour` — the private POSIX/Windows flavour objects
+   - `pathlib._NormalAccessor` — internal accessor class
+   - Any other module, class, function, or attribute prefixed with `_` in the `pathlib` module
+   
+   These tests are **skipped** via a `tests/skips.txt` file — not patched or modified:
+   ```
+   # tests/skips.txt
+   # Format: <TestClass>.<test_method>  # reason
+   TestPurePath.test_flavour_property  # accesses _flavour (private API)
+   ```
+   
+   Tests are skipped via a pytest marker applied by the test runner. A test skipped because it touches private API is **not** a regression. A test skipped for any other reason **is** a regression and must be fixed.
 
-5. **Coverage matrix**:
-   - Linux (POSIX paths)
-   - macOS (POSIX paths, case-insensitive FS)
-   - Windows (via CI, Windows paths)
+5. **Coverage matrix** — tests run on all supported Python versions:
+   - **Linux**: 3.10, 3.11, 3.12, 3.13, 3.14 (POSIX paths)
+   - **macOS**: 3.10, 3.11, 3.12, 3.13, 3.14 (POSIX paths, case-insensitive FS)
+   - **Windows**: 3.10, 3.11, 3.12, 3.13, 3.14 (Windows paths)
    - PureWindowsPath tests on Linux (ensuring Windows parsing works everywhere)
+   - PurePosixPath tests on Windows (ensuring POSIX parsing works everywhere)
 
-### Acceptance Criteria
+### 6.2 Acceptance Criteria
 
-- 100% of CPython's test_pathlib tests pass on the native platform
-- 95%+ pass on cross-platform (e.g., PureWindowsPath on Linux)
+- 100% of CPython 3.14's public-API `test_pathlib` tests pass on all supported Python versions (3.10–3.14)
+- Private API tests are skipped and documented
 - No behavioral differences for any documented API
 - Any deviation is a bug, not a design choice
 
@@ -400,35 +413,38 @@ The litmus test: **pass CPython's own `test_pathlib.py` unchanged.**
 - `PathRepr` struct with lazy parsing
 - `PurePath`, `PurePosixPath`, `PureWindowsPath` as PyO3 classes
 - Properties: `parts`, `drive`, `root`, `anchor`, `parent`, `parents`, `name`, `suffix`, `suffixes`, `stem`
-- Methods: `joinpath()`, `with_name()`, `with_stem()`, `with_suffix()`, `relative_to()`, `is_relative_to()`, `as_posix()`, `as_uri()`
+- Methods: `joinpath()`, `with_name()`, `with_stem()`, `with_suffix()`, `with_segments()`, `relative_to()`, `is_relative_to()`, `as_posix()`, `as_uri()`, `from_uri()`
+- `match()` and `full_match()` with `case_sensitive` kwarg (3.13+)
+- `relative_to()` with `walk_up` kwarg (3.12+)
 - Dunder: `__str__`, `__repr__`, `__fspath__`, `__eq__`, `__hash__`, `__lt__`
 - `/` operator (`__truediv__`, `__rtruediv__`)
-- `match()` (fnmatch-style pattern matching)
 - **Verify:** PurePath tests pass
 
 ### Phase 2: Filesystem Properties — ~1 week
 
 - `stat()`, `lstat()`, `exists()`, `is_dir()`, `is_file()`, `is_mount()`, `is_symlink()`, `is_junction()`
+- `PathInfo` — cached stat result (3.12+)
 - `samefile()`, `owner()`, `group()`
 - `resolve()`, `absolute()`, `readlink()`
 - **Verify:** Filesystem property tests pass
 
-### Phase 3: Filesystem Mutations & I/O — ~1 week
+### Phase 3: Filesystem Mutations & I/O — ~1.5 weeks
 
 - `mkdir()`, `rmdir()`, `unlink()`, `rename()`, `replace()`, `symlink_to()`, `hardlink_to()`
-- `touch()`, `chmod()`, `lchmod()`
+- `touch()`, `chmod()`, `lchmod()`, `expanduser()`
 - `open()`, `read_bytes()`, `read_text()`, `write_bytes()`, `write_text()`
-- `iterdir()`, `glob()`, `rglob()`, `walk()` (3.12+)
-- **Verify:** All mutation and glob tests pass
+- `iterdir()`, `glob()`, `rglob()`, `walk()`
+- `glob()` / `rglob()` with `case_sensitive` and `recurse_symlinks` kwargs (3.12+/3.13+)
+- **3.14 methods:** `copy()`, `copy_into()`, `move()`, `move_into()`, `delete()`
+- **Verify:** All mutation, glob, and 3.14 file-tree tests pass
 
 ### Phase 4: Polish & Edge Cases — ~1 week
 
 - `Path.home()`, `Path.cwd()` class methods
-- `PurePath.with_segments()` class method (3.12+)
 - Windows UNC/device/extended-path edge cases (see section 4.8)
 - Symlink edge cases on Linux/macOS
 - Pickle / `__reduce__` / `__fspath__` / `copy` support
-- Full CPython test suite passes
+- Full vendored CPython 3.14 test suite passes
 - Benchmark suite against CPython pathlib
 
 ---
@@ -447,6 +463,7 @@ import tracemalloc
 # Speed: glob on directories of various depths
 # Speed: walk on a large tree
 # Speed: stat() on 10k files
+# Speed: copy() / move() / delete() on directory trees
 ```
 
 Target benchmarks:
@@ -456,6 +473,7 @@ Target benchmarks:
 - `p / "child"` — 3× faster (OsString prepend vs Python str concat + object creation)
 - `PosixPath("/usr").resolve()` — comparable (syscall dominant)
 - `p.rglob("**/*.py") on 10k files` — 2–5× less memory (iterator vs list)
+- `source.copy(dest)` — comparable to `shutil.copytree` (I/O-bound), but with a cleaner API
 
 ---
 
@@ -463,13 +481,14 @@ Target benchmarks:
 
 | Risk | Mitigation |
 |---|---|
-| CPython test incompatibility with vendored `test_pathlib.py` | Pin a specific CPython tag; maintain a small patch file for CPython-internal probes |
+| CPython 3.14 test suite uses private API | Skip file (`tests/skips.txt`). Private API is not part of the public contract. Reviewed on each CPython version bump. |
 | Windows path parsing on non-Windows hosts | Implement full Windows path parser in pure Rust using the spec from PEP 428 (section 4.8) |
 | PyO3 subclassing complexity for 4-level hierarchy | Use `#[pyclass(subclass)]` and composition; avoid `extends` chain if possible |
 | GIL contention on IO-heavy workloads | Release GIL during blocking IO calls (`stat`, `mkdir`, `walkdir`) — see section 4.9 |
 | `pathlib.Path.open()` differing from `io.open()` | Delegate to Python's `io.open()` for full compatibility with all parameters (section 11.1) |
-| CPython pathlib adds new features | Track CPython changelog; pin minimum semver compatibility |
+| CPython pathlib adds new features in future versions | Track CPython changelog; bump vendored test snapshot on minor releases |
 | Pickle/copy incompatibility | Implement `__reduce__` returning `(cls, (str(path),))` — same as CPython (section 4.10) |
+| Supporting Python 3.10 ABI alongside newer versions | Use PyO3 `abi3-py310` feature — single binary wheel works on 3.10 through 3.14 (section 11.4) |
 
 ---
 
@@ -488,10 +507,13 @@ pathlibrs/
 │   ├── iter.rs             # parts, parents, glob iterators
 │   ├── pure.rs             # PurePath / PurePosixPath / PureWindowsPath
 │   ├── concrete.rs         # Path / PosixPath / WindowsPath
-│   └── fs.rs               # stat, exists, mkdir, etc.
+│   └── fs.rs               # stat, exists, mkdir, copy, move, delete
 ├── tests/
-│   ├── test_pathlib.py     # Vendored from CPython
-│   └── test_support.py     # Vendored support module
+│   ├── conftest.py         # pytest fixtures, skip logic
+│   ├── skips.txt           # private API tests to skip
+│   └── vendored/           # UNMODIFIED — from CPython 3.14
+│       ├── test_pathlib.py
+│       └── test_support.py
 ├── benchmarks/
 │   ├── benchmark.py
 │   └── fixtures/           # Test directory trees
@@ -549,18 +571,29 @@ impl Path {
 - Users who need deterministic ordering should call `sorted()` on the result — this is already the documented recommendation for CPython.
 - Adding mandatory sorting would hurt performance for the common case where order doesn't matter and would be a behavioral _difference_ from CPython, not a match.
 
-### 11.4 Minimum Python Version — 3.12
+### 11.4 Minimum Python Version — 3.10
 
-**Decision**: Target Python 3.12+.
+**Decision**: Target Python 3.10 through 3.14.
 
 **Rationale**:
-- Python 3.12 added `Path.walk()` and `PurePath.with_segments()` — both are referenced in this design and would need polyfill paths on older versions.
-- Python 3.12 is the oldest Python version still receiving security fixes (support window: October 2023 – October 2028). Targeting it means we don't need to support EOL versions.
-- PyO3's `abi3` feature for Python 3.12+ produces a single binary wheel that works across 3.12, 3.13, and future 3.x — simpler CI and distribution.
+- Many projects maintain support for Python 3.10+ and can't adopt newer `pathlib` features without a backport. Providing a single package that works across the full range eliminates version-gating in user code.
+- PyO3's `abi3` feature for Python 3.10+ produces a **single binary wheel** that works across 3.10, 3.11, 3.12, 3.13, and 3.14 — simpler CI and distribution. No per-version builds needed.
+- Python 3.14 introduces `copy()`, `move()`, `delete()`, `copy_into()`, and `move_into()`. We implement the full 3.14 API surface regardless of the runtime Python version. On 3.14 itself, users can use either `pathlib` or `pathlibrs` — ours is faster, theirs is standard.
 - Python 3.13's free-threading (no-GIL) is supported by our design but not required (see section 4.9).
-- Python 3.12 adoption is high enough to justify the baseline; users on older versions can use stdlib `pathlib`.
+- The expanded version range means we implement features that don't exist in the stdlib on older versions (`.walk()`, `.info`, `.owner()`, `.group()`, `.match(case_sensitive=...)`, etc.). These are implemented in Rust and available uniformly.
 
-### 11.5 Remaining Open Questions
+### 11.5 Private API — Off-Limits
+
+**Decision**: We do not touch, wrap, subclass, or depend on any private API in the `pathlib` module.
+
+Specifically, we never reference:
+- `pathlib._flavour`, `_PosixFlavour`, `_WindowsFlavour`
+- `pathlib._NormalAccessor`
+- Any other module, class, function, or attribute prefixed with `_`
+
+The CPython 3.14 test suite may probe these internals. Those tests are skipped via `tests/skips.txt`. The private API is an implementation detail of CPython and not part of the public contract we're implementing.
+
+### 11.6 Remaining Open Questions
 
 These are deferred until the implementation yields data:
 
