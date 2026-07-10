@@ -468,14 +468,32 @@ The litmus test: **pass CPython's own `test_pathlib.py` from Python 3.14, unchan
 - `glob.rs` module extracted from `iter.rs` / `pattern.rs` for standalone glob engine
 - **Verify:** All vendored CPython glob tests pass across platform matrix
 
-### Phase 5: Polish & Edge Cases — ~1 week
+### Phase 5: Parity & Maintenance — ~1 week
 
 - `Path.home()`, `Path.cwd()` class methods
 - Windows UNC/device/extended-path edge cases (see section 4.8)
 - Symlink edge cases on Linux/macOS
 - Pickle / `__reduce__` / `__fspath__` / `copy` support
-- Full vendored CPython 3.14 test suite passes
 - Benchmark suite against CPython pathlib
+
+**Skip audit — drive `skips.txt` to zero (private API only):**
+- Audit every entry in `tests/skips.txt`
+- Each skip must be either:
+  - **Private API** — the test touches `_flavour`, `_NormalAccessor`, or other `_`-prefixed internals → stays skipped permanently
+  - **Fixable** — a real behavioral gap → fix the implementation and remove the skip
+- Goal: `skips.txt` contains *only* private-API entries; zero skips for public API behavior
+
+**Automated vendored test tracking:**
+- CI workflow that periodically fetches the latest CPython `test_pathlib.py` from `main` (or the latest stable release tag)
+- Compares against the vendored snapshot; if the upstream test file has changed:
+  - Opens an automated issue/PR with the diff for review
+  - Runs the new test suite against `pathlibrs` to surface new failures from added tests
+- Keeps the vendored test snapshot from drifting as CPython evolves
+
+**Acceptance criteria:**
+- Full vendored CPython 3.14 test suite passes on all platforms (3.10–3.14)
+- `skips.txt` contains only private-API entries (no public-API skips)
+- Automated upstream test tracking is in place and passing CI
 
 ---
 
@@ -542,9 +560,14 @@ pathlibrs/
 ├── tests/
 │   ├── conftest.py         # pytest fixtures, skip logic
 │   ├── skips.txt           # private API tests to skip
-│   └── vendored/           # UNMODIFIED — from CPython 3.14
-│       ├── test_pathlib.py
-│       └── test_support.py
+│   ├── vendored/           # UNMODIFIED — from CPython 3.14
+│   │   ├── test_pathlib.py
+│   │   └── test_support.py
+│   └── update_vendored.py  # script to fetch latest CPython tests
+├── .github/
+│   └── workflows/
+│       ├── ci.yml          # main CI matrix
+│       └── vendored-sync.yml  # automated upstream test tracking
 ├── benchmarks/
 │   ├── benchmark.py
 │   └── fixtures/           # Test directory trees
