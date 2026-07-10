@@ -1,4 +1,4 @@
-//! Glob pattern matching (fnmatch-style) for path ``.match()``.
+//! Glob pattern matching (fnmatch-style) for path ``.match()`` and ``.full_match()``.
 //!
 //! Implements the subset of fnmatch used by CPython's pathlib:
 //! ``*``, ``?``, ``[seq]``, ``[!seq]``.
@@ -38,6 +38,7 @@ impl GlobPattern {
     /// Match this pattern against a path string.
     ///
     /// Returns `true` if the path matches the pattern.
+    /// For relative patterns, the pattern is matched against the tail of the path.
     pub fn matches(&self, path: &OsStr) -> bool {
         let path_bytes = path.as_encoded_bytes();
 
@@ -50,6 +51,51 @@ impl GlobPattern {
         // Absolute pattern — must match from the start (after any root/drive)
         // For simplicity, just split the path and match segment-by-segment
         self.match_absolute(path_bytes)
+    }
+
+    /// Match this pattern against the *entire* path string.
+    ///
+    /// Unlike [`matches`], a relative pattern like ``"*.py"`` will NOT match
+    /// ``"/a/b/foo.py"`` — the segment counts must match exactly.
+    pub fn full_matches(&self, path: &OsStr) -> bool {
+        let path_bytes = path.as_encoded_bytes();
+        let path_segments: Vec<&[u8]> = split_path_segments(path_bytes);
+
+        // For full_match, compare non-empty segments only.
+        // The leading empty segment from an absolute path's leading "/"
+        // is filtered out so it doesn't count against the segment count.
+        let pattern_parts: Vec<&[u8]> = self
+            .segments
+            .iter()
+            .filter(|s| !s.is_empty())
+            .map(|s| s.as_slice())
+            .collect();
+        let path_parts: Vec<&[u8]> = path_segments
+            .into_iter()
+            .filter(|s| !s.is_empty())
+            .collect();
+
+        if pattern_parts.len() != path_parts.len() {
+            return false;
+        }
+
+        if pattern_parts.is_empty() {
+            return path_parts.is_empty();
+        }
+
+        // All except last must match exactly
+        for i in 0..pattern_parts.len().saturating_sub(1) {
+            if !bytes_equal(pattern_parts[i], path_parts[i], self.case_sensitive) {
+                return false;
+            }
+        }
+
+        // Last uses fnmatch
+        if let (Some(pat), Some(path_seg)) = (pattern_parts.last(), path_parts.last()) {
+            fnmatch_bytes(pat, path_seg, self.case_sensitive)
+        } else {
+            false
+        }
     }
 
     /// Match an absolute pattern against a path.
@@ -230,23 +276,51 @@ fn bytes_match_one(p: u8, n: u8, case_sensitive: bool) -> bool {
     }
 }
 
-/// Match a path against a pattern, normalising Windows separators.
-///
-/// This is the top-level entry point used by PurePath.match().
-pub fn match_path(pattern: &OsStr, path: &OsStr, case_sensitive: bool, is_windows: bool) -> bool {
-    // On Windows, normalise backslashes to forward slashes in the path
-    // before matching, so patterns written with / work against both.
-    let path_normalised: Vec<u8> = if is_windows {
+/// Normalise a path for matching (on Windows, replace \\ with /).
+fn normalise_for_match(path: &OsStr, is_windows: bool) -> Vec<u8> {
+    if is_windows {
         path.as_encoded_bytes()
             .iter()
             .map(|&b| if b == b'\\' { b'/' } else { b })
             .collect()
     } else {
         path.as_encoded_bytes().to_vec()
-    };
+    }
+}
 
+/// Match a path against a pattern, normalising Windows separators.
+///
+/// This is the top-level entry point used by PurePath.match().
+pub fn match_path(pattern: &OsStr, path: &OsStr, case_sensitive: bool, is_windows: bool) -> bool {
+    let path_normalised = normalise_for_match(path, is_windows);
     let compiled = GlobPattern::new(pattern, case_sensitive);
     compiled.matches(crate::from_os_bytes(&path_normalised))
+}
+
+/// Match a path against a pattern where the pattern must cover the entire path.
+///
+/// Unlike [`match_path`], a relative pattern like ``"*.py"`` will NOT match
+/// ``"/a/b/foo.py"`` — the segment counts must match exactly.
+///
+/// This is the entry point used by PurePath.full_match().
+pub fn full_match_path(
+    pattern: &OsStr,
+    path: &OsStr,
+    case_sensitive: bool,
+    is_windows: bool,
+) -> bool {
+    let path_normalised = normalise_for_match(path, is_windows);
+    let pattern_normalised = normalise_for_match(pattern, is_windows);
+    let compiled = GlobPattern::new(crate::from_os_bytes(&pattern_normalised), case_sensitive);
+    compiled.full_matches(crate::from_os_bytes(&path_normalised))
+}
+
+/// Split a path byte slice into segments (including empty ones from leading slashes).
+fn split_path_segments(path: &[u8]) -> Vec<&[u8]> {
+    if path.is_empty() {
+        return vec![&[]];
+    }
+    path.split(|&b| b == b'/').collect()
 }
 
 // ---------------------------------------------------------------------------
@@ -329,6 +403,89 @@ mod tests {
         assert!(match_path(
             OsStr::new("*.py"),
             OsStr::new("C:\\bar\\foo.py"),
+            true,
+            true,
+        ));
+    }
+
+    // -- full_match tests --
+
+    #[test]
+    fn test_full_match_relative() {
+        // Full match: relative pattern, relative path (same segment count)
+        assert!(full_match_path(
+            OsStr::new("*.py"),
+            OsStr::new("foo.py"),
+            true,
+            false,
+        ));
+        // Full match: relative pattern with multi-segment path should NOT match
+        assert!(!full_match_path(
+            OsStr::new("*.py"),
+            OsStr::new("/a/b/foo.py"),
+            true,
+            false,
+        ));
+        // Full match: absolute pattern, absolute path
+        assert!(full_match_path(
+            OsStr::new("/foo/*.py"),
+            OsStr::new("/foo/bar.py"),
+            true,
+            false,
+        ));
+        assert!(!full_match_path(
+            OsStr::new("/foo/*.py"),
+            OsStr::new("/foo/bar/baz.py"),
+            true,
+            false,
+        ));
+    }
+
+    #[test]
+    fn test_full_match_absolute() {
+        assert!(full_match_path(
+            OsStr::new("/a/b/c.py"),
+            OsStr::new("/a/b/c.py"),
+            true,
+            false,
+        ));
+        assert!(!full_match_path(
+            OsStr::new("/a/b"),
+            OsStr::new("/a/b/c.py"),
+            true,
+            false,
+        ));
+    }
+
+    #[test]
+    fn test_full_match_case_insensitive() {
+        assert!(full_match_path(
+            OsStr::new("*.PY"),
+            OsStr::new("foo.py"),
+            false,
+            false,
+        ));
+    }
+
+    #[test]
+    fn test_full_match_windows() {
+        assert!(full_match_path(
+            OsStr::new("*.py"),
+            OsStr::new("foo.py"),
+            true,
+            true,
+        ));
+        // Full match: two-segment relative pattern vs Windows path (normalised)
+        assert!(full_match_path(
+            OsStr::new("bar/*.py"),
+            OsStr::new("bar/foo.py"),
+            true,
+            true,
+        ));
+        // Full match: pattern that would match via tail (match) should not match here
+        assert!(!full_match_path(
+            OsStr::new("*.py"),
+            OsStr::new("C:/bar/foo.py"),
             true,
             true,
         ));

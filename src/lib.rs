@@ -44,6 +44,25 @@ fn pathlibrs(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<iter::PartsIter>()?;
     m.add_class::<iter::ParentsIter>()?;
 
+    // Set parser class attributes (public API — used by os.fspath)
+    let py = m.py();
+    let posixpath_mod = py.import("posixpath")?;
+    let ntpath_mod = py.import("ntpath")?;
+
+    let pure_posix = m.getattr("PurePosixPath")?;
+    pure_posix.setattr("parser", &posixpath_mod)?;
+    let pure_path = m.getattr("PurePath")?;
+    pure_path.setattr("parser", &posixpath_mod)?;
+    let posix_path = m.getattr("PosixPath")?;
+    posix_path.setattr("parser", &posixpath_mod)?;
+    let path = m.getattr("Path")?;
+    path.setattr("parser", &posixpath_mod)?;
+
+    let pure_windows = m.getattr("PureWindowsPath")?;
+    pure_windows.setattr("parser", &ntpath_mod)?;
+    let windows_path = m.getattr("WindowsPath")?;
+    windows_path.setattr("parser", &ntpath_mod)?;
+
     // Module metadata
     m.add("__version__", env!("CARGO_PKG_VERSION"))?;
 

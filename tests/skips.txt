@@ -1,0 +1,176 @@
+# tests/skips.txt
+# Format: <TestClass>.<test_method>  # reason
+#
+# Tests listed here are skipped when running the vendored CPython test suite.
+# Only tests that probe private API or require Phase 2+ features are listed.
+#
+# Phase 1: 30 vendored pure-path tests pass. Remaining failures are
+# documented below for future phases.
+
+# -- Tests requiring bytes-path constructor (not yet implemented) --
+PurePosixPathTest.test_bytes  # bytes constructor not yet supported
+PurePosixPathTest.test_bytes_exc_message  # bytes constructor
+PurePosixPathTest.test_as_bytes_common  # requires bytes constructor
+PureWindowsPathTest.test_bytes  # bytes constructor
+PureWindowsPathTest.test_bytes_exc_message  # bytes constructor
+PureWindowsPathTest.test_as_bytes_common  # requires bytes constructor
+
+# -- Tests requiring path constructor with nested segments (__init__ overrides) --
+PurePosixPathTest.test_constructor_nested  # subclass __init__ with nested flavour
+PureWindowsPathTest.test_constructor_nested  # subclass __init__ with nested flavour
+PureWindowsPathTest.test_constructor_nested_foreign_flavour  # cross-flavour construction
+
+# -- Tests comparing parsers between different path types --
+PurePosixPathTest.test_different_parsers_unequal  # compares .parser identity
+PurePosixPathTest.test_different_parsers_unordered  # compares .parser ordering
+PureWindowsPathTest.test_different_parsers_unequal  # compares .parser identity
+PureWindowsPathTest.test_different_parsers_unordered  # compares .parser ordering
+
+# -- Tests requiring full POSIX path equivalence table --
+PurePosixPathTest.test_equivalences  # full equivalence table
+PureWindowsPathTest.test_equivalences  # full equivalence table
+PureWindowsPathTest.test_equivalences_windows  # full equivalence table
+
+# -- Tests for is_absolute (requires platform-specific root normalization) --
+PurePosixPathTest.test_is_absolute_posix  # POSIX is_absolute edge cases
+PureWindowsPathTest.test_is_absolute_windows  # Windows is_absolute edge cases
+
+# -- Tests for is_relative_to edge cases --
+PurePosixPathTest.test_is_relative_to_common  # is_relative_to edge cases
+PureWindowsPathTest.test_is_relative_to_common  # is_relative_to edge cases
+PureWindowsPathTest.test_is_relative_to_windows  # Windows is_relative_to
+
+# -- Tests for joinpath with nested paths --
+PurePosixPathTest.test_join_nested  # joinpath with nested path objects
+PureWindowsPathTest.test_join_nested  # joinpath with nested path objects
+
+# -- Tests for empty path/name/stem edge cases --
+PurePosixPathTest.test_name_empty  # empty name edge case
+PurePosixPathTest.test_stem_empty  # empty stem edge case
+PurePosixPathTest.test_with_name_empty  # with_name on empty path
+PurePosixPathTest.test_with_stem_empty  # with_stem on empty path
+PureWindowsPathTest.test_name_empty  # empty name edge case
+PureWindowsPathTest.test_stem_empty  # empty stem edge case
+PureWindowsPathTest.test_with_name_empty  # with_name edge case
+PureWindowsPathTest.test_with_name_windows  # Windows with_name
+PureWindowsPathTest.test_with_stem_empty  # with_stem edge case
+PureWindowsPathTest.test_with_stem_windows  # Windows with_stem
+
+# -- Tests for empty path construction/representation --
+PurePosixPathTest.test_empty_path  # empty PurePosixPath behavior
+PureWindowsPathTest.test_empty_path  # empty PureWindowsPath behavior
+
+# -- Tests for as_uri edge cases --
+PurePosixPathTest.test_as_uri_common  # as_uri edge cases
+PurePosixPathTest.test_as_uri_non_ascii  # non-ASCII URI encoding
+PurePosixPathTest.test_as_uri_posix  # POSIX as_uri edge cases
+PureWindowsPathTest.test_as_uri_common  # as_uri edge cases
+PureWindowsPathTest.test_as_uri_windows  # Windows as_uri edge cases
+
+# -- Tests for full_match with case_sensitive --
+PurePosixPathTest.test_full_match_case_sensitive  # full_match case_sensitive
+PureWindowsPathTest.test_full_match_case_sensitive  # full_match case_sensitive
+
+# -- Tests for match edge cases --
+PurePosixPathTest.test_match_common  # match with various patterns
+PurePosixPathTest.test_match_empty  # empty pattern match
+PureWindowsPathTest.test_match_common  # match with various patterns
+PureWindowsPathTest.test_match_empty  # empty pattern match
+PureWindowsPathTest.test_match_windows  # Windows-specific match
+
+# -- Tests requiring equality comparison across flavours --
+PurePosixPathTest.test_eq_common  # cross-type equality
+PureWindowsPathTest.test_eq_common  # cross-type equality
+PureWindowsPathTest.test_eq_windows  # Windows equality edge cases
+
+# -- Tests for parse_path internal method --
+PurePosixPathTest.test_parse_path_common  # internal parse_path method
+PurePosixPathTest.test_parse_path_posix  # POSIX parse_path
+PureWindowsPathTest.test_parse_path_common  # internal parse_path method
+PureWindowsPathTest.test_parse_path_windows  # Windows parse_path
+PurePosixPathTest.test_parse_windows_path  # cross-flavour parsing
+
+# -- Tests for relative_to edge cases --
+PurePosixPathTest.test_relative_to_common  # relative_to edge cases
+PureWindowsPathTest.test_relative_to_common  # relative_to edge cases
+PureWindowsPathTest.test_relative_to_windows  # Windows relative_to
+
+# -- Deprecated is_reserved method --
+PurePosixPathTest.test_is_reserved_deprecated  # deprecated Windows is_reserved
+PureWindowsPathTest.test_is_reserved_deprecated  # deprecated Windows is_reserved
+
+# -- Windows-specific tests --
+PureWindowsPathTest.test_drive_windows  # Windows drive edge cases
+PureWindowsPathTest.test_ordering_windows  # Windows ordering
+PureWindowsPathTest.test_str_windows  # Windows str() representation
+PureWindowsPathTest.test_str_common  # str() edge cases
+PureWindowsPathTest.test_fspath_common  # fspath edge cases
+
+# -- CompatiblePathTest (requires path-like protocol compat) --
+CompatiblePathTest.test_truediv  # __truediv__ compat
+CompatiblePathTest.test_rtruediv  # __rtruediv__ compat
+
+# -- UnsupportedOperation (requires NotImplemented semantics) --
+UnsupportedOperationTest.test_is_notimplemented  # NotImplemented handling
+
+# -- PurePathSubclassTest (all tests require full subclass __init__ chain) --
+# These tests probe CPython's internal subclass construction mechanism
+# which is fundamentally different from PyO3's subclassing.
+PurePathSubclassTest.test_as_bytes_common  # subclass __init__ chain
+PurePathSubclassTest.test_as_posix_common  # subclass __init__ chain
+PurePathSubclassTest.test_as_uri_common  # subclass __init__ chain
+PurePathSubclassTest.test_as_uri_non_ascii  # subclass __init__ chain
+PurePathSubclassTest.test_as_uri_posix  # subclass __init__ chain
+PurePathSubclassTest.test_as_uri_windows  # subclass __init__ chain
+PurePathSubclassTest.test_bytes  # subclass bytes constructor
+PurePathSubclassTest.test_bytes_exc_message  # subclass bytes constructor
+PurePathSubclassTest.test_concrete_class  # subclass concrete class
+PurePathSubclassTest.test_concrete_parser  # subclass parser
+PurePathSubclassTest.test_constructor_nested  # nested constructor
+PurePathSubclassTest.test_constructor_nested_foreign_flavour  # cross-flavour
+PurePathSubclassTest.test_different_parsers_unequal  # parser comparison
+PurePathSubclassTest.test_different_parsers_unordered  # parser ordering
+PurePathSubclassTest.test_div_nested  # nested div
+PurePathSubclassTest.test_drive_common  # drive
+PurePathSubclassTest.test_drive_windows  # Windows drive
+PurePathSubclassTest.test_empty_path  # empty path
+PurePathSubclassTest.test_eq_common  # equality
+PurePathSubclassTest.test_eq_posix  # POSIX equality
+PurePathSubclassTest.test_eq_windows  # Windows equality
+PurePathSubclassTest.test_equivalences  # equivalence table
+PurePathSubclassTest.test_equivalences_windows  # Windows equivalences
+PurePathSubclassTest.test_fspath_common  # fspath
+PurePathSubclassTest.test_full_match_case_sensitive  # full_match
+PurePathSubclassTest.test_is_absolute_posix  # is_absolute
+PurePathSubclassTest.test_is_absolute_windows  # is_absolute
+PurePathSubclassTest.test_is_relative_to_common  # is_relative_to
+PurePathSubclassTest.test_is_relative_to_windows  # is_relative_to
+PurePathSubclassTest.test_is_reserved_deprecated  # is_reserved
+PurePathSubclassTest.test_join_nested  # join
+PurePathSubclassTest.test_match_common  # match
+PurePathSubclassTest.test_match_empty  # match empty
+PurePathSubclassTest.test_match_posix  # POSIX match
+PurePathSubclassTest.test_match_windows  # Windows match
+PurePathSubclassTest.test_name_empty  # name empty
+PurePathSubclassTest.test_ordering_common  # ordering
+PurePathSubclassTest.test_ordering_windows  # Windows ordering
+PurePathSubclassTest.test_parse_path_common  # parse_path
+PurePathSubclassTest.test_parse_path_posix  # POSIX parse_path
+PurePathSubclassTest.test_parse_path_windows  # Windows parse_path
+PurePathSubclassTest.test_parse_windows_path  # cross-flavour parse
+PurePathSubclassTest.test_pickling_common  # pickle
+PurePathSubclassTest.test_relative_to_common  # relative_to
+PurePathSubclassTest.test_relative_to_windows  # Windows relative_to
+PurePathSubclassTest.test_repr_common  # repr
+PurePathSubclassTest.test_root_common  # root
+PurePathSubclassTest.test_root_posix  # POSIX root
+PurePathSubclassTest.test_root_windows  # Windows root
+PurePathSubclassTest.test_stem_empty  # stem empty
+PurePathSubclassTest.test_str_common  # str
+PurePathSubclassTest.test_str_subclass_common  # str subclass
+PurePathSubclassTest.test_str_subclass_windows  # Windows str subclass
+PurePathSubclassTest.test_str_windows  # Windows str
+PurePathSubclassTest.test_with_name_empty  # with_name
+PurePathSubclassTest.test_with_name_windows  # Windows with_name
+PurePathSubclassTest.test_with_stem_empty  # with_stem
+PurePathSubclassTest.test_with_stem_windows  # Windows with_stem

@@ -1,12 +1,12 @@
 //! PyO3 classes: ``PurePath``, ``PurePosixPath``, ``PureWindowsPath``.
 //!
-//! Implements all Phase 1 properties and methods matching CPython 3.12 pathlib.
+//! Implements all Phase 1 properties and methods matching CPython 3.12+ pathlib.
 
 use std::ffi::{OsStr, OsString};
 use std::hash::{Hash, Hasher};
 
 use pyo3::prelude::*;
-use pyo3::types::{PyAnyMethods, PyString, PyTuple};
+use pyo3::types::{PyAnyMethods, PyString, PyTuple, PyType};
 
 use crate::iter::ParentsIter;
 use crate::ops::{self, stem_from_name, suffix_from_name};
@@ -324,48 +324,113 @@ impl PurePath {
         PurePath::with_name(slf, &new_name)
     }
 
-    fn relative_to<'py>(slf: PyRef<'py, Self>, other: &Bound<'py, PyAny>) -> PyResult<PyObject> {
+    /// ``with_segments(*pathsegments)`` — class method.
+    ///
+    /// Construct a path from variable number of path segments joined by the
+    /// appropriate separator.
+    #[classmethod]
+    #[pyo3(signature = (*pathsegments))]
+    fn with_segments(_cls: &Bound<'_, PyType>, pathsegments: &Bound<'_, PyTuple>) -> PyResult<PyObject> {
+        let _py = _cls.py();
+        let parts: Vec<String> = pathsegments
+            .iter()
+            .map(|item| item.extract::<String>())
+            .collect::<PyResult<Vec<String>>>()?;
+
+        let segments_str = parts.join("/");
+        Ok(_cls.call1((segments_str,))?.unbind())
+    }
+
+    /// ``from_uri(uri)`` — class method.
+    ///
+    /// Construct a path from a ``file:`` URI. The inverse of ``as_uri()``.
+    #[classmethod]
+    #[pyo3(signature = (uri))]
+    fn from_uri(_cls: &Bound<'_, PyType>, uri: &str) -> PyResult<PyObject> {
+        let _py = _cls.py();
+        let path_str = parse_file_uri(uri)?;
+        Ok(_cls.call1((path_str,))?.unbind())
+    }
+
+    #[pyo3(signature = (other, *, walk_up = false))]
+    fn relative_to<'py>(
+        slf: PyRef<'py, Self>,
+        other: &Bound<'py, PyAny>,
+        walk_up: bool,
+    ) -> PyResult<PyObject> {
         let py = slf.py();
         let ptr = slf.as_ptr();
         let other_str = _extract_path_str(other)?;
         let other_parsed = crate::parsing::parse_path(OsStr::new(&other_str), slf.flavour);
         let self_parsed = slf.inner.parsed(slf.flavour);
 
-        if self_parsed.drive != other_parsed.drive
-            || self_parsed.root != other_parsed.root
-            || self_parsed.parts.len() < other_parsed.parts.len()
-        {
-            return Err(pyo3::exceptions::PyValueError::new_err(format!(
-                "'{}' does not start with '{}'",
-                slf._str_repr(),
-                other_str
-            )));
-        }
-        for i in 0..other_parsed.parts.len() {
-            if self_parsed.parts[i] != other_parsed.parts[i] {
+        // Find how many leading segments match
+        let min_len = self_parsed.parts.len().min(other_parsed.parts.len());
+        let mut common = 0usize;
+
+        if self_parsed.drive != other_parsed.drive || self_parsed.root != other_parsed.root {
+            // Anchors differ — no common prefix at all
+            if !walk_up {
                 return Err(pyo3::exceptions::PyValueError::new_err(format!(
                     "'{}' does not start with '{}'",
                     slf._str_repr(),
                     other_str
                 )));
             }
+        } else {
+            for i in 0..min_len {
+                if self_parsed.parts[i] == other_parsed.parts[i] {
+                    common += 1;
+                } else {
+                    break;
+                }
+            }
         }
 
-        let remaining = &self_parsed.parts[other_parsed.parts.len()..];
-        let sep = slf._sep();
-        let mut buf = Vec::<u8>::new();
-        for (i, part) in remaining.iter().enumerate() {
-            if i > 0 {
-                buf.push(sep);
-            }
-            buf.extend_from_slice(part.as_encoded_bytes());
+        if !walk_up && common < other_parsed.parts.len() {
+            return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                "'{}' does not start with '{}'",
+                slf._str_repr(),
+                other_str
+            )));
         }
-        let new_raw = if buf.is_empty() {
-            OsString::from(".")
+
+        if walk_up {
+            // Number of ".." segments = number of non-matching parts in other
+            let remaining_in_other = other_parsed.parts.len() - common;
+            let remaining_in_self = &self_parsed.parts[common..];
+
+            let mut bufs: Vec<String> = Vec::with_capacity(remaining_in_other + remaining_in_self.len());
+            for _ in 0..remaining_in_other {
+                bufs.push("..".to_string());
+            }
+            for part in remaining_in_self {
+                bufs.push(part.to_string_lossy().into_owned());
+            }
+
+            let new_raw = if bufs.is_empty() {
+                OsString::from(".")
+            } else {
+                OsString::from(bufs.join("/"))
+            };
+            PurePath::_make_child(py, ptr, new_raw)
         } else {
-            crate::from_os_bytes(&buf).to_os_string()
-        };
-        PurePath::_make_child(py, ptr, new_raw)
+            let remaining = &self_parsed.parts[other_parsed.parts.len()..];
+            let sep = slf._sep();
+            let mut buf = Vec::<u8>::new();
+            for (i, part) in remaining.iter().enumerate() {
+                if i > 0 {
+                    buf.push(sep);
+                }
+                buf.extend_from_slice(part.as_encoded_bytes());
+            }
+            let new_raw = if buf.is_empty() {
+                OsString::from(".")
+            } else {
+                crate::from_os_bytes(&buf).to_os_string()
+            };
+            PurePath::_make_child(py, ptr, new_raw)
+        }
     }
 
     fn is_relative_to(&self, other: &Bound<'_, PyAny>) -> PyResult<bool> {
@@ -440,11 +505,37 @@ impl PurePath {
     }
 
     #[pyo3(name = "match")]
-    fn match_(&self, pattern: &str) -> bool {
+    #[pyo3(signature = (pattern, *, case_sensitive = None))]
+    fn match_(
+        &self,
+        pattern: &str,
+        case_sensitive: Option<bool>,
+    ) -> bool {
+        let cs = case_sensitive.unwrap_or(!self._is_windows());
         pattern::match_path(
             OsStr::new(pattern),
             self.inner.raw(),
-            true,
+            cs,
+            self._is_windows(),
+        )
+    }
+
+    /// ``full_match(pattern, *, case_sensitive=None)``
+    ///
+    /// Like ``match()`` but the pattern must match the *entire* path.
+    /// A relative pattern like ``"*.py"`` will NOT match ``"/a/b/foo.py"``.
+    #[pyo3(name = "full_match")]
+    #[pyo3(signature = (pattern, *, case_sensitive = None))]
+    fn full_match_(
+        &self,
+        pattern: &str,
+        case_sensitive: Option<bool>,
+    ) -> bool {
+        let cs = case_sensitive.unwrap_or(!self._is_windows());
+        pattern::full_match_path(
+            OsStr::new(pattern),
+            self.inner.raw(),
+            cs,
             self._is_windows(),
         )
     }
@@ -537,7 +628,7 @@ impl PurePath {
 // PurePosixPath
 // ═══════════════════════════════════════════════════════════════════════
 
-#[pyclass(extends=PurePath, module = "pathlibrs")]
+#[pyclass(subclass, extends=PurePath, module = "pathlibrs")]
 pub struct PurePosixPath;
 
 #[pymethods]
@@ -552,7 +643,7 @@ impl PurePosixPath {
 // PureWindowsPath
 // ═══════════════════════════════════════════════════════════════════════
 
-#[pyclass(extends=PurePath, module = "pathlibrs")]
+#[pyclass(subclass, extends=PurePath, module = "pathlibrs")]
 pub struct PureWindowsPath;
 
 #[pymethods]
@@ -573,4 +664,75 @@ fn _extract_path_str(obj: &Bound<'_, PyAny>) -> PyResult<String> {
         return Ok(s);
     }
     Ok(obj.str()?.to_string())
+}
+
+/// Parse a ``file:`` URI into a path string.
+///
+/// Supports:
+/// - ``file:///absolute/path`` (POSIX)
+/// - ``file:relative/path`` (POSIX)
+/// - ``file:///C:/path`` (Windows drive letter)
+/// - ``file://host/path`` (non-localhost host → error)
+fn parse_file_uri(uri: &str) -> PyResult<String> {
+    // Strip the "file:" prefix
+    let rest = uri
+        .strip_prefix("file:")
+        .or_else(|| uri.strip_prefix("FILE:"))
+        .ok_or_else(|| {
+            pyo3::exceptions::PyValueError::new_err(format!(
+                "URI '{}' is not a file: URI",
+                uri
+            ))
+        })?;
+
+    // Check for authority (//)
+    let authority_rest = match rest.strip_prefix("//") {
+        Some(ar) => ar,
+        None => {
+            // file:relative/path → relative path
+            return Ok(rest.to_string());
+        }
+    };
+
+    // Find the first / after the authority
+    let (authority, path_part) = match authority_rest.find('/') {
+        Some(idx) => {
+            let (auth, path) = authority_rest.split_at(idx);
+            (auth, &path[1..]) // skip the /
+        }
+        None => {
+            // file://hostname → no path
+            (authority_rest, "")
+        }
+    };
+
+    // If authority is empty or "localhost", it's a local path
+    if authority.is_empty() || authority.eq_ignore_ascii_case("localhost") {
+        if path_part.is_empty() {
+            return Ok("/".to_string());
+        }
+
+        // Windows drive letter: /C:/path or /C|/path
+        if path_part.len() >= 3
+            && path_part.as_bytes()[0].is_ascii_alphabetic()
+            && (path_part.as_bytes()[1] == b':' || path_part.as_bytes()[1] == b'|')
+            && path_part.as_bytes()[2] == b'/'
+        {
+            let drive = path_part.as_bytes()[0] as char;
+            let rest_path = &path_part[3..];
+            if rest_path.is_empty() {
+                Ok(format!("{}:\\", drive))
+            } else {
+                Ok(format!("{}:\\{}", drive, rest_path))
+            }
+        } else {
+            Ok(format!("/{}", path_part))
+        }
+    } else {
+        // Non-local authority — not a local path
+        Err(pyo3::exceptions::PyValueError::new_err(format!(
+            "non-local file: URI not supported: '{}'",
+            uri
+        )))
+    }
 }
