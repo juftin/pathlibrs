@@ -260,10 +260,6 @@ PathTest.test_glob_posix
 PathTest.test_glob_recurse_symlinks_common
 PathTest.test_handling_bad_descriptor
 PathTest.test_hardlink_to
-PathTest.test_info_exists_caching
-PathTest.test_info_is_dir_caching
-PathTest.test_info_is_file_caching
-PathTest.test_info_is_symlink_caching
 PathTest.test_is_relative_to_common
 PathTest.test_iterdir_symlink
 PathTest.test_join_nested
@@ -405,10 +401,6 @@ PosixPathTest.test_glob_posix
 PosixPathTest.test_glob_recurse_symlinks_common
 PosixPathTest.test_handling_bad_descriptor
 PosixPathTest.test_hardlink_to
-PosixPathTest.test_info_exists_caching
-PosixPathTest.test_info_is_dir_caching
-PosixPathTest.test_info_is_file_caching
-PosixPathTest.test_info_is_symlink_caching
 PosixPathTest.test_is_relative_to_common
 PosixPathTest.test_iterdir_symlink
 PosixPathTest.test_join_nested
@@ -658,23 +650,16 @@ PathTest.test_rglob_windows
 PathTest.test_rtruediv
 PathTest.test_truediv
 PurePathTest.test_ordering_common
-# Phase 2 edge cases — normalize "./" in expanduser (parse issue)
-PathTest.test_expanduser_common
-PathTest.test_expanduser_posix
-PosixPathTest.test_expanduser_common
-PosixPathTest.test_expanduser_posix
 
-# Phase 2 edge cases — absolute + mock os.getcwd 
-PathTest.test_absolute_common
-PosixPathTest.test_absolute_common
-
-# Phase 2 edge case — is_char_device_true needs /dev/null setup
-PathTest.test_is_char_device_true
-PosixPathTest.test_is_char_device_true
-
-# Phase 2 edge case — docstrings differ from CPython
-PathTest.test_matches_writablepath_docstrings
-PosixPathTest.test_matches_writablepath_docstrings
+# Phase 2 — PathInfo is implemented but tests need Phase 3 (write_text, mkdir, symlink_to)
+PathTest.test_info_exists_caching
+PathTest.test_info_is_dir_caching
+PathTest.test_info_is_file_caching
+PathTest.test_info_is_symlink_caching
+PosixPathTest.test_info_exists_caching
+PosixPathTest.test_info_is_dir_caching
+PosixPathTest.test_info_is_file_caching
+PosixPathTest.test_info_is_symlink_caching
 
 # Phase 3 — resolve needs symlink_to
 PathTest.test_resolve_common
@@ -687,6 +672,10 @@ PosixPathTest.test_resolve_loop
 PosixPathTest.test_resolve_nonexist_relative_issue38671
 PathTest.test_is_junction_true
 PosixPathTest.test_is_junction_true
+
+# Phase 2 edge case — docstrings access private pathlib.types API
+PathTest.test_matches_writablepath_docstrings
+PosixPathTest.test_matches_writablepath_docstrings
 
 # Windows path flavour not yet fully implemented (Phase 1 gaps)
 PathTest.test_absolute_windows
@@ -712,10 +701,3 @@ PathTest.test_str_common
 PathTest.test_str_windows
 PathTest.test_with_name_windows
 PathTest.test_with_stem_windows
-# Phase 2 Windows gaps (ino/dev always 0, surrogates)
-PathTest.test_exists
-PathTest.test_is_file_no_follow_symlinks
-PathTest.test_is_symlink
-PathTest.test_lstat
-PathTest.test_stat
-PathTest.test_stat_no_follow_symlinks

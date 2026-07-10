@@ -56,8 +56,9 @@ fn pathlibrs(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<iter::PartsIter>()?;
     m.add_class::<iter::ParentsIter>()?;
 
-    // Stat result (Phase 2)
+    // Stat result and PathInfo (Phase 2)
     m.add_class::<fs::StatResult>()?;
+    m.add_class::<fs::PathInfo>()?;
 
     // Set parser class attributes (public API — used by os.fspath)
     let py = m.py();
