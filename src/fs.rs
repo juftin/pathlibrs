@@ -117,18 +117,17 @@ impl StatResult {
     #[cfg(not(unix))]
     pub fn from_metadata(md: &std::fs::Metadata) -> Self {
         use std::os::windows::fs::MetadataExt as _;
-        // Windows MetadataExt provides: file_attributes(), creation_time(),
-        // last_access_time(), last_write_time(), file_size(), number_of_links(),
-        // file_index(), volume_serial_number()
+        // Windows MetadataExt (stable) provides: file_attributes(),
+        // creation_time(), last_access_time(), last_write_time(), file_size()
         let atime = secs_since_epoch(md.last_access_time());
         let mtime = secs_since_epoch(md.last_write_time());
         let ctime = secs_since_epoch(md.creation_time());
         let file_type = if md.is_dir() { 0o040000 } else { 0o100000 };
         Self {
             st_mode: 0o666 | file_type,
-            st_ino: md.file_index().unwrap_or(0),
+            st_ino: 0,
             st_dev: 0,
-            st_nlink: md.number_of_links().unwrap_or(1) as u64,
+            st_nlink: 1,
             st_uid: 0,
             st_gid: 0,
             st_size: md.file_size(),
@@ -146,12 +145,12 @@ impl StatResult {
 }
 
 /// Convert Windows FILETIME to seconds since Unix epoch.
-#[cfg(windows)]
+#[cfg(not(unix))]
 fn secs_since_epoch(ft: u64) -> f64 {
     // FILETIME is 100-nanosecond intervals since 1601-01-01
     // Unix epoch is 1970-01-01. Difference is 11644473600 seconds.
     const WINDOWS_TO_UNIX_EPOCH: u64 = 11_644_473_600;
-    (ft as f64 / 10_000_000.0) - WINDOWS_TO_UNIX_EPOCH as f64
+    (ft / 10_000_000) as f64 - WINDOWS_TO_UNIX_EPOCH as f64
 }
 
 // ═══════════════════════════════════════════════════════════════════════

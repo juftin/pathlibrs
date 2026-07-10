@@ -680,3 +680,5 @@ PosixPathTest.test_resolve_common
 PosixPathTest.test_resolve_dot
 PosixPathTest.test_resolve_loop
 PosixPathTest.test_resolve_nonexist_relative_issue38671
+PathTest.test_is_junction_true
+PosixPathTest.test_is_junction_true
