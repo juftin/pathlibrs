@@ -3,9 +3,10 @@
 //! All I/O operations release the GIL during system calls via
 //! ``Python::allow_threads``.
 
-use std::ffi::OsStr;
+use std::ffi::{OsStr, OsString};
 use std::io;
 use std::path::Path as StdPath;
+use std::sync::OnceLock;
 
 use pyo3::prelude::*;
 
@@ -119,10 +120,18 @@ impl StatResult {
         use std::os::windows::fs::MetadataExt as _;
         // Windows MetadataExt (stable) provides: file_attributes(),
         // creation_time(), last_access_time(), last_write_time(), file_size()
+        const FILE_ATTRIBUTE_REPARSE_POINT: u32 = 0x400;
         let atime = secs_since_epoch(md.last_access_time());
         let mtime = secs_since_epoch(md.last_write_time());
         let ctime = secs_since_epoch(md.creation_time());
-        let file_type = if md.is_dir() { 0o040000 } else { 0o100000 };
+        let attrs = md.file_attributes();
+        let file_type = if attrs & FILE_ATTRIBUTE_REPARSE_POINT != 0 {
+            0o120000 // S_IFLNK
+        } else if md.is_dir() {
+            0o040000 // S_IFDIR
+        } else {
+            0o100000 // S_IFREG
+        };
         Self {
             st_mode: 0o666 | file_type,
             st_ino: 0,
@@ -177,29 +186,106 @@ fn io_err_to_pyerr(err: io::Error) -> PyErr {
 ///
 /// If ``follow_symlinks`` is true, follows symlinks (``std::fs::metadata``).
 /// Otherwise, does not follow (``std::fs::symlink_metadata``).
+///
+/// On Windows, delegates to Python's ``os.stat()`` / ``os.lstat()`` for
+/// field-for-field accuracy with CPython (``st_ino``, ``st_dev``, ``st_mode``,
+/// etc. are not available from ``std::fs::Metadata`` on Windows).
 pub fn stat(path: &OsStr, follow_symlinks: bool) -> PyResult<StatResult> {
-    let path_buf = StdPath::new(path).to_path_buf();
-    let result = Python::with_gil(|py| {
-        py.allow_threads(|| {
-            if follow_symlinks {
-                std::fs::metadata(&path_buf)
-            } else {
-                std::fs::symlink_metadata(&path_buf)
-            }
-        })
-    });
-    match result {
-        Ok(md) => Ok(StatResult::from_metadata(&md)),
-        Err(e) => Err(io_err_to_pyerr(e)),
+    #[cfg(unix)]
+    {
+        let path_buf = StdPath::new(path).to_path_buf();
+        let result = Python::with_gil(|py| {
+            py.allow_threads(|| {
+                if follow_symlinks {
+                    std::fs::metadata(&path_buf)
+                } else {
+                    std::fs::symlink_metadata(&path_buf)
+                }
+            })
+        });
+        match result {
+            Ok(md) => Ok(StatResult::from_metadata(&md)),
+            Err(e) => Err(io_err_to_pyerr(e)),
+        }
+    }
+    #[cfg(windows)]
+    {
+        stat_windows(path, follow_symlinks)
     }
 }
 
+/// Retrieve file status on Windows via Python's ``os.stat()`` / ``os.lstat()``.
+///
+/// ``std::fs::Metadata`` on Windows does not provide ``st_ino``, ``st_dev``,
+/// or symlink-aware ``st_mode``.  Delegating to CPython's own stat
+/// implementation ensures field-for-field compatibility with ``os.stat_result``.
+#[cfg(windows)]
+fn stat_windows(path: &OsStr, follow_symlinks: bool) -> PyResult<StatResult> {
+    Python::with_gil(|py| {
+        let path_str = path.to_string_lossy();
+        let os = py.import("os")?;
+        let func_name = if follow_symlinks { "stat" } else { "lstat" };
+        let result = os.call_method1(func_name, (&*path_str,))?;
+
+        // Extract fields from Python's os.stat_result
+        Ok(StatResult {
+            st_mode: result.getattr("st_mode")?.extract()?,
+            st_ino: result.getattr("st_ino")?.extract()?,
+            st_dev: result.getattr("st_dev")?.extract()?,
+            st_nlink: result.getattr("st_nlink")?.extract()?,
+            st_uid: result.getattr("st_uid")?.extract()?,
+            st_gid: result.getattr("st_gid")?.extract()?,
+            st_size: result.getattr("st_size")?.extract()?,
+            st_atime: result.getattr("st_atime")?.extract()?,
+            st_mtime: result.getattr("st_mtime")?.extract()?,
+            st_ctime: result.getattr("st_ctime")?.extract()?,
+            st_atime_ns: result.getattr("st_atime_ns")?.extract::<i64>()? as u64,
+            st_mtime_ns: result.getattr("st_mtime_ns")?.extract::<i64>()? as u64,
+            st_ctime_ns: result.getattr("st_ctime_ns")?.extract::<i64>()? as u64,
+            st_blksize: result
+                .getattr("st_blksize")
+                .map(|v| v.extract::<i64>().unwrap_or(0))
+                .unwrap_or(0) as u64,
+            st_blocks: result
+                .getattr("st_blocks")
+                .map(|v| v.extract::<i64>().unwrap_or(0))
+                .unwrap_or(0) as u64,
+            st_rdev: result
+                .getattr("st_rdev")
+                .map(|v| v.extract::<i64>().unwrap_or(0))
+                .unwrap_or(0) as u64,
+        })
+    })
+}
+
 /// Check whether a path exists.
+///
+/// On Unix, delegates to ``stat()``; on Windows, delegates to Python's
+/// ``os.path.exists()`` / ``os.path.lexists()`` for exact CPython behavior.
+#[cfg(unix)]
 pub fn exists(path: &OsStr, follow_symlinks: bool) -> PyResult<bool> {
     match stat(path, follow_symlinks) {
         Ok(_) => Ok(true),
         Err(_) => Ok(false),
     }
+}
+
+/// Check whether a path exists (Windows: delegates to Python ``os.path``).
+#[cfg(windows)]
+pub fn exists(path: &OsStr, follow_symlinks: bool) -> PyResult<bool> {
+    Python::with_gil(|py| {
+        let os_path = py.import("os.path")?;
+        let path_str = path.to_string_lossy();
+        if follow_symlinks {
+            os_path
+                .call_method1("exists", (path_str.as_ref(),))?
+                .extract()
+        } else {
+            os_path
+                .call_method1("lexists", (path_str.as_ref(),))?
+                .extract()
+        }
+    })
 }
 
 /// Like ``stat()`` but returns ``None`` for non-existent or broken paths
@@ -332,6 +418,85 @@ pub fn resolve(path: &OsStr, strict: bool) -> PyResult<std::path::PathBuf> {
     match result {
         Ok(p) => Ok(p),
         Err(e) => Err(io_err_to_pyerr(e)),
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// PathInfo — cached stat result (CPython 3.12+)
+// ═══════════════════════════════════════════════════════════════════════
+
+/// Cached stat result for a path, matching CPython 3.12+ ``PathInfo``.
+///
+/// Once computed, the stat result is immutable. All methods return ``False``
+/// on ``OSError`` rather than raising.
+#[pyclass(name = "PathInfo", module = "pathlibrs")]
+#[derive(Debug)]
+pub struct PathInfo {
+    raw_path: OsString,
+    stat_cache: OnceLock<Option<StatResult>>,
+    lstat_cache: OnceLock<Option<StatResult>>,
+}
+
+impl PathInfo {
+    /// Return cached stat or compute and cache it.
+    fn get_stat(&self, follow_symlinks: bool) -> Option<&StatResult> {
+        let cache = if follow_symlinks {
+            &self.stat_cache
+        } else {
+            &self.lstat_cache
+        };
+        cache
+            .get_or_init(|| stat(&self.raw_path, follow_symlinks).ok())
+            .as_ref()
+    }
+}
+
+#[pymethods]
+impl PathInfo {
+    /// Create a new PathInfo for the given raw path.
+    #[new]
+    pub fn new(raw_path: &str) -> Self {
+        PathInfo {
+            raw_path: OsString::from(raw_path),
+            stat_cache: OnceLock::new(),
+            lstat_cache: OnceLock::new(),
+        }
+    }
+
+    /// Check whether the path exists (uses cached stat).
+    #[pyo3(signature = (*, follow_symlinks = true))]
+    fn exists(&self, follow_symlinks: bool) -> bool {
+        self.get_stat(follow_symlinks).is_some()
+    }
+
+    /// Check whether the path is a directory (uses cached stat).
+    #[pyo3(signature = (*, follow_symlinks = true))]
+    fn is_dir(&self, follow_symlinks: bool) -> bool {
+        match self.get_stat(follow_symlinks) {
+            Some(st) => (st.st_mode & 0o170000) == 0o040000,
+            None => false,
+        }
+    }
+
+    /// Check whether the path is a regular file (uses cached stat).
+    #[pyo3(signature = (*, follow_symlinks = true))]
+    fn is_file(&self, follow_symlinks: bool) -> bool {
+        match self.get_stat(follow_symlinks) {
+            Some(st) => (st.st_mode & 0o170000) == 0o100000,
+            None => false,
+        }
+    }
+
+    /// Check whether the path is a symbolic link (uses cached lstat).
+    fn is_symlink(&self) -> bool {
+        match self.get_stat(false) {
+            Some(st) => (st.st_mode & 0o170000) == 0o120000,
+            None => false,
+        }
+    }
+
+    fn __repr__(&self) -> String {
+        format!("PathInfo('{}')", self.raw_path.to_string_lossy())
     }
 }
 

@@ -4,10 +4,12 @@
 
 use std::ffi::{OsStr, OsString};
 use std::hash::{Hash, Hasher};
+use std::sync::Mutex;
 
 use pyo3::prelude::*;
 use pyo3::types::{PyAnyMethods, PyString, PyTuple, PyType};
 
+use crate::fs::PathInfo;
 use crate::iter::ParentsIter;
 use crate::ops::{self, stem_from_name, suffix_from_name};
 use crate::pattern;
@@ -22,6 +24,7 @@ use crate::repr::{PathFlavour, PathRepr};
 pub struct PurePath {
     pub(crate) inner: PathRepr,
     pub(crate) flavour: PathFlavour,
+    pub(crate) path_info: Mutex<Option<Py<PathInfo>>>,
 }
 
 impl PurePath {
@@ -30,6 +33,7 @@ impl PurePath {
         Self {
             inner: PathRepr::new(raw),
             flavour: PathFlavour::Posix,
+            path_info: Mutex::new(None),
         }
     }
 
@@ -38,6 +42,7 @@ impl PurePath {
         Self {
             inner: PathRepr::new(raw),
             flavour: PathFlavour::Windows,
+            path_info: Mutex::new(None),
         }
     }
 
@@ -147,6 +152,7 @@ impl PurePath {
         Self {
             inner: PathRepr::new(OsString::from(raw)),
             flavour: PathFlavour::Posix,
+            path_info: Mutex::new(None),
         }
     }
 
@@ -671,20 +677,37 @@ impl PurePath {
     }
 
     /// Return an absolute version of this path (no symlink resolution).
+    ///
+    /// Uses ``os.getcwd()`` so that tests can mock it.
+    /// When the path is ``"."``, returns the cwd directly without a trailing ``/.``
+    /// (matching CPython behavior).
     fn absolute<'py>(slf: PyRef<'py, Self>) -> PyResult<PyObject> {
         let py = slf.py();
         let raw = slf.inner.raw();
-        let std_path = std::path::Path::new(raw);
+        let raw_str = raw.to_string_lossy();
 
-        if std_path.is_absolute() {
-            Self::_make_child(py, slf.as_ptr(), OsString::from(raw))
-        } else {
-            // Use Python's os.getcwd() so tests can mock it
-            let os_mod = py.import("os")?;
-            let cwd: String = os_mod.call_method0("getcwd")?.extract()?;
-            let abs_path = std::path::Path::new(&cwd).join(raw);
-            Self::_make_child(py, slf.as_ptr(), OsString::from(abs_path.as_os_str()))
+        if std::path::Path::new(raw).is_absolute() {
+            return Self::_make_child(py, slf.as_ptr(), OsString::from(raw));
         }
+
+        // Use Python's os.getcwd() so tests can mock it
+        let os_mod = py.import("os")?;
+        let cwd: String = os_mod.call_method0("getcwd")?.extract()?;
+
+        // When the raw path is ".", just return the cwd without trailing "/."
+        // This matches CPython's os.path.join(cwd, ".") = cwd
+        let result = if raw_str.as_ref() == "." {
+            OsString::from(&cwd)
+        } else {
+            // Push components individually through PathBuf to normalize
+            // separators on Windows (where "a/b/c" must become "a\\b\\c").
+            let mut combined = std::path::PathBuf::from(&cwd);
+            for component in std::path::Path::new(raw).components() {
+                combined.push(component.as_os_str());
+            }
+            OsString::from(combined.as_os_str())
+        };
+        Self::_make_child(py, slf.as_ptr(), result)
     }
 
     /// Return the target of this symlink as a new Path.
@@ -714,23 +737,85 @@ impl PurePath {
     }
 
     /// Expand ``~`` and ``~user`` in the path.
+    ///
+    /// Matches CPython 3.14 behavior:
+    /// - Raises ``RuntimeError`` when ``~user`` expansion fails (user not found).
+    /// - On POSIX, inserts ``./`` before path segments containing a colon to
+    ///   avoid ambiguity with Windows drive letters.
     fn expanduser<'py>(slf: PyRef<'py, Self>) -> PyResult<PyObject> {
         let py = slf.py();
         let raw_str = slf.inner.raw().to_string_lossy();
+
         if !raw_str.starts_with('~') {
-            Self::_make_child(py, slf.as_ptr(), OsString::from(raw_str.as_ref()))
-        } else {
-            let os_path = py.import("os.path")?;
-            let expanded = os_path.call_method1("expanduser", (raw_str.as_ref(),))?;
-            let expanded_str: String = expanded.extract()?;
-            Self::_make_child(py, slf.as_ptr(), OsString::from(expanded_str))
+            return Self::_make_child(py, slf.as_ptr(), OsString::from(raw_str.as_ref()));
         }
+
+        // Extract the tilde part (~ or ~username) up to the first /
+        let slash_pos = raw_str.find('/');
+        let (tilde_name, rest) = if let Some(pos) = slash_pos {
+            (&raw_str[..pos], &raw_str[pos + 1..])
+        } else {
+            (raw_str.as_ref(), "")
+        };
+
+        // Expand the tilde part with os.path.expanduser
+        let os_path = py.import("os.path")?;
+        let home = os_path.call_method1("expanduser", (tilde_name,))?;
+        let home_str: String = home.extract()?;
+
+        // If os.path.expanduser returns the same string, the user was not found
+        if home_str == tilde_name {
+            return Err(pyo3::exceptions::PyRuntimeError::new_err(format!(
+                "Could not determine home directory for '{}'",
+                raw_str
+            )));
+        }
+
+        // Build the result path
+        let result = if rest.is_empty() {
+            // Just the home directory (e.g., ~ → /home/user)
+            home_str
+        } else {
+            // Prepend "./" to avoid confusion with Windows drive letters.
+            // e.g., ~/a:b → /home/user/./a:b
+            // Applied on all platforms (including Windows) for consistency.
+            let tail = if rest.contains(':') {
+                format!("./{}", rest)
+            } else {
+                rest.to_string()
+            };
+            format!("{}/{}", home_str, tail)
+        };
+
+        Self::_make_child(py, slf.as_ptr(), OsString::from(&result))
     }
 
     /// Return True if the path is absolute.
     fn is_absolute(&self) -> bool {
         let p = self.inner.parsed(self.flavour);
         p.root.is_some()
+    }
+
+    /// Return a cached ``PathInfo`` object for this path (CPython 3.12+).
+    ///
+    /// ``PathInfo`` caches stat results so repeated calls to
+    /// ``info.exists()``, ``info.is_dir()``, etc. do not re-stat the file.
+    #[getter]
+    fn info<'py>(slf: PyRef<'py, Self>) -> PyResult<PyObject> {
+        let py = slf.py();
+        // Check if we already have a cached PathInfo
+        {
+            let guard = slf.path_info.lock().unwrap();
+            if let Some(ref info) = *guard {
+                return Ok(info.clone_ref(py).into_pyobject(py)?.into_any().unbind());
+            }
+        }
+        // Create a new PathInfo and cache it
+        let raw_str = slf.inner.raw().to_string_lossy().into_owned();
+        let info = Py::new(py, PathInfo::new(&raw_str))?;
+        let mut guard = slf.path_info.lock().unwrap();
+        *guard = Some(info.clone_ref(py));
+        Ok(info.into_pyobject(py)?.into_any().unbind())
     }
 
     // -- dunder methods ------------------------------------------------

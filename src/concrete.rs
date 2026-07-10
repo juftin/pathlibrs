@@ -82,17 +82,22 @@ impl WindowsPath {
     #[new]
     #[pyo3(signature = (*args))]
     fn new(args: &Bound<'_, PyTuple>) -> PyResult<(Self, PurePath)> {
-        let raw: String = if args.is_empty() {
-            String::from(".")
+        let raw: OsString = if args.is_empty() {
+            OsString::from(".")
         } else if args.len() == 1 {
-            args.get_item(0)?.extract()?
+            _extract_os_str(&args.get_item(0)?)?
         } else {
-            let parts: Vec<String> = args
+            let parts: Vec<OsString> = args
                 .iter()
-                .map(|item| item.extract::<String>())
-                .collect::<PyResult<Vec<String>>>()?;
-            parts.join("/")
+                .map(|item| _extract_os_str(&item))
+                .collect::<PyResult<Vec<OsString>>>()?;
+            let joined: String = parts
+                .iter()
+                .map(|p| p.to_string_lossy().into_owned())
+                .collect::<Vec<_>>()
+                .join("/");
+            OsString::from(joined)
         };
-        Ok((Self, PurePath::new_windows(OsString::from(raw))))
+        Ok((Self, PurePath::new_windows(raw)))
     }
 }
