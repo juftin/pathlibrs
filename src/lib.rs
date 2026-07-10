@@ -35,14 +35,29 @@ fn pathlibrs(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<pure::PurePosixPath>()?;
     m.add_class::<pure::PureWindowsPath>()?;
 
-    // Concrete path classes (stubs for Phase 2+)
-    m.add_class::<concrete::Path>()?;
+    // Concrete path classes
+    // Path is an alias for the platform-native concrete type
     m.add_class::<concrete::PosixPath>()?;
     m.add_class::<concrete::WindowsPath>()?;
+
+    // On POSIX, Path = PosixPath; on Windows, Path = WindowsPath
+    #[cfg(not(windows))]
+    {
+        let posix_path = m.getattr("PosixPath")?;
+        m.add("Path", posix_path)?;
+    }
+    #[cfg(windows)]
+    {
+        let windows_path = m.getattr("WindowsPath")?;
+        m.add("Path", windows_path)?;
+    }
 
     // Iterators
     m.add_class::<iter::PartsIter>()?;
     m.add_class::<iter::ParentsIter>()?;
+
+    // Stat result (Phase 2)
+    m.add_class::<fs::StatResult>()?;
 
     // Set parser class attributes (public API — used by os.fspath)
     let py = m.py();
@@ -55,6 +70,7 @@ fn pathlibrs(m: &Bound<'_, PyModule>) -> PyResult<()> {
     pure_path.setattr("parser", &posixpath_mod)?;
     let posix_path = m.getattr("PosixPath")?;
     posix_path.setattr("parser", &posixpath_mod)?;
+    // Path = PosixPath on POSIX, so parser is already set
     let path = m.getattr("Path")?;
     path.setattr("parser", &posixpath_mod)?;
 

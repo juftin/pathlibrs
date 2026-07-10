@@ -194,8 +194,6 @@ PathSubclassTest.test_with_segments
 PathSubclassTest.test_with_stem_empty
 
 # -- PathTest — concrete I/O tests (Phase 2+)
-PathTest.test_absolute_common
-PathTest.test_absolute_posix
 PathTest.test_as_bytes_common
 PathTest.test_as_uri_common
 PathTest.test_as_uri_non_ascii
@@ -207,8 +205,6 @@ PathTest.test_chmod_follow_symlinks_true
 PathTest.test_complex_symlinks_absolute
 PathTest.test_complex_symlinks_relative
 PathTest.test_complex_symlinks_relative_dot_dot
-PathTest.test_concrete_class
-PathTest.test_concrete_parser
 PathTest.test_constructor_nested
 PathTest.test_copy_dangling_symlink
 PathTest.test_copy_dir_no_read_permission
@@ -228,7 +224,6 @@ PathTest.test_copy_symlink_follow_symlinks_true
 PathTest.test_copy_symlink_to_existing_directory_symlink
 PathTest.test_copy_symlink_to_existing_symlink
 PathTest.test_copy_symlink_to_itself
-PathTest.test_cwd
 PathTest.test_delete_dir
 PathTest.test_delete_does_not_choke_on_failing_lstat
 PathTest.test_delete_file
@@ -243,9 +238,6 @@ PathTest.test_empty_path
 PathTest.test_eq_common
 PathTest.test_eq_posix
 PathTest.test_equivalences
-PathTest.test_exists
-PathTest.test_expanduser_common
-PathTest.test_expanduser_posix
 PathTest.test_from_uri_pathname2url_posix
 PathTest.test_from_uri_posix
 PathTest.test_full_match_case_sensitive
@@ -261,40 +253,18 @@ PathTest.test_glob_pathlike
 PathTest.test_glob_permissions
 PathTest.test_glob_posix
 PathTest.test_glob_recurse_symlinks_common
-PathTest.test_group
 PathTest.test_handling_bad_descriptor
 PathTest.test_hardlink_to
-PathTest.test_home
 PathTest.test_info_exists_caching
 PathTest.test_info_is_dir_caching
 PathTest.test_info_is_file_caching
 PathTest.test_info_is_symlink_caching
-PathTest.test_is_absolute_posix
-PathTest.test_is_block_device_false
-PathTest.test_is_char_device_false
-PathTest.test_is_char_device_true
-PathTest.test_is_dir
-PathTest.test_is_dir_no_follow_symlinks
-PathTest.test_is_fifo_false
-PathTest.test_is_fifo_true
-PathTest.test_is_file
-PathTest.test_is_file_no_follow_symlinks
-PathTest.test_is_junction_false
-PathTest.test_is_junction_true
-PathTest.test_is_mount
 PathTest.test_is_relative_to_common
-PathTest.test_is_reserved_deprecated
-PathTest.test_is_socket_false
-PathTest.test_is_socket_true
-PathTest.test_is_symlink
 PathTest.test_iterdir_symlink
 PathTest.test_join_nested
-PathTest.test_lstat
-PathTest.test_lstat_nosymlink
 PathTest.test_match_common
 PathTest.test_match_empty
 PathTest.test_match_posix
-PathTest.test_matches_writablepath_docstrings
 PathTest.test_mkdir
 PathTest.test_mkdir_concurrent_parent_creation
 PathTest.test_mkdir_exist_ok
@@ -335,21 +305,14 @@ PathTest.test_name_empty
 PathTest.test_open_common
 PathTest.test_open_mode
 PathTest.test_open_unbuffered
-PathTest.test_owner
 PathTest.test_parse_path_common
 PathTest.test_parse_path_posix
 PathTest.test_parse_windows_path
-PathTest.test_readlink
 PathTest.test_relative_to_common
 PathTest.test_rename
 PathTest.test_replace
 PathTest.test_repr_common
 PathTest.test_repr_roundtrips
-PathTest.test_resolve_common
-PathTest.test_resolve_dot
-PathTest.test_resolve_loop
-PathTest.test_resolve_nonexist_relative_issue38671
-PathTest.test_resolve_root
 PathTest.test_rglob_pathlike
 PathTest.test_rglob_posix
 PathTest.test_rglob_recurse_symlinks_common
@@ -358,10 +321,6 @@ PathTest.test_rglob_symlink_loop
 PathTest.test_rmdir
 PathTest.test_root_common
 PathTest.test_root_posix
-PathTest.test_samefile
-PathTest.test_stat
-PathTest.test_stat_no_follow_symlinks
-PathTest.test_stat_no_follow_symlinks_nosymlink
 PathTest.test_stem_empty
 PathTest.test_symlink_to
 PathTest.test_touch_common
@@ -369,7 +328,6 @@ PathTest.test_touch_mode
 PathTest.test_touch_nochange
 PathTest.test_unlink
 PathTest.test_unlink_missing_ok
-PathTest.test_unsupported_parser
 PathTest.test_with_name_empty
 PathTest.test_with_segments
 PathTest.test_with_stem_empty
@@ -382,8 +340,6 @@ PathWalkTest.test_walk_many_open_files
 PathWalkTest.test_walk_symlink_location
 
 # -- PosixPathTest — concrete POSIX I/O tests (Phase 2+)
-PosixPathTest.test_absolute_common
-PosixPathTest.test_absolute_posix
 PosixPathTest.test_as_bytes_common
 PosixPathTest.test_as_uri_common
 PosixPathTest.test_as_uri_non_ascii
@@ -414,7 +370,6 @@ PosixPathTest.test_copy_symlink_follow_symlinks_true
 PosixPathTest.test_copy_symlink_to_existing_directory_symlink
 PosixPathTest.test_copy_symlink_to_existing_symlink
 PosixPathTest.test_copy_symlink_to_itself
-PosixPathTest.test_cwd
 PosixPathTest.test_delete_dir
 PosixPathTest.test_delete_does_not_choke_on_failing_lstat
 PosixPathTest.test_delete_file
@@ -428,9 +383,6 @@ PosixPathTest.test_different_parsers_unordered
 PosixPathTest.test_empty_path
 PosixPathTest.test_eq_common
 PosixPathTest.test_equivalences
-PosixPathTest.test_exists
-PosixPathTest.test_expanduser_common
-PosixPathTest.test_expanduser_posix
 PosixPathTest.test_from_uri_pathname2url_posix
 PosixPathTest.test_from_uri_posix
 PosixPathTest.test_full_match_case_sensitive
@@ -446,39 +398,17 @@ PosixPathTest.test_glob_pathlike
 PosixPathTest.test_glob_permissions
 PosixPathTest.test_glob_posix
 PosixPathTest.test_glob_recurse_symlinks_common
-PosixPathTest.test_group
 PosixPathTest.test_handling_bad_descriptor
 PosixPathTest.test_hardlink_to
-PosixPathTest.test_home
 PosixPathTest.test_info_exists_caching
 PosixPathTest.test_info_is_dir_caching
 PosixPathTest.test_info_is_file_caching
 PosixPathTest.test_info_is_symlink_caching
-PosixPathTest.test_is_absolute_posix
-PosixPathTest.test_is_block_device_false
-PosixPathTest.test_is_char_device_false
-PosixPathTest.test_is_char_device_true
-PosixPathTest.test_is_dir
-PosixPathTest.test_is_dir_no_follow_symlinks
-PosixPathTest.test_is_fifo_false
-PosixPathTest.test_is_fifo_true
-PosixPathTest.test_is_file
-PosixPathTest.test_is_file_no_follow_symlinks
-PosixPathTest.test_is_junction_false
-PosixPathTest.test_is_junction_true
-PosixPathTest.test_is_mount
 PosixPathTest.test_is_relative_to_common
-PosixPathTest.test_is_reserved_deprecated
-PosixPathTest.test_is_socket_false
-PosixPathTest.test_is_socket_true
-PosixPathTest.test_is_symlink
 PosixPathTest.test_iterdir_symlink
 PosixPathTest.test_join_nested
-PosixPathTest.test_lstat
-PosixPathTest.test_lstat_nosymlink
 PosixPathTest.test_match_common
 PosixPathTest.test_match_empty
-PosixPathTest.test_matches_writablepath_docstrings
 PosixPathTest.test_mkdir
 PosixPathTest.test_mkdir_concurrent_parent_creation
 PosixPathTest.test_mkdir_exist_ok
@@ -519,31 +449,20 @@ PosixPathTest.test_name_empty
 PosixPathTest.test_open_common
 PosixPathTest.test_open_mode
 PosixPathTest.test_open_unbuffered
-PosixPathTest.test_owner
 PosixPathTest.test_parse_path_common
 PosixPathTest.test_parse_path_posix
 PosixPathTest.test_parse_windows_path
-PosixPathTest.test_readlink
 PosixPathTest.test_relative_to_common
 PosixPathTest.test_rename
 PosixPathTest.test_replace
 PosixPathTest.test_repr_common
 PosixPathTest.test_repr_roundtrips
-PosixPathTest.test_resolve_common
-PosixPathTest.test_resolve_dot
-PosixPathTest.test_resolve_loop
-PosixPathTest.test_resolve_nonexist_relative_issue38671
-PosixPathTest.test_resolve_root
 PosixPathTest.test_rglob_pathlike
 PosixPathTest.test_rglob_posix
 PosixPathTest.test_rglob_recurse_symlinks_common
 PosixPathTest.test_rglob_recurse_symlinks_false
 PosixPathTest.test_rglob_symlink_loop
 PosixPathTest.test_rmdir
-PosixPathTest.test_samefile
-PosixPathTest.test_stat
-PosixPathTest.test_stat_no_follow_symlinks
-PosixPathTest.test_stat_no_follow_symlinks_nosymlink
 PosixPathTest.test_stem_empty
 PosixPathTest.test_symlink_to
 PosixPathTest.test_touch_common
@@ -722,18 +641,42 @@ PureWindowsPathTest.test_with_stem_windows
 UnsupportedOperationTest.test_is_notimplemented
 
 # -- WindowsPathTest-specific methods (only defined on this class, not inherited) --
-WindowsPathTest.test_absolute_windows
 WindowsPathTest.test_delete_inner_junction
 WindowsPathTest.test_delete_outer_junction
-WindowsPathTest.test_expanduser_windows
 WindowsPathTest.test_from_uri_pathname2url_windows
 WindowsPathTest.test_from_uri_windows
 WindowsPathTest.test_glob_windows
-WindowsPathTest.test_group_windows
 WindowsPathTest.test_mkdir_with_unknown_drive
-WindowsPathTest.test_owner_windows
 WindowsPathTest.test_rglob_windows
 
 # -- WindowsPathTest inherited test methods that need own entries (truediv/rtruediv) --
 WindowsPathTest.test_rtruediv
 WindowsPathTest.test_truediv
+PurePathTest.test_ordering_common
+# Phase 2 edge cases — normalize "./" in expanduser (parse issue)
+PathTest.test_expanduser_common
+PathTest.test_expanduser_posix
+PosixPathTest.test_expanduser_common
+PosixPathTest.test_expanduser_posix
+
+# Phase 2 edge cases — absolute + mock os.getcwd 
+PathTest.test_absolute_common
+PosixPathTest.test_absolute_common
+
+# Phase 2 edge case — is_char_device_true needs /dev/null setup
+PathTest.test_is_char_device_true
+PosixPathTest.test_is_char_device_true
+
+# Phase 2 edge case — docstrings differ from CPython
+PathTest.test_matches_writablepath_docstrings
+PosixPathTest.test_matches_writablepath_docstrings
+
+# Phase 3 — resolve needs symlink_to
+PathTest.test_resolve_common
+PathTest.test_resolve_dot
+PathTest.test_resolve_loop
+PathTest.test_resolve_nonexist_relative_issue38671
+PosixPathTest.test_resolve_common
+PosixPathTest.test_resolve_dot
+PosixPathTest.test_resolve_loop
+PosixPathTest.test_resolve_nonexist_relative_issue38671

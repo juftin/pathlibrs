@@ -141,7 +141,9 @@ impl PurePath {
 #[pymethods]
 impl PurePath {
     #[new]
-    fn new(raw: &str) -> Self {
+    #[pyo3(signature = (raw=None))]
+    fn new(raw: Option<&str>) -> Self {
+        let raw = raw.unwrap_or(".");
         Self {
             inner: PathRepr::new(OsString::from(raw)),
             flavour: PathFlavour::Posix,
@@ -536,6 +538,199 @@ impl PurePath {
         )
     }
 
+    // -- filesystem properties (Phase 2) -----------------------------
+
+    /// Return stat information for this path.
+    #[pyo3(signature = (*, follow_symlinks = true))]
+    fn stat<'py>(slf: PyRef<'py, Self>, follow_symlinks: bool) -> PyResult<PyObject> {
+        let py = slf.py();
+        let st = crate::fs::stat(slf.inner.raw(), follow_symlinks)?;
+        Ok(Py::new(py, st)?.into_pyobject(py)?.into_any().unbind())
+    }
+
+    /// Return stat information without following symlinks.
+    fn lstat<'py>(slf: PyRef<'py, Self>) -> PyResult<PyObject> {
+        let py = slf.py();
+        let st = crate::fs::stat(slf.inner.raw(), false)?;
+        Ok(Py::new(py, st)?.into_pyobject(py)?.into_any().unbind())
+    }
+
+    /// Check whether the path exists.
+    #[pyo3(signature = (*, follow_symlinks = true))]
+    fn exists(&self, follow_symlinks: bool) -> PyResult<bool> {
+        crate::fs::exists(self.inner.raw(), follow_symlinks)
+    }
+
+    /// Check whether the path is a directory.
+    #[pyo3(signature = (*, follow_symlinks = true))]
+    fn is_dir(&self, follow_symlinks: bool) -> PyResult<bool> {
+        match crate::fs::stat_if_exists(self.inner.raw(), follow_symlinks) {
+            Some(st) => Ok((st.st_mode & 0o170000) == 0o040000),
+            None => Ok(false),
+        }
+    }
+
+    /// Check whether the path is a regular file.
+    #[pyo3(signature = (*, follow_symlinks = true))]
+    fn is_file(&self, follow_symlinks: bool) -> PyResult<bool> {
+        match crate::fs::stat_if_exists(self.inner.raw(), follow_symlinks) {
+            Some(st) => Ok((st.st_mode & 0o170000) == 0o100000),
+            None => Ok(false),
+        }
+    }
+
+    /// Check whether the path is a symbolic link.
+    fn is_symlink(&self) -> PyResult<bool> {
+        match crate::fs::stat_if_exists(self.inner.raw(), false) {
+            Some(st) => Ok((st.st_mode & 0o170000) == 0o120000),
+            None => Ok(false),
+        }
+    }
+
+    /// Check whether the path is a junction (Windows only; always False on POSIX).
+    fn is_junction<'py>(slf: PyRef<'py, Self>) -> PyResult<PyObject> {
+        let raw_str = slf.inner.raw().to_string_lossy();
+        let py = slf.py();
+        if raw_str.contains('\u{fffd}') || raw_str.contains('\x00') {
+            return Ok(false.into_py(py));
+        }
+        // Delegate to parser.isjunction if available (matching CPython behavior)
+        let slf_bound = unsafe { pyo3::Bound::<'_, pyo3::PyAny>::from_borrowed_ptr(py, slf.as_ptr()) };
+        if let Ok(parser) = slf_bound.getattr("parser") {
+            if let Ok(result) = parser.call_method1("isjunction", (&slf_bound,)) {
+                return Ok(result.unbind());
+            }
+        }
+        // On POSIX, isjunction is not available — return False
+        Ok(false.into_py(py))
+    }
+
+    /// Check whether the path is a mount point.
+    fn is_mount(&self) -> PyResult<bool> {
+        crate::fs::is_mount(self.inner.raw())
+    }
+
+    /// Check whether the path is a block device.
+    fn is_block_device(&self) -> PyResult<bool> {
+        match crate::fs::stat(self.inner.raw(), false) {
+            Ok(st) => Ok((st.st_mode & 0o170000) == 0o060000),
+            Err(_) => Ok(false),
+        }
+    }
+
+    /// Check whether the path is a character device.
+    fn is_char_device(&self) -> PyResult<bool> {
+        match crate::fs::stat(self.inner.raw(), false) {
+            Ok(st) => Ok((st.st_mode & 0o170000) == 0o020000),
+            Err(_) => Ok(false),
+        }
+    }
+
+    /// Check whether the path is a FIFO (named pipe).
+    fn is_fifo(&self) -> PyResult<bool> {
+        match crate::fs::stat(self.inner.raw(), false) {
+            Ok(st) => Ok((st.st_mode & 0o170000) == 0o010000),
+            Err(_) => Ok(false),
+        }
+    }
+
+    /// Check whether the path is a Unix socket.
+    fn is_socket(&self) -> PyResult<bool> {
+        match crate::fs::stat(self.inner.raw(), false) {
+            Ok(st) => Ok((st.st_mode & 0o170000) == 0o140000),
+            Err(_) => Ok(false),
+        }
+    }
+
+    /// Check whether this path points to the same file as *other*.
+    fn samefile(&self, other: &Bound<'_, PyAny>) -> PyResult<bool> {
+        let other_str = _extract_path_str(other)?;
+        crate::fs::samefile(self.inner.raw(), OsStr::new(&other_str))
+    }
+
+    /// Return the user name of the file owner.
+    #[pyo3(signature = (*, follow_symlinks = true))]
+    fn owner(&self, follow_symlinks: bool) -> PyResult<String> {
+        crate::fs::owner(self.inner.raw(), follow_symlinks)
+    }
+
+    /// Return the group name of the file.
+    #[pyo3(signature = (*, follow_symlinks = true))]
+    fn group(&self, follow_symlinks: bool) -> PyResult<String> {
+        crate::fs::group(self.inner.raw(), follow_symlinks)
+    }
+
+    /// Resolve the path to an absolute path, resolving symlinks.
+    #[pyo3(signature = (*, strict = false))]
+    fn resolve<'py>(slf: PyRef<'py, Self>, strict: bool) -> PyResult<PyObject> {
+        let py = slf.py();
+        let resolved = crate::fs::resolve(slf.inner.raw(), strict)?;
+        Self::_make_child(py, slf.as_ptr(), OsString::from(resolved.as_os_str()))
+    }
+
+    /// Return an absolute version of this path (no symlink resolution).
+    fn absolute<'py>(slf: PyRef<'py, Self>) -> PyResult<PyObject> {
+        let py = slf.py();
+        let raw = slf.inner.raw();
+        let std_path = std::path::Path::new(raw);
+
+        if std_path.is_absolute() {
+            Self::_make_child(py, slf.as_ptr(), OsString::from(raw))
+        } else {
+            // Use Python's os.getcwd() so tests can mock it
+            let os_mod = py.import("os")?;
+            let cwd: String = os_mod.call_method0("getcwd")?.extract()?;
+            let abs_path = std::path::Path::new(&cwd).join(raw);
+            Self::_make_child(py, slf.as_ptr(), OsString::from(abs_path.as_os_str()))
+        }
+    }
+
+    /// Return the target of this symlink as a new Path.
+    fn readlink<'py>(slf: PyRef<'py, Self>) -> PyResult<PyObject> {
+        let py = slf.py();
+        let target = crate::fs::readlink_raw(slf.inner.raw())?;
+        Self::_make_child(py, slf.as_ptr(), OsString::from(target.as_os_str()))
+    }
+
+    /// Return the current working directory as a Path.
+    #[classmethod]
+    fn cwd(_cls: &Bound<'_, PyType>) -> PyResult<PyObject> {
+        let cwd = std::env::current_dir()
+            .map_err(|e| pyo3::exceptions::PyOSError::new_err(e.to_string()))?;
+        let cwd_str = cwd.to_string_lossy().to_string();
+        Ok(_cls.call1((cwd_str,))?.unbind())
+    }
+
+    /// Return the home directory as a Path.
+    #[classmethod]
+    fn home(_cls: &Bound<'_, PyType>) -> PyResult<PyObject> {
+        let py = _cls.py();
+        let os_path = py.import("os.path")?;
+        let home = os_path.call_method1("expanduser", ("~",))?;
+        let home_str: String = home.extract()?;
+        Ok(_cls.call1((home_str,))?.unbind())
+    }
+
+    /// Expand ``~`` and ``~user`` in the path.
+    fn expanduser<'py>(slf: PyRef<'py, Self>) -> PyResult<PyObject> {
+        let py = slf.py();
+        let raw_str = slf.inner.raw().to_string_lossy();
+        if !raw_str.starts_with('~') {
+            Self::_make_child(py, slf.as_ptr(), OsString::from(raw_str.as_ref()))
+        } else {
+            let os_path = py.import("os.path")?;
+            let expanded = os_path.call_method1("expanduser", (raw_str.as_ref(),))?;
+            let expanded_str: String = expanded.extract()?;
+            Self::_make_child(py, slf.as_ptr(), OsString::from(expanded_str))
+        }
+    }
+
+    /// Return True if the path is absolute.
+    fn is_absolute(&self) -> bool {
+        let p = self.inner.parsed(self.flavour);
+        p.root.is_some()
+    }
+
     // -- dunder methods ------------------------------------------------
 
     fn __truediv__<'py>(slf: PyRef<'py, Self>, other: &Bound<'py, PyAny>) -> PyResult<PyObject> {
@@ -656,9 +851,15 @@ impl PureWindowsPath {
 
 /// Extract a string from a Python object.
 fn _extract_path_str(obj: &Bound<'_, PyAny>) -> PyResult<String> {
+    // First try str extraction (only works for str and str subclasses)
     if let Ok(s) = obj.extract::<String>() {
         return Ok(s);
     }
+    // PathLike (has __fspath__)
+    if let Ok(fspath) = obj.call_method0("__fspath__") {
+        return fspath.extract::<String>();
+    }
+    // Fallback to str() conversion for compatibility
     Ok(obj.str()?.to_string())
 }
 
