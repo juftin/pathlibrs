@@ -595,7 +595,8 @@ impl PurePath {
             return Ok(false.into_py(py));
         }
         // Delegate to parser.isjunction if available (matching CPython behavior)
-        let slf_bound = unsafe { pyo3::Bound::<'_, pyo3::PyAny>::from_borrowed_ptr(py, slf.as_ptr()) };
+        let slf_bound =
+            unsafe { pyo3::Bound::<'_, pyo3::PyAny>::from_borrowed_ptr(py, slf.as_ptr()) };
         if let Ok(parser) = slf_bound.getattr("parser") {
             if let Ok(result) = parser.call_method1("isjunction", (&slf_bound,)) {
                 return Ok(result.unbind());

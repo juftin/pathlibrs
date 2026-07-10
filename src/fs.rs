@@ -162,18 +162,14 @@ fn secs_since_epoch(ft: u64) -> f64 {
 /// Python exception type (FileNotFoundError, PermissionError, etc.).
 fn io_err_to_pyerr(err: io::Error) -> PyErr {
     match err.kind() {
-        io::ErrorKind::NotFound => {
-            pyo3::exceptions::PyFileNotFoundError::new_err(err.to_string())
-        }
+        io::ErrorKind::NotFound => pyo3::exceptions::PyFileNotFoundError::new_err(err.to_string()),
         io::ErrorKind::PermissionDenied => {
             pyo3::exceptions::PyPermissionError::new_err(err.to_string())
         }
         io::ErrorKind::AlreadyExists => {
             pyo3::exceptions::PyFileExistsError::new_err(err.to_string())
         }
-        io::ErrorKind::InvalidInput => {
-            pyo3::exceptions::PyValueError::new_err(err.to_string())
-        }
+        io::ErrorKind::InvalidInput => pyo3::exceptions::PyValueError::new_err(err.to_string()),
         _ => pyo3::exceptions::PyOSError::new_err(err.to_string()),
     }
 }
