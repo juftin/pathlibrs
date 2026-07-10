@@ -641,17 +641,17 @@ PureWindowsPathTest.test_with_stem_windows
 UnsupportedOperationTest.test_is_notimplemented
 
 # -- WindowsPathTest-specific methods (only defined on this class, not inherited) --
-WindowsPathTest.test_delete_inner_junction
-WindowsPathTest.test_delete_outer_junction
+PathTest.test_delete_inner_junction
+PathTest.test_delete_outer_junction
 PathTest.test_from_uri_pathname2url_windows
 PathTest.test_from_uri_windows
-WindowsPathTest.test_glob_windows
-WindowsPathTest.test_mkdir_with_unknown_drive
-WindowsPathTest.test_rglob_windows
+PathTest.test_glob_windows
+PathTest.test_mkdir_with_unknown_drive
+PathTest.test_rglob_windows
 
 # -- WindowsPathTest inherited test methods that need own entries (truediv/rtruediv) --
-WindowsPathTest.test_rtruediv
-WindowsPathTest.test_truediv
+PathTest.test_rtruediv
+PathTest.test_truediv
 PurePathTest.test_ordering_common
 # Phase 2 edge cases — normalize "./" in expanduser (parse issue)
 PathTest.test_expanduser_common
@@ -686,14 +686,14 @@ PosixPathTest.test_is_junction_true
 # Windows path flavour not yet fully implemented (Phase 1 gaps)
 PathTest.test_absolute_windows
 PathTest.test_as_uri_windows
-WindowsPathTest.test_constructor_nested_foreign_flavour
+PathTest.test_constructor_nested_foreign_flavour
 PathTest.test_drive_windows
 PathTest.test_eq_windows
 PathTest.test_equivalences_windows
 PathTest.test_expanduser_windows
 PathTest.test_from_uri_pathname2url_windows
 PathTest.test_from_uri_windows
-WindowsPathTest.test_fspath_common
+PathTest.test_fspath_common
 PathTest.test_group_windows
 PathTest.test_is_absolute_windows
 PathTest.test_is_relative_to_windows
@@ -703,8 +703,8 @@ PathTest.test_owner_windows
 PathTest.test_parse_path_windows
 PathTest.test_relative_to_windows
 PathTest.test_root_windows
-WindowsPathTest.test_str_common
-WindowsPathTest.test_str_windows
+PathTest.test_str_common
+PathTest.test_str_windows
 PathTest.test_with_name_windows
 PathTest.test_with_stem_windows
 # Phase 2 Windows gaps (ino/dev always 0, surrogates)
@@ -712,5 +712,5 @@ PathTest.test_exists
 PathTest.test_is_file_no_follow_symlinks
 PathTest.test_is_symlink
 PathTest.test_lstat
-WindowsPathTest.test_stat
+PathTest.test_stat
 PathTest.test_stat_no_follow_symlinks
