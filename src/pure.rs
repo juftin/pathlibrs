@@ -330,7 +330,10 @@ impl PurePath {
     /// appropriate separator.
     #[classmethod]
     #[pyo3(signature = (*pathsegments))]
-    fn with_segments(_cls: &Bound<'_, PyType>, pathsegments: &Bound<'_, PyTuple>) -> PyResult<PyObject> {
+    fn with_segments(
+        _cls: &Bound<'_, PyType>,
+        pathsegments: &Bound<'_, PyTuple>,
+    ) -> PyResult<PyObject> {
         let _py = _cls.py();
         let parts: Vec<String> = pathsegments
             .iter()
@@ -400,7 +403,8 @@ impl PurePath {
             let remaining_in_other = other_parsed.parts.len() - common;
             let remaining_in_self = &self_parsed.parts[common..];
 
-            let mut bufs: Vec<String> = Vec::with_capacity(remaining_in_other + remaining_in_self.len());
+            let mut bufs: Vec<String> =
+                Vec::with_capacity(remaining_in_other + remaining_in_self.len());
             for _ in 0..remaining_in_other {
                 bufs.push("..".to_string());
             }
@@ -506,11 +510,7 @@ impl PurePath {
 
     #[pyo3(name = "match")]
     #[pyo3(signature = (pattern, *, case_sensitive = None))]
-    fn match_(
-        &self,
-        pattern: &str,
-        case_sensitive: Option<bool>,
-    ) -> bool {
+    fn match_(&self, pattern: &str, case_sensitive: Option<bool>) -> bool {
         let cs = case_sensitive.unwrap_or(!self._is_windows());
         pattern::match_path(
             OsStr::new(pattern),
@@ -526,11 +526,7 @@ impl PurePath {
     /// A relative pattern like ``"*.py"`` will NOT match ``"/a/b/foo.py"``.
     #[pyo3(name = "full_match")]
     #[pyo3(signature = (pattern, *, case_sensitive = None))]
-    fn full_match_(
-        &self,
-        pattern: &str,
-        case_sensitive: Option<bool>,
-    ) -> bool {
+    fn full_match_(&self, pattern: &str, case_sensitive: Option<bool>) -> bool {
         let cs = case_sensitive.unwrap_or(!self._is_windows());
         pattern::full_match_path(
             OsStr::new(pattern),
@@ -679,10 +675,7 @@ fn parse_file_uri(uri: &str) -> PyResult<String> {
         .strip_prefix("file:")
         .or_else(|| uri.strip_prefix("FILE:"))
         .ok_or_else(|| {
-            pyo3::exceptions::PyValueError::new_err(format!(
-                "URI '{}' is not a file: URI",
-                uri
-            ))
+            pyo3::exceptions::PyValueError::new_err(format!("URI '{}' is not a file: URI", uri))
         })?;
 
     // Check for authority (//)
