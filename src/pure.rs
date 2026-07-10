@@ -588,6 +588,7 @@ impl PurePath {
     }
 
     /// Check whether the path is a junction (Windows only; always False on POSIX).
+    #[allow(deprecated)]
     fn is_junction<'py>(slf: PyRef<'py, Self>) -> PyResult<PyObject> {
         let raw_str = slf.inner.raw().to_string_lossy();
         let py = slf.py();

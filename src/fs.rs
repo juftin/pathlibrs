@@ -206,10 +206,7 @@ pub fn exists(path: &OsStr, follow_symlinks: bool) -> PyResult<bool> {
 /// Like ``stat()`` but returns ``None`` for non-existent or broken paths
 /// (``NotFound`` and ``NotADirectory``).
 pub fn stat_if_exists(path: &OsStr, follow_symlinks: bool) -> Option<StatResult> {
-    match stat(path, follow_symlinks) {
-        Ok(st) => Some(st),
-        Err(_) => None,
-    }
+    stat(path, follow_symlinks).ok()
 }
 
 /// Check whether a path is a mount point.
@@ -255,7 +252,7 @@ pub fn owner(path: &OsStr, follow_symlinks: bool) -> PyResult<String> {
     Python::with_gil(|py| {
         let pwd_mod = py.import("pwd")?;
         let entry = pwd_mod.call_method1("getpwuid", (uid,))?;
-        Ok(entry.getattr("pw_name")?.extract()?)
+        entry.getattr("pw_name")?.extract()
     })
 }
 
@@ -266,7 +263,7 @@ pub fn group(path: &OsStr, follow_symlinks: bool) -> PyResult<String> {
     Python::with_gil(|py| {
         let grp_mod = py.import("grp")?;
         let entry = grp_mod.call_method1("getgrgid", (gid,))?;
-        Ok(entry.getattr("gr_name")?.extract()?)
+        entry.getattr("gr_name")?.extract()
     })
 }
 
