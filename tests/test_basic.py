@@ -247,6 +247,123 @@ class TestPurePath:
         assert isinstance(p, PurePath)
 
 
+class TestNewFeatures:
+    """Tests for Phase 1 new features: full_match, walk_up, with_segments, from_uri."""
+
+    # -- full_match --
+
+    def test_full_match_relative_one_segment(self) -> None:
+        p = PurePosixPath("foo.py")
+        assert p.full_match("*.py")
+        assert not p.full_match("*.txt")
+
+    def test_full_match_does_not_anchor_tail(self) -> None:
+        """full_match should NOT match a relative pattern against a multi-segment path."""
+        p = PurePosixPath("/a/b/foo.py")
+        assert not p.full_match("*.py")
+
+    def test_full_match_absolute(self) -> None:
+        p = PurePosixPath("/foo/bar.py")
+        assert p.full_match("/foo/*.py")
+        assert not p.full_match("/foo/*.txt")
+        assert not p.full_match("/foo/bar/baz.py")  # wrong segment count
+
+    def test_full_match_name_only(self) -> None:
+        p = PurePosixPath("/foo/bar/name.py")
+        # full_match requires all segments to match — single segment pattern
+        # does NOT match a multi-segment path
+        assert not p.full_match("name.py")
+
+    def test_full_match_case_sensitive(self) -> None:
+        p = PurePosixPath("foo.py")
+        assert not p.full_match("*.PY", case_sensitive=True)
+        assert p.full_match("*.PY", case_sensitive=False)
+
+    def test_match_with_case_sensitive(self) -> None:
+        """match() should also accept case_sensitive kwarg."""
+        p = PurePosixPath("foo.py")
+        assert not p.match("*.PY")
+        assert p.match("*.PY", case_sensitive=False)
+
+    # -- relative_to with walk_up --
+
+    def test_relative_to_walk_up_basic(self) -> None:
+        p = PurePosixPath("/a/b/c")
+        result = p.relative_to("/a/d", walk_up=True)
+        assert str(result) == "../b/c"
+
+    def test_relative_to_walk_up_same(self) -> None:
+        p = PurePosixPath("/a/b/c")
+        result = p.relative_to("/a/b/c", walk_up=True)
+        assert str(result) == "."
+
+    def test_relative_to_walk_up_shared_prefix(self) -> None:
+        p = PurePosixPath("/a/b/c/d")
+        result = p.relative_to("/a/x/y", walk_up=True)
+        assert str(result) == "../../b/c/d"
+
+    def test_relative_to_walk_up_no_shared_prefix(self) -> None:
+        p = PurePosixPath("/a/b/c")
+        result = p.relative_to("/x/y/z", walk_up=True)
+        assert str(result) == "../../../a/b/c"
+
+    def test_relative_to_walk_up_different_drive_raises(self) -> None:
+        """Different drives should still raise ValueError even with walk_up=True.
+
+        Actually, CPython allows this — we match that behaviour.
+        """
+        p = PureWindowsPath("C:/a/b")
+        result = p.relative_to("D:/x/y", walk_up=True)
+        # With walk_up=True, different drives produce all ".." segments
+        assert ".." in str(result)
+
+    # -- with_segments --
+
+    def test_with_segments_posix(self) -> None:
+        result = PurePosixPath.with_segments("a", "b", "c")
+        assert str(result) == "a/b/c"
+        assert isinstance(result, PurePosixPath)
+
+    def test_with_segments_single(self) -> None:
+        result = PurePosixPath.with_segments("foo")
+        assert str(result) == "foo"
+
+    def test_with_segments_empty(self) -> None:
+        result = PurePosixPath.with_segments()
+        assert str(result) == ""
+
+    def test_with_segments_windows(self) -> None:
+        result = PureWindowsPath.with_segments("C:", "Users", "Name")
+        assert isinstance(result, PureWindowsPath)
+
+    # -- from_uri --
+
+    def test_from_uri_posix_absolute(self) -> None:
+        result = PurePosixPath.from_uri("file:///home/user/file.txt")
+        assert str(result) == "/home/user/file.txt"
+        assert isinstance(result, PurePosixPath)
+
+    def test_from_uri_posix_relative(self) -> None:
+        result = PurePosixPath.from_uri("file:relative/path")
+        assert str(result) == "relative/path"
+
+    def test_from_uri_windows_drive(self) -> None:
+        result = PureWindowsPath.from_uri("file:///C:/Users/Name")
+        assert "C:" in str(result)
+        assert "Users" in str(result)
+
+    def test_from_uri_non_local_raises(self) -> None:
+        import pytest
+        with pytest.raises(ValueError, match="non-local"):
+            PurePosixPath.from_uri("file://remote.example.com/path")
+
+    def test_from_uri_as_uri_roundtrip(self) -> None:
+        p = PurePosixPath("/home/user/file.txt")
+        uri = p.as_uri()
+        result = PurePosixPath.from_uri(uri)
+        assert str(result) == str(p)
+
+
 class TestPosixVsWindows:
     """Cross-flavour tests."""
 

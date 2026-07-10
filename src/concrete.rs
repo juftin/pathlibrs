@@ -10,7 +10,7 @@ use pyo3::prelude::*;
 use crate::pure::PurePath;
 
 /// Concrete path — will add IO methods in Phase 2.
-#[pyclass(extends=PurePath, module = "pathlibrs")]
+#[pyclass(subclass, extends=PurePath, module = "pathlibrs")]
 pub struct Path;
 
 #[pymethods]
@@ -28,7 +28,7 @@ impl Path {
 }
 
 /// Concrete POSIX path — will add IO methods in Phase 2.
-#[pyclass(extends=PurePath, module = "pathlibrs")]
+#[pyclass(subclass, extends=PurePath, module = "pathlibrs")]
 pub struct PosixPath;
 
 #[pymethods]
@@ -40,7 +40,7 @@ impl PosixPath {
 }
 
 /// Concrete Windows path — will add IO methods in Phase 2.
-#[pyclass(extends=PurePath, module = "pathlibrs")]
+#[pyclass(subclass, extends=PurePath, module = "pathlibrs")]
 pub struct WindowsPath;
 
 #[pymethods]

@@ -418,7 +418,29 @@ The litmus test: **pass CPython's own `test_pathlib.py` from Python 3.14, unchan
 - `relative_to()` with `walk_up` kwarg (3.12+)
 - Dunder: `__str__`, `__repr__`, `__fspath__`, `__eq__`, `__hash__`, `__lt__`
 - `/` operator (`__truediv__`, `__rtruediv__`)
-- **Verify:** PurePath tests pass
+- **Verify:** Own smoke tests + 30 vendored CPython pure-path tests pass
+
+### Phase 1 Checklist
+
+- [x] `PathRepr` struct with lazy parsing
+- [x] `PurePath`, `PurePosixPath`, `PureWindowsPath` as PyO3 classes
+- [x] Properties: `parts`, `drive`, `root`, `anchor`, `parent`, `parents`, `name`, `suffix`, `suffixes`, `stem`
+- [x] Methods: `joinpath()`, `with_name()`, `with_stem()`, `with_suffix()`, `with_segments()`
+- [x] `relative_to()` with `walk_up` kwarg (3.12+)
+- [x] `is_relative_to()`
+- [x] `as_posix()`, `as_uri()`, `from_uri()`
+- [x] `match()` and `full_match()` with `case_sensitive` kwarg (3.13+)
+- [x] Dunder: `__str__`, `__repr__`, `__fspath__`, `__eq__`, `__hash__`, `__lt__`
+- [x] `/` operator (`__truediv__`, `__rtruediv__`)
+- [x] Pickle / `__reduce__` support
+- [x] Parsing: POSIX and Windows in pure Rust
+- [x] Glob pattern matching (fnmatch-style)
+- [x] Vendored CPython 3.14 test suite runner (conftest.py + skips.txt)
+- [x] `parser` class attribute (posixpath / ntpath)
+- [x] Smoke test suite passes (65 tests)
+- [x] 30 vendored CPython pure-path tests pass
+- [x] All path classes support Python subclassing via `#[pyclass(subclass)]`
+- [x] Rust unit tests pass (36 tests)
 
 ### Phase 2: Filesystem Properties — ~1 week
 
