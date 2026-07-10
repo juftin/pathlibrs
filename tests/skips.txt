@@ -4,6 +4,9 @@
 # Tests listed here are skipped when running the vendored CPython 3.14 test suite.
 # Auto-generated from CI failure data (2026-07-09).
 #
+# Skip matching walks the MRO — PathTest.test_foo also skips
+# WindowsPathTest.test_foo and PosixPathTest.test_foo.
+#
 # Remove entries as features are implemented in pathlibrs.
 # Each section corresponds to a Phase 2+ feature gap.
 
@@ -25,6 +28,7 @@ PathSubclassTest.test_chmod_follow_symlinks_true
 PathSubclassTest.test_complex_symlinks_absolute
 PathSubclassTest.test_complex_symlinks_relative
 PathSubclassTest.test_complex_symlinks_relative_dot_dot
+PathSubclassTest.test_concrete_parser
 PathSubclassTest.test_constructor_nested
 PathSubclassTest.test_copy_dangling_symlink
 PathSubclassTest.test_copy_dir_no_read_permission
@@ -57,10 +61,12 @@ PathSubclassTest.test_different_parsers_unequal
 PathSubclassTest.test_different_parsers_unordered
 PathSubclassTest.test_empty_path
 PathSubclassTest.test_eq_common
+PathSubclassTest.test_eq_posix
 PathSubclassTest.test_equivalences
 PathSubclassTest.test_exists
 PathSubclassTest.test_expanduser_common
 PathSubclassTest.test_expanduser_posix
+PathSubclassTest.test_from_uri_pathname2url_posix
 PathSubclassTest.test_from_uri_posix
 PathSubclassTest.test_full_match_case_sensitive
 PathSubclassTest.test_glob_above_recursion_limit
@@ -107,6 +113,7 @@ PathSubclassTest.test_lstat
 PathSubclassTest.test_lstat_nosymlink
 PathSubclassTest.test_match_common
 PathSubclassTest.test_match_empty
+PathSubclassTest.test_match_posix
 PathSubclassTest.test_matches_writablepath_docstrings
 PathSubclassTest.test_mkdir
 PathSubclassTest.test_mkdir_concurrent_parent_creation
@@ -168,6 +175,8 @@ PathSubclassTest.test_rglob_recurse_symlinks_common
 PathSubclassTest.test_rglob_recurse_symlinks_false
 PathSubclassTest.test_rglob_symlink_loop
 PathSubclassTest.test_rmdir
+PathSubclassTest.test_root_common
+PathSubclassTest.test_root_posix
 PathSubclassTest.test_samefile
 PathSubclassTest.test_stat
 PathSubclassTest.test_stat_no_follow_symlinks
@@ -179,6 +188,7 @@ PathSubclassTest.test_touch_mode
 PathSubclassTest.test_touch_nochange
 PathSubclassTest.test_unlink
 PathSubclassTest.test_unlink_missing_ok
+PathSubclassTest.test_unsupported_parser
 PathSubclassTest.test_with_name_empty
 PathSubclassTest.test_with_segments
 PathSubclassTest.test_with_stem_empty
@@ -198,6 +208,7 @@ PathTest.test_complex_symlinks_absolute
 PathTest.test_complex_symlinks_relative
 PathTest.test_complex_symlinks_relative_dot_dot
 PathTest.test_concrete_class
+PathTest.test_concrete_parser
 PathTest.test_constructor_nested
 PathTest.test_copy_dangling_symlink
 PathTest.test_copy_dir_no_read_permission
@@ -230,10 +241,12 @@ PathTest.test_different_parsers_unequal
 PathTest.test_different_parsers_unordered
 PathTest.test_empty_path
 PathTest.test_eq_common
+PathTest.test_eq_posix
 PathTest.test_equivalences
 PathTest.test_exists
 PathTest.test_expanduser_common
 PathTest.test_expanduser_posix
+PathTest.test_from_uri_pathname2url_posix
 PathTest.test_from_uri_posix
 PathTest.test_full_match_case_sensitive
 PathTest.test_glob_above_recursion_limit
@@ -280,6 +293,7 @@ PathTest.test_lstat
 PathTest.test_lstat_nosymlink
 PathTest.test_match_common
 PathTest.test_match_empty
+PathTest.test_match_posix
 PathTest.test_matches_writablepath_docstrings
 PathTest.test_mkdir
 PathTest.test_mkdir_concurrent_parent_creation
@@ -342,6 +356,8 @@ PathTest.test_rglob_recurse_symlinks_common
 PathTest.test_rglob_recurse_symlinks_false
 PathTest.test_rglob_symlink_loop
 PathTest.test_rmdir
+PathTest.test_root_common
+PathTest.test_root_posix
 PathTest.test_samefile
 PathTest.test_stat
 PathTest.test_stat_no_follow_symlinks
@@ -353,6 +369,7 @@ PathTest.test_touch_mode
 PathTest.test_touch_nochange
 PathTest.test_unlink
 PathTest.test_unlink_missing_ok
+PathTest.test_unsupported_parser
 PathTest.test_with_name_empty
 PathTest.test_with_segments
 PathTest.test_with_stem_empty
@@ -414,6 +431,7 @@ PosixPathTest.test_equivalences
 PosixPathTest.test_exists
 PosixPathTest.test_expanduser_common
 PosixPathTest.test_expanduser_posix
+PosixPathTest.test_from_uri_pathname2url_posix
 PosixPathTest.test_from_uri_posix
 PosixPathTest.test_full_match_case_sensitive
 PosixPathTest.test_glob_above_recursion_limit
@@ -605,6 +623,7 @@ PurePathTest.test_as_uri_posix
 PurePathTest.test_bytes
 PurePathTest.test_bytes_exc_message
 PurePathTest.test_concrete_class
+PurePathTest.test_concrete_parser
 PurePathTest.test_constructor_nested
 PurePathTest.test_different_parsers_unequal
 PurePathTest.test_different_parsers_unordered
@@ -690,6 +709,7 @@ PureWindowsPathTest.test_parse_path_common
 PureWindowsPathTest.test_parse_path_windows
 PureWindowsPathTest.test_relative_to_common
 PureWindowsPathTest.test_relative_to_windows
+PureWindowsPathTest.test_repr_common
 PureWindowsPathTest.test_stem_empty
 PureWindowsPathTest.test_str_common
 PureWindowsPathTest.test_str_windows

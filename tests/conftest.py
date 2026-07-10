@@ -33,6 +33,8 @@ if not hasattr(os_helper, "skip_unless_working_chmod"):
     os_helper.skip_unless_working_chmod = lambda fn: fn
 if not hasattr(os_helper, "skip_unless_hardlink"):
     os_helper.skip_unless_hardlink = lambda fn: fn
+if not hasattr(os_helper, "skip_if_dac_override"):
+    os_helper.skip_if_dac_override = lambda fn: fn
 
 # ── Patch test.support.import_helper with missing functions ──────────────────
 import test.support.import_helper as import_helper
@@ -74,13 +76,21 @@ def _load_skips():
 
 
 def pytest_collection_modifyitems(config, items):
-    """Mark vendored tests listed in skips.txt with ``@pytest.mark.skip``."""
+    """Mark vendored tests listed in skips.txt with ``@pytest.mark.skip``.
+
+    Matches by MRO so ``PathTest.test_foo`` also skips
+    ``WindowsPathTest.test_foo`` (which inherits from PathTest).
+    """
     skip_set = _load_skips()
     for item in items:
-        cls_name = item.cls.__name__ if item.cls else ""
         method_name = item.name
-        if (cls_name, method_name) in skip_set:
-            item.add_marker(pytest.mark.skip(reason="Listed in tests/skips.txt"))
+        if item.cls is None:
+            continue
+        # Walk the MRO so parent-class skips apply to child classes
+        for cls in item.cls.__mro__:
+            if (cls.__name__, method_name) in skip_set:
+                item.add_marker(pytest.mark.skip(reason="Listed in tests/skips.txt"))
+                break
 
 
 def pytest_configure(config):
