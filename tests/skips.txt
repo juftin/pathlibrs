@@ -720,3 +720,20 @@ PureWindowsPathTest.test_with_stem_windows
 
 # -- UnsupportedOperationTest — NotImplemented semantics
 UnsupportedOperationTest.test_is_notimplemented
+
+# -- WindowsPathTest-specific methods (only defined on this class, not inherited) --
+WindowsPathTest.test_absolute_windows
+WindowsPathTest.test_delete_inner_junction
+WindowsPathTest.test_delete_outer_junction
+WindowsPathTest.test_expanduser_windows
+WindowsPathTest.test_from_uri_pathname2url_windows
+WindowsPathTest.test_from_uri_windows
+WindowsPathTest.test_glob_windows
+WindowsPathTest.test_group_windows
+WindowsPathTest.test_mkdir_with_unknown_drive
+WindowsPathTest.test_owner_windows
+WindowsPathTest.test_rglob_windows
+
+# -- WindowsPathTest inherited test methods that need own entries (truediv/rtruediv) --
+WindowsPathTest.test_rtruediv
+WindowsPathTest.test_truediv
