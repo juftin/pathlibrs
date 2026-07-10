@@ -1,0 +1,19 @@
+[package]
+name = "pathlibrs"
+version = "0.1.0"
+edition = "2021"
+description = "A fast pure-Rust implementation of Python's pathlib, with drop-in replacement classes"
+license = "MIT"
+repository = "https://github.com/juftin/pathlibrs"
+
+[lib]
+name = "pathlibrs"
+crate-type = ["cdylib"]
+
+[dependencies]
+pyo3 = { version = "0.23", features = ["abi3-py312"] }
+thiserror = "2"
+
+[profile.release]
+lto = true
+codegen-units = 1
