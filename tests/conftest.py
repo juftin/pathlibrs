@@ -20,6 +20,20 @@ import pathlibrs
 
 sys.modules["pathlib"] = pathlibrs
 
+# ── Register pathlib._local for Python 3.13 pickle compatibility ───────────
+# CPython's Lib/pathlib/_local.py exists so pathlib objects pickled under
+# Python 3.13 (which reference ``pathlib._local``) can be unpickled in 3.14+.
+# It is just ``from pathlib import *``.  pathlibrs doesn't ship a ``_local``
+# submodule, so we inject one dynamically when the vendored test runs.
+import types
+_local = types.ModuleType("pathlib._local")
+_local.__doc__ = "Shim for Python 3.13 pickle compatibility (injected by pathlibrs test harness)."
+# Re-export everything from pathlib (which is actually pathlibrs) — same as CPython.
+for _attr in dir(pathlibrs):
+    if not _attr.startswith("_"):
+        setattr(_local, _attr, getattr(pathlibrs, _attr))
+sys.modules["pathlib._local"] = _local
+
 # ── Exclude modular ABC tests from discovery ────────────────────────────────
 # These test files import from CPython-private ``pathlib.types`` / ``pathlib._os``
 # which pathlibrs does not implement per DESIGN.md §11.5.
