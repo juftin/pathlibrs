@@ -455,47 +455,123 @@ The litmus test: **pass CPython's own `test_pathlib.py` from Python 3.14, unchan
 - `mkdir()`, `rmdir()`, `unlink()`, `rename()`, `replace()`, `symlink_to()`, `hardlink_to()`
 - `touch()`, `chmod()`, `lchmod()`, `expanduser()`
 - `open()`, `read_bytes()`, `read_text()`, `write_bytes()`, `write_text()`
-- `iterdir()`, `glob()`, `rglob()`, `walk()`
-- `glob()` / `rglob()` with `case_sensitive` and `recurse_symlinks` kwargs (3.12+/3.13+)
+- `iterdir()`, `walk()`
 - **3.14 methods:** `copy()`, `copy_into()`, `move()`, `move_into()`, `delete()`
-- **Verify:** All mutation, glob, and 3.14 file-tree tests pass
+- **Verify:** All mutation, I/O, and 3.14 file-tree tests pass
 
-### Phase 4: Polish & Edge Cases — ~1 week
+### Phase 4: Glob & Pattern Matching — ~1 week
+
+- `glob()`, `rglob()` with full pattern syntax: `**`, `*`, `?`, `[abc]`, `[!abc]`, brace expansion
+- `glob()` / `rglob()` with `case_sensitive` and `recurse_symlinks` kwargs (3.12+/3.13+)
+- Symlink loop detection for recursive globs
+- Glob iterator bridging (Rust → Python via PyO3 iterator protocol)
+- `glob.rs` module extracted from `iter.rs` / `pattern.rs` for standalone glob engine
+- **Verify:** All vendored CPython glob tests pass across platform matrix
+
+### Phase 5: Parity & Maintenance — ~1 week
 
 - `Path.home()`, `Path.cwd()` class methods
 - Windows UNC/device/extended-path edge cases (see section 4.8)
 - Symlink edge cases on Linux/macOS
 - Pickle / `__reduce__` / `__fspath__` / `copy` support
-- Full vendored CPython 3.14 test suite passes
 - Benchmark suite against CPython pathlib
+
+**Skip audit — drive `skips.txt` to zero (private API only):**
+- Audit every entry in `tests/skips.txt`
+- Each skip must be either:
+  - **Private API** — the test touches `_flavour`, `_NormalAccessor`, or other `_`-prefixed internals → stays skipped permanently
+  - **Fixable** — a real behavioral gap → fix the implementation and remove the skip
+- Goal: `skips.txt` contains *only* private-API entries; zero skips for public API behavior
+
+**Automated vendored test tracking:**
+- CI workflow that periodically fetches the latest CPython `test_pathlib.py` from `main` (or the latest stable release tag)
+- Compares against the vendored snapshot; if the upstream test file has changed:
+  - Opens an automated issue/PR with the diff for review
+  - Runs the new test suite against `pathlibrs` to surface new failures from added tests
+- Keeps the vendored test snapshot from drifting as CPython evolves
+
+**Performance testing & automated benchmarking:**
+- Comprehensive benchmark suite exercising every API surface against built-in `pathlib`:
+  - **Pure operations:** `.parent`, `.stem`, `.suffix`, `.name`, `.with_name()`, `.relative_to()`, `/` operator
+  - **Stat operations:** `.exists()`, `.is_file()`, `.is_dir()`, `.stat()` on hot/cold caches
+  - **I/O operations:** `.read_text()`, `.write_text()`, `.read_bytes()`, `.write_bytes()`
+  - **Directory ops:** `.iterdir()`, `.walk()` on trees of varying depth/width
+  - **Glob ops:** `.glob()`, `.rglob()` on small, medium, and deep trees
+  - **Mutation ops:** `.mkdir()`, `.unlink()`, `.rename()`, `.symlink_to()`, `.copy()`, `.move()`, `.delete()`
+  - **Memory:** Object size, allocation count for 100k paths, memory peak during glob/walk
+- CI workflow runs benchmarks on every push to main and produces a comparison report
+- Results published as part of the docs (Markdown table + JSON for tracking over time)
+- Regression alerting: if any benchmark regresses >10% vs the last stable run, CI flags it
+
+**Acceptance criteria:**
+- Full vendored CPython 3.14 test suite passes on all platforms (3.10–3.14)
+- `skips.txt` contains only private-API entries (no public-API skips)
+- Automated upstream test tracking is in place and passing CI
+- Benchmark suite runs in CI and results are publishable in docs
+- Performance is ≥ parity with built-in `pathlib` on all metrics (no regressions)
 
 ---
 
 ## 8. Benchmarks to Track
 
-```python
-# benchmark.py — run against both pathlib and pathlibrs
+Benchmarks run head-to-head against built-in `pathlib` on every push to main. Results are published in `docs/benchmarks.md` and archived as JSON in `benchmarks/results/`.
 
-import pathlib     # standard lib
-import pathlibrs   # our module
-import tracemalloc
+### Categories
 
-# Memory: count object sizes for 100k paths
-# Speed: .parent, .suffix, .stem on 100k paths
-# Speed: glob on directories of various depths
-# Speed: walk on a large tree
-# Speed: stat() on 10k files
-# Speed: copy() / move() / delete() on directory trees
-```
+**Pure operations** (no filesystem I/O):
+- `.parent`, `.stem`, `.suffix`, `.name` — property access on 100k paths
+- `.with_name()`, `.with_suffix()`, `.relative_to()` — path mutation
+- `/` operator — path joining
+- `__str__`, `__fspath__` — string conversion
 
-Target benchmarks:
+**Stat & metadata:**
+- `.exists()`, `.is_file()`, `.is_dir()`, `.is_symlink()` — type checks
+- `.stat()`, `.lstat()` — metadata (hot cache and cold cache)
+- `.samefile()` — inode comparison
 
-- `PurePath("/a/b/c/d/file.py").parent` — 10× faster (no allocation vs two allocations)
-- `PurePath("/a/b/c/d/file.py").stem` — 10× faster (slice vs allocation)
-- `p / "child"` — 3× faster (OsString prepend vs Python str concat + object creation)
-- `PosixPath("/usr").resolve()` — comparable (syscall dominant)
-- `p.rglob("**/*.py") on 10k files` — 2–5× less memory (iterator vs list)
-- `source.copy(dest)` — comparable to `shutil.copytree` (I/O-bound), but with a cleaner API
+**I/O operations:**
+- `.read_text()`, `.read_bytes()` — reading small, medium, large files
+- `.write_text()`, `.write_bytes()` — writing new and overwriting existing
+- `.open()` — raw file handle with various modes
+
+**Directory traversal:**
+- `.iterdir()` — shallow listing of 1k, 10k, 100k entry directories
+- `.walk()` — recursive traversal on trees of varying depth (3, 10, 20) and width (10, 100, 1000)
+
+**Glob (Phase 4):**
+- `.glob("*.py")` — shallow glob on 10k files
+- `.rglob("**/*.py")` — recursive glob on a 100k-file tree
+- `.rglob()` with `case_sensitive` and `recurse_symlinks` kwargs
+
+**Mutations:**
+- `.mkdir()` — single dir, deep tree (parents=True)
+- `.unlink()`, `.rmdir()` — file and directory removal
+- `.rename()`, `.replace()` — atomic move
+- `.symlink_to()`, `.hardlink_to()` — link creation
+- `.copy()`, `.move()`, `.delete()` — 3.14 file-tree operations
+
+**Memory:**
+- Object size per path (100k instances)
+- Allocations per operation (via `tracemalloc`)
+- Peak RSS during `.rglob("**/*")` on a large tree
+
+### Target Ratios
+
+| Operation | Target vs pathlib |
+|---|---|
+| `PurePath(...).parent` | 10× faster |
+| `PurePath(...).stem` | 10× faster |
+| `p / "child"` | 3× faster |
+| `.stat()` | comparable (syscall-bound) |
+| `.read_text()` | comparable (I/O-bound) |
+| `.rglob("**/*.py")` on 10k files | 2–5× less memory |
+| `.copy()` directory tree | comparable to `shutil.copytree` |
+
+### Regression Detection
+
+- CI runs benchmarks on every push to main
+- If any benchmark regresses >10% vs the last stable run, the workflow flags a warning
+- Historical results stored as JSON for trend analysis over releases
 
 ---
 
@@ -529,16 +605,27 @@ pathlibrs/
 │   ├── iter.rs             # parts, parents, glob iterators
 │   ├── pure.rs             # PurePath / PurePosixPath / PureWindowsPath
 │   ├── concrete.rs         # Path / PosixPath / WindowsPath
-│   └── fs.rs               # stat, exists, mkdir, copy, move, delete
+│   ├── fs.rs               # stat, exists, mkdir, copy, move, delete
+│   └── glob.rs             # glob/rglob engine (Phase 4)
 ├── tests/
 │   ├── conftest.py         # pytest fixtures, skip logic
 │   ├── skips.txt           # private API tests to skip
-│   └── vendored/           # UNMODIFIED — from CPython 3.14
-│       ├── test_pathlib.py
-│       └── test_support.py
+│   ├── vendored/           # UNMODIFIED — from CPython 3.14
+│   │   ├── test_pathlib.py
+│   │   └── test_support.py
+│   └── update_vendored.py  # script to fetch latest CPython tests
+├── .github/
+│   └── workflows/
+│       ├── ci.yml          # main CI matrix
+│       ├── vendored-sync.yml  # automated upstream test tracking
+│       └── benchmarks.yml  # automated benchmark runs
 ├── benchmarks/
-│   ├── benchmark.py
-│   └── fixtures/           # Test directory trees
+│   ├── benchmark.py        # head-to-head vs pathlib
+│   ├── conftest.py         # benchmark fixtures and helpers
+│   ├── fixtures/           # test directory trees
+│   └── results/            # historical benchmark data (JSON)
+├── docs/
+│   └── benchmarks.md       # published benchmark results
 └── README.md
 ```
 
