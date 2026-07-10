@@ -455,12 +455,20 @@ The litmus test: **pass CPython's own `test_pathlib.py` from Python 3.14, unchan
 - `mkdir()`, `rmdir()`, `unlink()`, `rename()`, `replace()`, `symlink_to()`, `hardlink_to()`
 - `touch()`, `chmod()`, `lchmod()`, `expanduser()`
 - `open()`, `read_bytes()`, `read_text()`, `write_bytes()`, `write_text()`
-- `iterdir()`, `glob()`, `rglob()`, `walk()`
-- `glob()` / `rglob()` with `case_sensitive` and `recurse_symlinks` kwargs (3.12+/3.13+)
+- `iterdir()`, `walk()`
 - **3.14 methods:** `copy()`, `copy_into()`, `move()`, `move_into()`, `delete()`
-- **Verify:** All mutation, glob, and 3.14 file-tree tests pass
+- **Verify:** All mutation, I/O, and 3.14 file-tree tests pass
 
-### Phase 4: Polish & Edge Cases — ~1 week
+### Phase 4: Glob & Pattern Matching — ~1 week
+
+- `glob()`, `rglob()` with full pattern syntax: `**`, `*`, `?`, `[abc]`, `[!abc]`, brace expansion
+- `glob()` / `rglob()` with `case_sensitive` and `recurse_symlinks` kwargs (3.12+/3.13+)
+- Symlink loop detection for recursive globs
+- Glob iterator bridging (Rust → Python via PyO3 iterator protocol)
+- `glob.rs` module extracted from `iter.rs` / `pattern.rs` for standalone glob engine
+- **Verify:** All vendored CPython glob tests pass across platform matrix
+
+### Phase 5: Polish & Edge Cases — ~1 week
 
 - `Path.home()`, `Path.cwd()` class methods
 - Windows UNC/device/extended-path edge cases (see section 4.8)
@@ -529,7 +537,8 @@ pathlibrs/
 │   ├── iter.rs             # parts, parents, glob iterators
 │   ├── pure.rs             # PurePath / PurePosixPath / PureWindowsPath
 │   ├── concrete.rs         # Path / PosixPath / WindowsPath
-│   └── fs.rs               # stat, exists, mkdir, copy, move, delete
+│   ├── fs.rs               # stat, exists, mkdir, copy, move, delete
+│   └── glob.rs             # glob/rglob engine (Phase 4)
 ├── tests/
 │   ├── conftest.py         # pytest fixtures, skip logic
 │   ├── skips.txt           # private API tests to skip
