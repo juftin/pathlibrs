@@ -10,6 +10,11 @@
 # Remove entries as features are implemented in pathlibrs.
 # Each section corresponds to a Phase 2+ feature gap.
 
+# -- PurePathTest — CPython pickle protocol compatibility
+# pathlibrs's Rust-backed __new__() signature is incompatible with CPython 3.13
+# pickle data that references pathlib._local.PurePosixPath
+PurePathTest.test_unpicking_3_13
+
 # -- CompatiblePathTest — path-like protocol compat
 CompatiblePathTest.test_rtruediv
 CompatiblePathTest.test_truediv
