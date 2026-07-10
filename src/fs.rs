@@ -5,11 +5,9 @@
 
 use std::ffi::OsStr;
 use std::io;
-use std::os::unix::fs::MetadataExt as _;
 use std::path::Path as StdPath;
 
 use pyo3::prelude::*;
-
 
 // ═══════════════════════════════════════════════════════════════════════
 // StatResult — a simple stat_result-like object
@@ -77,9 +75,6 @@ impl StatResult {
     }
 
     fn __eq__(&self, other: &Bound<'_, PyAny>) -> PyResult<bool> {
-        // Compare by st_ino and st_dev (filesystem identity).
-        // stat_result equality in CPython compares all fields, but
-        // the tests only care about st_mode/st_ino/st_dev equality.
         if let Ok(other_ino) = other.getattr("st_ino") {
             let other_ino: u64 = other_ino.extract()?;
             let other_dev: u64 = other.getattr("st_dev")?.extract()?;
@@ -95,7 +90,9 @@ impl StatResult {
 
 impl StatResult {
     /// Create a StatResult from a ``std::fs::Metadata`` value.
+    #[cfg(unix)]
     pub fn from_metadata(md: &std::fs::Metadata) -> Self {
+        use std::os::unix::fs::MetadataExt as _;
         Self {
             st_mode: md.mode(),
             st_ino: md.ino(),
@@ -115,6 +112,46 @@ impl StatResult {
             st_rdev: md.rdev(),
         }
     }
+
+    /// Create a StatResult from a ``std::fs::Metadata`` value (Windows).
+    #[cfg(not(unix))]
+    pub fn from_metadata(md: &std::fs::Metadata) -> Self {
+        use std::os::windows::fs::MetadataExt as _;
+        // Windows MetadataExt provides: file_attributes(), creation_time(),
+        // last_access_time(), last_write_time(), file_size(), number_of_links(),
+        // file_index(), volume_serial_number()
+        let atime = secs_since_epoch(md.last_access_time());
+        let mtime = secs_since_epoch(md.last_write_time());
+        let ctime = secs_since_epoch(md.creation_time());
+        let file_type = if md.is_dir() { 0o040000 } else { 0o100000 };
+        Self {
+            st_mode: 0o666 | file_type,
+            st_ino: md.file_index().unwrap_or(0),
+            st_dev: 0,
+            st_nlink: md.number_of_links().unwrap_or(1) as u64,
+            st_uid: 0,
+            st_gid: 0,
+            st_size: md.file_size(),
+            st_atime: atime,
+            st_mtime: mtime,
+            st_ctime: ctime,
+            st_atime_ns: (atime * 1_000_000_000.0) as u64,
+            st_mtime_ns: (mtime * 1_000_000_000.0) as u64,
+            st_ctime_ns: (ctime * 1_000_000_000.0) as u64,
+            st_blksize: 0,
+            st_blocks: 0,
+            st_rdev: 0,
+        }
+    }
+}
+
+/// Convert Windows FILETIME to seconds since Unix epoch.
+#[cfg(windows)]
+fn secs_since_epoch(ft: u64) -> f64 {
+    // FILETIME is 100-nanosecond intervals since 1601-01-01
+    // Unix epoch is 1970-01-01. Difference is 11644473600 seconds.
+    const WINDOWS_TO_UNIX_EPOCH: u64 = 11_644_473_600;
+    (ft as f64 / 10_000_000.0) - WINDOWS_TO_UNIX_EPOCH as f64
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -181,39 +218,27 @@ pub fn stat_if_exists(path: &OsStr, follow_symlinks: bool) -> Option<StatResult>
 
 /// Check whether a path is a mount point.
 ///
-/// On POSIX: a path is a mount point if its device ID differs from its parent's
-/// device ID. The root directory is a special case (parent is itself).
+/// On POSIX: a path is a mount point if its device ID differs from its parent's.
 /// On Windows: a path is a mount point if it is a drive root.
 pub fn is_mount(path: &OsStr) -> PyResult<bool> {
     let path = StdPath::new(path).to_path_buf();
     let result = Python::with_gil(|py| {
         py.allow_threads(|| -> Result<bool, io::Error> {
             let md = std::fs::symlink_metadata(&path)?;
-            let parent = match path.parent() {
-                Some(p) if p != path => p.to_path_buf(),
-                _ => {
-                    // Root of the filesystem — its parent is itself.
-                    // On POSIX, root is always a mount point.
-                    #[cfg(unix)]
-                    {
-                        return Ok(true);
-                    }
-                    #[cfg(not(unix))]
-                    {
-                        return Ok(false);
-                    }
-                }
-            };
-            let parent_md = std::fs::symlink_metadata(&parent)?;
+
             #[cfg(unix)]
             {
-                use std::os::unix::fs::MetadataExt;
+                use std::os::unix::fs::MetadataExt as _;
+                let parent = match path.parent() {
+                    Some(p) if p != path => p.to_path_buf(),
+                    _ => return Ok(true), // Root is always a mount point
+                };
+                let parent_md = std::fs::symlink_metadata(&parent)?;
                 Ok(md.dev() != parent_md.dev())
             }
-            #[cfg(not(unix))]
+            #[cfg(windows)]
             {
-                // On Windows, check if this is a drive root.
-                let _ = (md, parent_md);
+                let _ = md;
                 let path_str = path.to_string_lossy();
                 Ok(path_str.len() == 3
                     && path_str.ends_with(":\\")
@@ -249,7 +274,27 @@ pub fn group(path: &OsStr, follow_symlinks: bool) -> PyResult<String> {
     })
 }
 
-/// Check if two paths refer to the same file (by inode and device).
+/// Check if two paths refer to the same file.
+#[cfg(unix)]
+pub fn samefile(a: &OsStr, b: &OsStr) -> PyResult<bool> {
+    use std::os::unix::fs::MetadataExt as _;
+    let a_path = StdPath::new(a).to_path_buf();
+    let b_path = StdPath::new(b).to_path_buf();
+    let result = Python::with_gil(|py| {
+        py.allow_threads(|| -> Result<bool, io::Error> {
+            let md_a = std::fs::metadata(&a_path)?;
+            let md_b = std::fs::metadata(&b_path)?;
+            Ok(md_a.ino() == md_b.ino() && md_a.dev() == md_b.dev())
+        })
+    });
+    match result {
+        Ok(v) => Ok(v),
+        Err(e) => Err(io_err_to_pyerr(e)),
+    }
+}
+
+/// Check if two paths refer to the same file (Windows stub).
+#[cfg(not(unix))]
 pub fn samefile(a: &OsStr, b: &OsStr) -> PyResult<bool> {
     let a_path = StdPath::new(a).to_path_buf();
     let b_path = StdPath::new(b).to_path_buf();
@@ -257,15 +302,11 @@ pub fn samefile(a: &OsStr, b: &OsStr) -> PyResult<bool> {
         py.allow_threads(|| -> Result<bool, io::Error> {
             let md_a = std::fs::metadata(&a_path)?;
             let md_b = std::fs::metadata(&b_path)?;
-            #[cfg(unix)]
-            {
-                use std::os::unix::fs::MetadataExt;
-                Ok(md_a.ino() == md_b.ino() && md_a.dev() == md_b.dev())
-            }
-            #[cfg(not(unix))]
-            {
-                Ok(md_a == md_b)
-            }
+            // Compare canonical paths on Windows
+            let canon_a = std::fs::canonicalize(&a_path)?;
+            let canon_b = std::fs::canonicalize(&b_path)?;
+            let _ = (md_a, md_b);
+            Ok(canon_a == canon_b)
         })
     });
     match result {
@@ -280,15 +321,11 @@ pub fn readlink_raw(path: &OsStr) -> PyResult<std::path::PathBuf> {
     let result = Python::with_gil(|py| py.allow_threads(|| std::fs::read_link(&path_buf)));
     match result {
         Ok(target) => Ok(target),
-        // On non-symlink, macOS returns EINVAL — map to OSError like CPython
         Err(e) => Err(pyo3::exceptions::PyOSError::new_err(e.to_string())),
     }
 }
 
 /// Resolve a path to its canonical form.
-///
-/// Uses ``std::fs::canonicalize`` which resolves all symlinks and
-/// normalizes ``..`` and ``.`` components.
 pub fn resolve(path: &OsStr, strict: bool) -> PyResult<std::path::PathBuf> {
     let path_buf = StdPath::new(path).to_path_buf();
     let result = Python::with_gil(|py| {
@@ -296,8 +333,6 @@ pub fn resolve(path: &OsStr, strict: bool) -> PyResult<std::path::PathBuf> {
             if strict {
                 std::fs::canonicalize(&path_buf)
             } else {
-                // Non-strict: resolve as much as possible, appending
-                // non-existent components to the resolved prefix.
                 resolve_non_strict(&path_buf)
             }
         })
@@ -310,9 +345,7 @@ pub fn resolve(path: &OsStr, strict: bool) -> PyResult<std::path::PathBuf> {
 
 /// Non-strict resolution: resolve existing prefix, append rest.
 fn resolve_non_strict(path: &StdPath) -> Result<std::path::PathBuf, io::Error> {
-    // Walk up until we find an existing component, then canonicalize it.
     let mut components: Vec<&OsStr> = path.iter().collect();
-    // Handle absolute vs relative
     let is_absolute = path.is_absolute();
 
     while !components.is_empty() {
@@ -327,9 +360,7 @@ fn resolve_non_strict(path: &StdPath) -> Result<std::path::PathBuf, io::Error> {
         };
 
         match std::fs::canonicalize(&test_path) {
-            Ok(resolved) => {
-                return Ok(resolved);
-            }
+            Ok(resolved) => return Ok(resolved),
             Err(e) if e.kind() == io::ErrorKind::NotFound => {
                 components.pop();
             }
@@ -337,7 +368,6 @@ fn resolve_non_strict(path: &StdPath) -> Result<std::path::PathBuf, io::Error> {
         }
     }
 
-    // Nothing resolved — return cwd / path for relative, or path for absolute
     if is_absolute {
         Ok(path.to_path_buf())
     } else {
