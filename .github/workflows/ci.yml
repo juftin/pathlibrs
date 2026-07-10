@@ -11,6 +11,7 @@ env:
 
 jobs:
   test:
+    name: test (${{ matrix.os }}, ${{ matrix.python-version }})
     strategy:
       fail-fast: false
       matrix:
@@ -45,4 +46,36 @@ jobs:
 
       - name: Build and run Python tests
         run: uv sync --group dev && uv run pytest tests/ -v
+
+  build:
+    name: build (${{ matrix.os }}, ${{ matrix.python-version }})
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        python-version: ["3.12", "3.13"]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Build wheel
+        run: |
+          uv sync --group dev
+          uv run maturin build --release --out dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheels-${{ matrix.os }}-${{ matrix.python-version }}
+          path: dist/
 
