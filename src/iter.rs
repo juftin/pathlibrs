@@ -2,8 +2,7 @@
 //!
 //! Provides ``PartsIter`` (for ``.parts``) and ``ParentsIter`` (for ``.parents``).
 
-use std::ffi::{OsStr, OsString};
-use std::os::unix::ffi::OsStrExt;
+use std::ffi::OsString;
 
 use pyo3::prelude::*;
 
@@ -123,7 +122,7 @@ impl ParentsIter {
         }
 
         // Build the parent path string from raw
-        let raw_bytes = self.raw.as_bytes();
+        let raw_bytes = self.raw.as_encoded_bytes();
 
         // Calculate the byte length of the parent path.
         // part_count starts at parts.len() and counts down.
@@ -151,7 +150,7 @@ impl ParentsIter {
         }
 
         let parent_bytes = &raw_bytes[..end];
-        let parent_str = OsStr::from_bytes(parent_bytes).to_string_lossy();
+        let parent_str = crate::from_os_bytes(parent_bytes).to_string_lossy();
 
         // Construct a new path object using the stored class
         let args = pyo3::types::PyTuple::new(py, &[pyo3::types::PyString::new(py, &parent_str)])?;

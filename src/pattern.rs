@@ -4,7 +4,6 @@
 //! ``*``, ``?``, ``[seq]``, ``[!seq]``.
 
 use std::ffi::OsStr;
-use std::os::unix::ffi::OsStrExt;
 
 /// Compiled glob pattern for fast repeated matching.
 #[derive(Debug, Clone)]
@@ -20,7 +19,7 @@ pub struct GlobPattern {
 impl GlobPattern {
     /// Compile a fnmatch-style pattern string.
     pub fn new(pattern: &OsStr, case_sensitive: bool) -> Self {
-        let bytes = pattern.as_bytes();
+        let bytes = pattern.as_encoded_bytes();
         let is_absolute = bytes.first().is_some_and(|&b| b == b'/');
 
         let segments: Vec<Vec<u8>> = if bytes.is_empty() {
@@ -40,7 +39,7 @@ impl GlobPattern {
     ///
     /// Returns `true` if the path matches the pattern.
     pub fn matches(&self, path: &OsStr) -> bool {
-        let path_bytes = path.as_bytes();
+        let path_bytes = path.as_encoded_bytes();
 
         // If pattern is relative, match against the tail of the path
         if !self.is_absolute {
@@ -238,16 +237,16 @@ pub fn match_path(pattern: &OsStr, path: &OsStr, case_sensitive: bool, is_window
     // On Windows, normalise backslashes to forward slashes in the path
     // before matching, so patterns written with / work against both.
     let path_normalised: Vec<u8> = if is_windows {
-        path.as_bytes()
+        path.as_encoded_bytes()
             .iter()
             .map(|&b| if b == b'\\' { b'/' } else { b })
             .collect()
     } else {
-        path.as_bytes().to_vec()
+        path.as_encoded_bytes().to_vec()
     };
 
     let compiled = GlobPattern::new(pattern, case_sensitive);
-    compiled.matches(OsStr::from_bytes(&path_normalised))
+    compiled.matches(crate::from_os_bytes(&path_normalised))
 }
 
 // ---------------------------------------------------------------------------
