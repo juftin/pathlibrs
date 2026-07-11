@@ -288,4 +288,20 @@ This is identical to what CI does — no drift between local and remote verifica
 
 Full design doc: `DESIGN.md`. Refer to it for architecture decisions, error handling strategy, and resolved design questions.
 
-Detailed task tracking: `CHECKLIST.md`. See it for granular per-method items, verification criteria, CI infrastructure status, and skip-count tracking across all five phases.
+## Working with the Checklist
+
+`CHECKLIST.md` is the authoritative task tracker for this project. Agents must:
+
+- **Before starting work** — read `CHECKLIST.md` to understand what phase is active,
+  what's already done, and what's next.
+- **When completing an item** — check it off in `CHECKLIST.md` by changing
+  `- [ ]` to `- [x]`. Update the skip count in the Phase 3 header if new
+  vendored tests are passing.
+- **When discovering new work** — add it to `CHECKLIST.md` under the appropriate
+  phase rather than keeping it in conversation context.
+- **Before claiming a phase is complete** — verify every unchecked item in that
+  phase is addressed and the skip count is zero for public API tests.
+
+The current phase is **Phase 3: Filesystem Mutations & I/O**. Work in ID order
+across the sub-sections: directory mutations first, then file mutations, then
+I/O, then traversal, then 3.14 file-tree operations.
