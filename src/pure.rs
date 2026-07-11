@@ -408,6 +408,7 @@ impl PurePath {
             let items: Vec<PyObject> = parsed
                 .parts
                 .iter()
+                .filter(|p| p.as_encoded_bytes() != b".")
                 .map(|p| {
                     p.to_string_lossy()
                         .into_owned()
@@ -473,15 +474,25 @@ impl PurePath {
         if !_drives_equal(&self_parsed.drive, &other_parsed.drive, slf._is_windows())
             || self_parsed.root != other_parsed.root
         {
-            // Anchors differ — no common prefix at all
-            if !walk_up {
+            // Anchors differ — no common prefix.
+            // With walk_up=True, allow it only when BOTH paths have roots
+            // AND the other path has at least one part (so ".." can
+            // conceptually reach a common ancestor).
+            // walk_up across different anchors only works when both paths
+            // have single-letter drives (e.g. C: vs D:), both have roots,
+            // and the other path has at least one part.
+            let both_regular_drives =
+                _is_regular_drive(&self_parsed.drive) && _is_regular_drive(&other_parsed.drive);
+            let both_have_roots = self_parsed.root.is_some() && other_parsed.root.is_some();
+            if !walk_up || !both_have_roots || !both_regular_drives || other_parsed.parts.is_empty()
+            {
                 return Err(pyo3::exceptions::PyValueError::new_err(format!(
                     "'{}' does not start with '{}'",
                     slf._str_repr(),
                     other_str
                 )));
             }
-            // With walk_up=True, different anchors produce all ".." segments
+            // With walk_up=True and both having roots, produce ".." segments
         } else {
             for i in 0..min_len {
                 if crate::repr::ParsedPath::parts_equal(
@@ -592,53 +603,58 @@ impl PurePath {
         if self.flavour == PathFlavour::Windows {
             if p.drive.is_none() {
                 return Err(pyo3::exceptions::PyValueError::new_err(format!(
-                    "path '{}' is not absolute on Windows",
-                    self._str_repr()
+                    "path '{path}' is not absolute on Windows",
+                    path = self._str_repr()
                 )));
             }
             if p.root.is_none() {
                 return Err(pyo3::exceptions::PyValueError::new_err(format!(
-                    "path '{}' is not absolute on Windows",
-                    self._str_repr()
+                    "path '{path}' is not absolute on Windows",
+                    path = self._str_repr()
                 )));
             }
         }
-        match self.flavour {
-            PathFlavour::Posix => {
-                if p.root.is_some() {
-                    Ok(format!("file://{}", self.as_posix()))
-                } else {
-                    Ok(format!("file:{}", self.as_posix()))
+        // Percent-encode the path portion via Python, preserving the drive
+        // letter colon (which must not be encoded in file: URIs).
+        Python::with_gil(|py| {
+            let quote = py.import("urllib.parse")?.getattr("quote")?;
+            match self.flavour {
+                PathFlavour::Posix => {
+                    let encoded: String = quote.call1((self.as_posix(),))?.extract()?;
+                    if p.root.is_some() {
+                        Ok(format!("file://{encoded}"))
+                    } else {
+                        Ok(format!("file:{encoded}"))
+                    }
                 }
-            }
-            PathFlavour::Windows => {
-                if let Some(ref drive) = p.drive {
-                    let drive_str = drive.to_string_lossy();
-                    if drive_str.starts_with("\\\\") {
-                        let trimmed = drive_str
-                            .replace('\\', "/")
-                            .trim_start_matches('/')
-                            .to_string();
-                        let rest = self.as_posix()[p.anchor_length..]
-                            .trim_start_matches('/')
-                            .to_string();
-                        if rest.is_empty() {
-                            Ok(format!("file://{}/", trimmed))
+                PathFlavour::Windows => {
+                    if let Some(ref drive) = p.drive {
+                        let drive_str = drive.to_string_lossy();
+                        if drive_str.starts_with("\\\\") {
+                            let trimmed = drive_str
+                                .replace('\\', "/")
+                                .trim_start_matches('/')
+                                .to_string();
+                            let rest = self.as_posix()[p.anchor_length..]
+                                .trim_start_matches('/')
+                                .to_string();
+                            let encoded: String = quote.call1((&rest,))?.extract()?;
+                            Ok(format!("file://{trimmed}/{encoded}"))
                         } else {
-                            Ok(format!("file://{}/{}", trimmed, rest))
+                            let drive_letter = drive_str.trim_end_matches(':');
+                            let rest = self.as_posix()[p.anchor_length..]
+                                .trim_start_matches('/')
+                                .to_string();
+                            let encoded: String = quote.call1((&rest,))?.extract()?;
+                            Ok(format!("file:///{drive_letter}:/{encoded}"))
                         }
                     } else {
-                        let drive_letter = drive_str.trim_end_matches(':');
-                        let rest = self.as_posix()[p.anchor_length..]
-                            .trim_start_matches('/')
-                            .to_string();
-                        Ok(format!("file:///{}:/{}", drive_letter, rest))
+                        let encoded: String = quote.call1((self.as_posix(),))?.extract()?;
+                        Ok(format!("file:{encoded}"))
                     }
-                } else {
-                    Ok(format!("file:{}", self.as_posix()))
                 }
             }
-        }
+        })
     }
 
     #[pyo3(name = "match")]
@@ -1298,6 +1314,17 @@ fn _split_drive_from_path(path: &str) -> Option<(&str, bool, &str)> {
         }
     }
     None
+}
+
+/// Check whether a drive is a single-letter Windows drive (e.g. ``"C:"``).
+fn _is_regular_drive(drive: &Option<OsString>) -> bool {
+    match drive {
+        Some(d) => {
+            let bytes = d.as_encoded_bytes();
+            bytes.len() == 2 && bytes[0].is_ascii_alphabetic() && bytes[1] == b':'
+        }
+        None => false,
+    }
 }
 
 /// Compare two drive components for equality.

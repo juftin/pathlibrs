@@ -65,11 +65,11 @@ maturin build --release
 
 ### Testing Windows flavour on non-Windows hosts
 
-The vendored CPython test suite (``tests/vendored/test_pathlib.py``) has
-``@needs_windows`` tests that normally **skip** on Linux/macOS because
-``PurePath.parser`` is ``posixpath`` (POSIX) rather than ``ntpath`` (Windows).
+The vendored CPython test suite (`tests/vendored/test_pathlib.py`) has
+`@needs_windows` tests that normally **skip** on Linux/macOS because
+`PurePath.parser` is `posixpath` (POSIX) rather than `ntpath` (Windows).
 
-Pass ``--windows-flavour`` to re-alias ``PurePath`` → ``PureWindowsPath`` at the
+Pass `--windows-flavour` to re-alias `PurePath` → `PureWindowsPath` at the
 module level, which causes those tests to run against Windows-flavour paths on
 any host OS:
 
@@ -82,27 +82,27 @@ runners in CI — no separate test file needed.
 
 #### How it works
 
-1. **Module redirect.** ``tests/conftest.py`` monkeypatches
-   ``sys.modules["pathlib"] = pathlibrs`` so the vendored tests (which import
-   ``pathlib``) run against our implementation.
+1. **Module redirect.** `tests/conftest.py` monkeypatches
+   `sys.modules["pathlib"] = pathlibrs` so the vendored tests (which import
+   `pathlib`) run against our implementation.
 
-2. **Flavour alias.** When ``--windows-flavour`` is passed,
-   ``pytest_configure`` sets ``pathlibrs.PurePath = pathlibrs.PureWindowsPath``.
-   This happens *before* test collection, so every test class that references
-   ``pathlib.PurePath`` gets ``PureWindowsPath`` instead.
+2. **Flavour alias.** When `--windows-flavour` is passed,
+   `pytest_configure` sets `pathlibrs.PurePath = pathlibrs.PureWindowsPath`.
+   This happens _before_ test collection, so every test class that references
+   `pathlib.PurePath` gets `PureWindowsPath` instead.
 
-3. **Skip logic.** The vendored ``setUp`` checks
-   ``if self.cls.parser is posixpath: self.skipTest(...)``.  With the alias
-   active, ``PurePath.parser`` is ``ntpath`` (not ``posixpath``), so
-   ``@needs_windows`` tests **run** and ``@needs_posix`` tests **skip** —
+3. **Skip logic.** The vendored `setUp` checks
+   `if self.cls.parser is posixpath: self.skipTest(...)`. With the alias
+   active, `PurePath.parser` is `ntpath` (not `posixpath`), so
+   `@needs_windows` tests **run** and `@needs_posix` tests **skip** —
    the correct inversion for Windows-flavour validation.
 
-4. **Two tests are skipped** regardless: ``test_concrete_class`` and
-   ``test_concrete_parser``.  These assert ``type(p) is PurePosixPath`` on
-   POSIX hosts, which is false when the alias is active.  The collection
-   hook marks them ``skip`` automatically.
+4. **Two tests are skipped** regardless: `test_concrete_class` and
+   `test_concrete_parser`. These assert `type(p) is PurePosixPath` on
+   POSIX hosts, which is false when the alias is active. The collection
+   hook marks them `skip` automatically.
 
-5. **CI still runs real Windows.**  The flag is for local development only.
-   CI uses actual ``windows-latest`` runners, which compile the crate with
-   ``#[cfg(windows)]`` active, picking up the native Windows path
+5. **CI still runs real Windows.** The flag is for local development only.
+   CI uses actual `windows-latest` runners, which compile the crate with
+   `#[cfg(windows)]` active, picking up the native Windows path
    implementation directly — no alias needed.

@@ -8,33 +8,26 @@ version = "0.1.0"
 description = "A fast pure-Rust implementation of Python's pathlib"
 readme = "README.md"
 requires-python = ">=3.10"
-license = { text = "MIT" }
-authors = [{ name = "juftin", email = "juftin@juftin.com" }]
+license = {text = "MIT"}
+authors = [{name = "juftin", email = "juftin@juftin.com"}]
 keywords = ["pathlib", "rust", "pyo3"]
 classifiers = [
-    "Development Status :: 3 - Alpha",
-    "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
-    "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
-    "Programming Language :: Python :: 3.13",
-    "Programming Language :: Python :: 3.14",
-    "Programming Language :: Rust",
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+  "Programming Language :: Rust"
 ]
 
 [tool.maturin]
 module-name = "pathlibrs"
 features = ["pyo3/extension-module"]
 bindings = "pyo3"
-
-[dependency-groups]
-dev = [
-    "maturin>=1.8,<2",
-    "pytest>=8",
-    "ruff>=0.8",
-]
 
 [tool.ruff]
 target-version = "py310"
@@ -46,3 +39,10 @@ select = ["E", "W", "F", "I", "N", "UP", "B", "SIM"]
 [tool.pytest.ini_options]
 python_files = ["test_*.py"]
 testpaths = ["tests"]
+
+[dependency-groups]
+dev = [
+  "maturin>=1.8,<2",
+  "pytest>=8",
+  "ruff>=0.8"
+]

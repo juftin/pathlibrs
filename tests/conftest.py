@@ -16,14 +16,13 @@ that pathlibrs does not implement.
 
         uv run python -m pytest tests/ --windows-flavour -v
 """
-import functools
+
 import os
 import sys
 
-import pytest
-
 # ── Redirect pathlib → pathlibrs ────────────────────────────────────────────
 import pathlibrs
+import pytest
 
 sys.modules["pathlib"] = pathlibrs
 
@@ -33,6 +32,7 @@ sys.modules["pathlib"] = pathlibrs
 # It is just ``from pathlib import *``.  pathlibrs doesn't ship a ``_local``
 # submodule, so we inject one dynamically when the vendored test runs.
 import types
+
 _local = types.ModuleType("pathlib._local")
 _local.__doc__ = "Shim for Python 3.13 pickle compatibility (injected by pathlibrs test harness)."
 # Re-export everything from pathlib (which is actually pathlibrs) — same as CPython.
@@ -179,9 +179,7 @@ def pytest_collection_modifyitems(config, items):
 
         # Class-level skip (ClassName.*)
         if cls_name in _CLASS_SKIPS:
-            item.add_marker(
-                pytest.mark.skip(reason="Not implemented (class-level skip)")
-            )
+            item.add_marker(pytest.mark.skip(reason="Not implemented (class-level skip)"))
             continue
 
         # Method-level skip with MRO matching
@@ -196,8 +194,4 @@ def pytest_collection_modifyitems(config, items):
             "test_concrete_class",
             "test_concrete_parser",
         ):
-            item.add_marker(
-                pytest.mark.skip(
-                    reason="Not applicable with --windows-flavour"
-                )
-            )
+            item.add_marker(pytest.mark.skip(reason="Not applicable with --windows-flavour"))
