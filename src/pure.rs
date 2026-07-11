@@ -10,7 +10,7 @@ use pyo3::prelude::*;
 use pyo3::types::{PyAnyMethods, PyList, PyString, PyTuple, PyType};
 
 use crate::fs::PathInfo;
-use crate::iter::ParentsIter;
+use crate::iter::{GlobIter, ParentsIter};
 use crate::ops::{self, stem_from_name, suffix_from_name};
 use crate::pattern;
 use crate::repr::{PathFlavour, PathRepr};
@@ -1375,6 +1375,98 @@ impl PurePath {
             results.push(tup.into_any().unbind());
         }
         Ok(PyList::new(py, results)?.into_any().unbind())
+    }
+
+    // -- Phase 4: Glob & Pattern Matching --------------------------------
+
+    /// Iterate over this directory tree, yielding all matching files.
+    ///
+    /// Parameters
+    /// ----------
+    /// pattern : str | os.PathLike
+    ///     The glob pattern (relative only).
+    /// case_sensitive : bool | None
+    ///     If ``True``, pattern matching is case-sensitive.
+    ///     If ``False``, case-insensitive.
+    ///     If ``None`` (default), uses the platform default
+    ///     (case-sensitive on POSIX, case-insensitive on Windows).
+    /// recurse_symlinks : bool
+    ///     If ``True``, follow symlinks to directories (default ``False``).
+    #[pyo3(signature = (pattern, *, case_sensitive = None, recurse_symlinks = false))]
+    fn glob<'py>(
+        slf: PyRef<'py, Self>,
+        pattern: &Bound<'py, PyAny>,
+        case_sensitive: Option<bool>,
+        recurse_symlinks: bool,
+    ) -> PyResult<PyObject> {
+        let py = slf.py();
+        let pattern_str = _extract_path_str(pattern)?;
+        let cs = case_sensitive.unwrap_or(!slf._is_windows());
+
+        let opts = crate::glob::GlobOptions {
+            case_sensitive: cs,
+            recurse_symlinks,
+            case_pedantic: case_sensitive.is_some(),
+        };
+
+        let base = slf.inner.raw();
+
+        // Collect results as strings
+        let results = match crate::glob::glob_walk(base, &pattern_str, &opts) {
+            Ok(r) => r,
+            Err(msg) => {
+                return Err(pyo3::exceptions::PyValueError::new_err(msg));
+            }
+        };
+
+        // Convert OsStrings to normalized strings.
+        // Strip "./" prefix when base is "." (CPython _remove_leading_dot).
+        let base_str = base.to_string_lossy();
+        let strip_dot = base_str.as_ref() == "." || base_str.as_ref() == "./";
+        let str_results: Vec<String> = results
+            .iter()
+            .map(|p| {
+                let mut s = p.to_string_lossy().into_owned();
+                if strip_dot {
+                    // Strip "./" prefix or "./" from results
+                    if let Some(rest) = s.strip_prefix("./") {
+                        s = rest.to_string();
+                    }
+                }
+                s
+            })
+            .collect();
+
+        let cls = {
+            let bound =
+                unsafe { pyo3::Bound::<'_, pyo3::PyAny>::from_borrowed_ptr(py, slf.as_ptr()) };
+            bound.getattr("__class__")?.unbind()
+        };
+
+        let iter = GlobIter::new(str_results, cls);
+        Ok(Py::new(py, iter)?.into_pyobject(py)?.into_any().unbind())
+    }
+
+    /// Recursive glob: like ``glob()`` but with ``**/`` prepended to the pattern.
+    ///
+    /// Parameters match ``glob()``.
+    #[pyo3(signature = (pattern, *, case_sensitive = None, recurse_symlinks = false))]
+    fn rglob<'py>(
+        slf: PyRef<'py, Self>,
+        pattern: &Bound<'py, PyAny>,
+        case_sensitive: Option<bool>,
+        recurse_symlinks: bool,
+    ) -> PyResult<PyObject> {
+        let pattern_str = _extract_path_str(pattern)?;
+        // CPython: rglob(pattern) = glob(self.parser.join('**', pattern))
+        let recursive_pattern = if pattern_str.is_empty() {
+            "**/".to_string()
+        } else {
+            format!("**/{pattern_str}")
+        };
+        let py = slf.py();
+        let py_pattern = pyo3::types::PyString::new(py, &recursive_pattern);
+        Self::glob(slf, &py_pattern.into_any(), case_sensitive, recurse_symlinks)
     }
 
     // -- Phase 3: 3.14 file-tree operations -----------------------------

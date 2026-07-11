@@ -7,6 +7,7 @@
 
 pub mod concrete;
 pub mod fs;
+pub mod glob;
 pub mod iter;
 pub mod ops;
 pub mod parsing;
@@ -58,6 +59,7 @@ fn pathlibrs(m: &Bound<'_, PyModule>) -> PyResult<()> {
     // Iterators
     m.add_class::<iter::PartsIter>()?;
     m.add_class::<iter::ParentsIter>()?;
+    m.add_class::<iter::GlobIter>()?;
 
     // Stat result and PathInfo (Phase 2)
     m.add_class::<fs::StatResult>()?;

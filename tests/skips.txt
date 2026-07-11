@@ -74,18 +74,6 @@ PathSubclassTest.test_exists
 PathSubclassTest.test_from_uri_pathname2url_posix
 PathSubclassTest.test_from_uri_posix
 PathSubclassTest.test_full_match_case_sensitive
-PathSubclassTest.test_glob_above_recursion_limit
-PathSubclassTest.test_glob_case_sensitive
-PathSubclassTest.test_glob_dot
-PathSubclassTest.test_glob_dotdot
-PathSubclassTest.test_glob_empty_pattern
-PathSubclassTest.test_glob_inaccessible
-PathSubclassTest.test_glob_long_symlink
-PathSubclassTest.test_glob_many_open_files
-PathSubclassTest.test_glob_pathlike
-PathSubclassTest.test_glob_permissions
-PathSubclassTest.test_glob_posix
-PathSubclassTest.test_glob_recurse_symlinks_common
 PathSubclassTest.test_group
 PathSubclassTest.test_handling_bad_descriptor
 # REMOVED: PathSubclassTest.test_hardlink_to
@@ -174,11 +162,6 @@ PathSubclassTest.test_resolve_dot
 PathSubclassTest.test_resolve_loop
 PathSubclassTest.test_resolve_nonexist_relative_issue38671
 PathSubclassTest.test_resolve_root
-PathSubclassTest.test_rglob_pathlike
-PathSubclassTest.test_rglob_posix
-PathSubclassTest.test_rglob_recurse_symlinks_common
-PathSubclassTest.test_rglob_recurse_symlinks_false
-PathSubclassTest.test_rglob_symlink_loop
 PathSubclassTest.test_rmdir
 PathSubclassTest.test_root_common
 PathSubclassTest.test_root_posix
@@ -246,18 +229,6 @@ PathTest.test_equivalences
 PathTest.test_from_uri_pathname2url_posix
 PathTest.test_from_uri_posix
 PathTest.test_full_match_case_sensitive
-PathTest.test_glob_above_recursion_limit
-PathTest.test_glob_case_sensitive
-PathTest.test_glob_dot
-PathTest.test_glob_dotdot
-PathTest.test_glob_empty_pattern
-PathTest.test_glob_inaccessible
-PathTest.test_glob_long_symlink
-PathTest.test_glob_many_open_files
-PathTest.test_glob_pathlike
-PathTest.test_glob_permissions
-PathTest.test_glob_posix
-PathTest.test_glob_recurse_symlinks_common
 PathTest.test_handling_bad_descriptor
 # REMOVED: PathTest.test_hardlink_to
 PathTest.test_is_relative_to_common
@@ -314,11 +285,6 @@ PathTest.test_relative_to_common
 PathTest.test_replace
 PathTest.test_repr_common
 PathTest.test_repr_roundtrips
-PathTest.test_rglob_pathlike
-PathTest.test_rglob_posix
-PathTest.test_rglob_recurse_symlinks_common
-PathTest.test_rglob_recurse_symlinks_false
-PathTest.test_rglob_symlink_loop
 PathTest.test_rmdir
 PathTest.test_root_common
 PathTest.test_root_posix
@@ -387,18 +353,6 @@ PosixPathTest.test_equivalences
 PosixPathTest.test_from_uri_pathname2url_posix
 PosixPathTest.test_from_uri_posix
 PosixPathTest.test_full_match_case_sensitive
-PosixPathTest.test_glob_above_recursion_limit
-PosixPathTest.test_glob_case_sensitive
-PosixPathTest.test_glob_dot
-PosixPathTest.test_glob_dotdot
-PosixPathTest.test_glob_empty_pattern
-PosixPathTest.test_glob_inaccessible
-PosixPathTest.test_glob_long_symlink
-PosixPathTest.test_glob_many_open_files
-PosixPathTest.test_glob_pathlike
-PosixPathTest.test_glob_permissions
-PosixPathTest.test_glob_posix
-PosixPathTest.test_glob_recurse_symlinks_common
 PosixPathTest.test_handling_bad_descriptor
 # REMOVED: PosixPathTest.test_hardlink_to
 PosixPathTest.test_is_relative_to_common
@@ -454,11 +408,6 @@ PosixPathTest.test_relative_to_common
 PosixPathTest.test_replace
 PosixPathTest.test_repr_common
 PosixPathTest.test_repr_roundtrips
-PosixPathTest.test_rglob_pathlike
-PosixPathTest.test_rglob_posix
-PosixPathTest.test_rglob_recurse_symlinks_common
-PosixPathTest.test_rglob_recurse_symlinks_false
-PosixPathTest.test_rglob_symlink_loop
 PosixPathTest.test_rmdir
 PosixPathTest.test_stem_empty
 # REMOVED: PosixPathTest.test_symlink_to
@@ -642,9 +591,7 @@ PathTest.test_delete_inner_junction
 PathTest.test_delete_outer_junction
 PathTest.test_from_uri_pathname2url_windows
 PathTest.test_from_uri_windows
-PathTest.test_glob_windows
 # REMOVED: PathTest.test_mkdir_with_unknown_drive
-PathTest.test_rglob_windows
 
 # -- WindowsPathTest inherited test methods that need own entries (truediv/rtruediv) --
 PathTest.test_rtruediv
