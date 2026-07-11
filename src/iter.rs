@@ -1,10 +1,12 @@
 //! Python-facing iterator types for path components.
 //!
-//! Provides ``PartsIter`` (for ``.parts``) and ``ParentsIter`` (for ``.parents``).
+//! Provides ``PartsIter`` (for ``.parts``), ``ParentsIter`` (for ``.parents``),
+//! and ``GlobIter`` (for ``.glob()`` / ``.rglob()``).
 
 use std::ffi::OsString;
 
 use pyo3::prelude::*;
+use pyo3::types::PyTuple;
 
 use crate::repr::{PathFlavour, PathRepr};
 
@@ -158,5 +160,45 @@ impl ParentsIter {
 
         self.part_count = self.part_count.saturating_sub(1);
         Ok(Some(result))
+    }
+}
+
+/// Iterator over the results of ``Path.glob()`` and ``Path.rglob()``.
+///
+/// Pre-collects matching paths during construction and yields them one
+/// at a time as ``Path`` objects (matching the type of the source path).
+#[pyclass(module = "pathlibrs")]
+pub struct GlobIter {
+    results: Vec<String>,
+    pos: usize,
+    /// The Python class to use for constructing result path objects.
+    cls: PyObject,
+}
+
+impl GlobIter {
+    /// Create a new GlobIter from collected result paths.
+    pub fn new(results: Vec<String>, cls: PyObject) -> Self {
+        Self {
+            results,
+            pos: 0,
+            cls,
+        }
+    }
+}
+
+#[pymethods]
+impl GlobIter {
+    fn __iter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> {
+        slf
+    }
+
+    fn __next__(&mut self, py: Python<'_>) -> PyResult<Option<PyObject>> {
+        if self.pos >= self.results.len() {
+            return Ok(None);
+        }
+        let path_str = &self.results[self.pos];
+        self.pos += 1;
+        let args = PyTuple::new(py, &[pyo3::types::PyString::new(py, path_str)])?;
+        Ok(Some(self.cls.call1(py, args)?))
     }
 }

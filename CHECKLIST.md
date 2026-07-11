@@ -82,17 +82,17 @@
 - [x] GIL released during all blocking I/O
 - [x] CI passes on all platforms: Linux, macOS, Windows (Python 3.10 + 3.14)
 
-## Phase 4: Glob & Pattern Matching — Upcoming
+## Phase 4: Glob & Pattern Matching — Complete
 
-- [ ] `glob()` with full pattern syntax: `**`, `*`, `?`, `[abc]`, `[!abc]`
-- [ ] `rglob()` with full pattern syntax
-- [ ] Brace expansion in patterns
-- [ ] `case_sensitive` kwarg (3.12+)
-- [ ] `recurse_symlinks` kwarg (3.13+)
-- [ ] Symlink loop detection for recursive globs
-- [ ] Glob iterator bridging (Rust iterator → Python iterator protocol)
-- [ ] `glob.rs` module extracted from `iter.rs` / `pattern.rs`
-- [ ] Verify: all vendored CPython glob tests pass across platform matrix
+- [x] `glob()` with full pattern syntax: `**`, `*`, `?`, `[abc]`, `[!abc]`
+- [x] `rglob()` with full pattern syntax
+- [x] Brace expansion in patterns
+- [x] `case_sensitive` kwarg (3.12+)
+- [x] `recurse_symlinks` kwarg (3.13+)
+- [x] Symlink loop detection for recursive globs
+- [x] Glob iterator bridging (Rust iterator → Python iterator protocol)
+- [x] `glob.rs` module extracted from `iter.rs` / `pattern.rs`
+- [x] Verify: all vendored CPython glob tests pass across platform matrix (51/51 non-Windows tests, Windows tests run on Windows CI)
 
 ## Phase 5: Parity & Maintenance — Upcoming
 
