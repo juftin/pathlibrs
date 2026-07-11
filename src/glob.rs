@@ -107,9 +107,7 @@ fn parse_pattern(pattern: &str) -> Result<Vec<PatternPart>, String> {
     let raw_parts: Vec<&str> = normalised.split('/').collect();
 
     // Detect unacceptable patterns: "", ".", "./", "."
-    let all_empty_or_dot = raw_parts
-        .iter()
-        .all(|p| p.is_empty() || *p == ".");
+    let all_empty_or_dot = raw_parts.iter().all(|p| p.is_empty() || *p == ".");
     if all_empty_or_dot {
         return Err("Unacceptable pattern".to_string());
     }
@@ -182,8 +180,7 @@ pub fn expand_braces(pattern: &str) -> Vec<String> {
                         let body = &pattern[start + 1..i];
                         let suffix = &pattern[i + 1..];
 
-                        let alternatives: Vec<&str> =
-                            split_brace_alternatives(body);
+                        let alternatives: Vec<&str> = split_brace_alternatives(body);
 
                         let mut results: Vec<String> = Vec::new();
                         for alt in &alternatives {
@@ -267,7 +264,6 @@ fn path_exists(path: &OsStr) -> bool {
     }
     false
 }
-
 
 /// A simplified directory entry for glob traversal.
 struct GlobEntry {
@@ -427,8 +423,7 @@ fn glob_walk_single(
                                         clean.push(b);
                                     }
                                 }
-                                let key: OsString =
-                                    crate::from_os_bytes(&clean).to_os_string();
+                                let key: OsString = crate::from_os_bytes(&clean).to_os_string();
                                 if !visited.insert(key) {
                                     continue; // Symlink loop — skip
                                 }
@@ -476,8 +471,7 @@ fn glob_walk_single(
                         let next_is_trailing_empty = part_idx + 1 < parts.len()
                             && matches!(&parts[part_idx + 1], PatternPart::Special(s) if s.is_empty());
                         if path_exists(&child)
-                            && (next_is_trailing_empty
-                                || StdPath::new(&child).is_dir())
+                            && (next_is_trailing_empty || StdPath::new(&child).is_dir())
                         {
                             stack.push((child, part_idx + 1, true));
                         }
@@ -503,12 +497,9 @@ fn glob_walk_single(
                                     continue;
                                 }
                                 if has_trailing_slash {
-                                    let mut child_bytes =
-                                        child.as_encoded_bytes().to_vec();
+                                    let mut child_bytes = child.as_encoded_bytes().to_vec();
                                     child_bytes.push(b'/');
-                                    results.push(
-                                        crate::from_os_bytes(&child_bytes).to_os_string(),
-                                    );
+                                    results.push(crate::from_os_bytes(&child_bytes).to_os_string());
                                 } else {
                                     // exists=True: from scandir
                                     results.push(child);
@@ -588,9 +579,16 @@ mod tests {
         fs::write(dir.path().join("fileA"), b"this is file A\n").unwrap();
         fs::write(dir.path().join("dirB").join("fileB"), b"this is file B\n").unwrap();
         fs::write(dir.path().join("dirC").join("fileC"), b"this is file C\n").unwrap();
-        fs::write(dir.path().join("dirC").join("novel.txt"), b"this is a novel\n").unwrap();
-        fs::write(dir.path().join("dirC").join("dirD").join("fileD"), b"this is file D\n")
-            .unwrap();
+        fs::write(
+            dir.path().join("dirC").join("novel.txt"),
+            b"this is a novel\n",
+        )
+        .unwrap();
+        fs::write(
+            dir.path().join("dirC").join("dirD").join("fileD"),
+            b"this is file D\n",
+        )
+        .unwrap();
 
         (dir, base)
     }
@@ -688,7 +686,9 @@ mod tests {
         let opts = GlobOptions::default();
         let results = glob_walk(&base, "fileA", &opts).unwrap();
         let base_str = base.to_string_lossy();
-        assert!(results.iter().any(|p| p.to_string_lossy().ends_with("fileA")));
+        assert!(results
+            .iter()
+            .any(|p| p.to_string_lossy().ends_with("fileA")));
         // Only fileA matches
         let just_names: Vec<String> = results
             .iter()

@@ -301,4 +301,3 @@ Full design doc: `DESIGN.md`. Refer to it for architecture decisions, error hand
   phase rather than keeping it in conversation context.
 - **Before claiming a phase is complete** — verify every unchecked item in that
   phase is addressed and the skip count is zero for public API tests.
-

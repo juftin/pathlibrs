@@ -1466,7 +1466,12 @@ impl PurePath {
         };
         let py = slf.py();
         let py_pattern = pyo3::types::PyString::new(py, &recursive_pattern);
-        Self::glob(slf, &py_pattern.into_any(), case_sensitive, recurse_symlinks)
+        Self::glob(
+            slf,
+            &py_pattern.into_any(),
+            case_sensitive,
+            recurse_symlinks,
+        )
     }
 
     // -- Phase 3: 3.14 file-tree operations -----------------------------
