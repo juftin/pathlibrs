@@ -1,80 +1,99 @@
-.PHONY: build build-release dev install setup test test-rust test-python \
-        fmt fmt-check fmt-rust fmt-python lint lint-rust lint-python \
-        clean wheel ci
+SHELL := /bin/bash
+.DEFAULT_GOAL := help
 
-# Build debug binary (Rust only, no Python module)
-build:
-	cargo build
+##@ Setup
 
-# Build with release optimizations (LTO)
-build-release:
-	cargo build --release
-
-# Install Python dev dependencies (uv sync)
-setup:
+.PHONY: setup
+setup: ## Install Python dev dependencies (uv sync --group dev).
 	uv sync --group dev
 
-# Install in development mode (build + install into current Python env)
-dev: install
-
-install: setup
+.PHONY: install
+install: setup ## Build and install pathlibrs in development mode (maturin develop).
 	uv run maturin develop
 
-# Run all tests (Rust + Python)
-test: test-rust test-python
+.PHONY: dev
+dev: install ## Alias for install.
 
-# Rust unit tests only (fast, no Python)
-test-rust:
-	cargo test
+##@ Build
 
-# Python test suite (smoke tests + vendored CPython tests)
-test-python:
-	uv run pytest tests/ -v
+.PHONY: build
+build: ## Debug build (Rust only, no Python module).
+	cargo build
 
-# Format all code
-fmt: fmt-rust fmt-python
+.PHONY: build-release
+build-release: ## Release build with LTO enabled.
+	cargo build --release
 
-# Format Rust code
-fmt-rust:
-	cargo fmt
-
-# Format Python code
-fmt-python:
-	uv run ruff format .
-
-# Check formatting without modifying (CI)
-fmt-check: fmt-check-rust fmt-check-python
-
-fmt-check-rust:
-	cargo fmt --check --verbose
-
-fmt-check-python:
-	uv run ruff format --check .
-
-# Lint all code
-lint: lint-rust lint-python
-
-# Rust clippy with warnings as errors
-lint-rust:
-	cargo clippy --all-targets -- -D warnings
-
-# Python ruff lint
-lint-python:
-	uv run ruff check .
-
-# Run all checks (format + lint + tests) — same as CI
-check: fmt-check lint test
-	@echo "All checks passed."
-
-# Build release wheel
-wheel: setup
+.PHONY: wheel
+wheel: setup ## Build release wheel into dist/.
 	uv run maturin build --release --out dist
 
-# Clean build artifacts
-clean:
+##@ Test
+
+.PHONY: test
+test: test-rust test-python ## Run all tests (Rust + Python).
+
+.PHONY: test-rust
+test-rust: ## Run Rust unit tests only (fast, no Python).
+	cargo test
+
+.PHONY: test-python
+test-python: ## Run Python test suite (smoke tests + vendored CPython tests).
+	uv run pytest tests/ -v
+
+##@ Format
+
+.PHONY: fmt
+fmt: fmt-rust fmt-python ## Format all code (Rust + Python, modifies files).
+
+.PHONY: fmt-rust
+fmt-rust: ## Format Rust code (cargo fmt).
+	cargo fmt
+
+.PHONY: fmt-python
+fmt-python: ## Format Python code (ruff format .).
+	uv run ruff format .
+
+.PHONY: fmt-check
+fmt-check: fmt-check-rust fmt-check-python ## Check formatting without modifying (CI).
+
+.PHONY: fmt-check-rust
+fmt-check-rust: ## Check Rust formatting (cargo fmt --check --verbose).
+	cargo fmt --check --verbose
+
+.PHONY: fmt-check-python
+fmt-check-python: ## Check Python formatting (ruff format --check .).
+	uv run ruff format --check .
+
+##@ Lint
+
+.PHONY: lint
+lint: lint-rust lint-python ## Lint all code (Rust + Python).
+
+.PHONY: lint-rust
+lint-rust: ## Rust clippy with warnings as errors.
+	cargo clippy --all-targets -- -D warnings
+
+.PHONY: lint-python
+lint-python: ## Python ruff check.
+	uv run ruff check .
+
+##@ CI
+
+.PHONY: check
+check: fmt-check lint test ## Run format check + lint + tests — what to run before committing.
+
+.PHONY: ci
+ci: fmt-check-rust lint-rust test-rust setup test-python ## Full CI pipeline (same as what runs in GitHub Actions).
+	@echo "All CI checks passed."
+
+.PHONY: clean
+clean: ## Remove build artifacts (target/, dist/, caches).
 	cargo clean
 	rm -rf dist/ build/ .pytest_cache/ __pycache__/ tests/__pycache__/
 
-# Full CI pipeline (format, clippy, Rust tests, Python tests)
-ci: fmt-check-rust lint-rust test-rust setup test-python
-	@echo "All CI checks passed."
+##@ Help
+
+.PHONY: help
+help: ## Show this help message and exit.
+	@awk 'BEGIN {FS = ":.*##"; printf "Usage:\n  make \033[36m<target>\033[0m\n"} /^[a-zA-Z_-]+:.*?##/ { printf "  \033[36m%-22s\033[0m %s\n", $$1, $$2 } /^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) } ' $(MAKEFILE_LIST)

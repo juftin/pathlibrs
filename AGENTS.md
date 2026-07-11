@@ -78,58 +78,21 @@ make install     # uv sync + maturin develop
 
 ## Makefile Targets
 
-Every development task has a `make` target. These are the same commands CI runs.
+All development commands are wrapped behind `make`. Run `make` or `make help` to see
+the current target listing with descriptions — the Makefile is self-documenting.
 
-### Setup & Install
+The targets are organized into categories:
 
-| Target | Description |
-|--------|-------------|
-| `make setup` | Install Python dev dependencies (`uv sync --group dev`) |
-| `make install` | Setup + build and install pathlibrs in dev mode (`maturin develop`) |
-| `make dev` | Alias for `install` |
+| Category | Key Targets |
+|----------|-------------|
+| **Setup** | `setup`, `install`, `dev` |
+| **Build** | `build`, `build-release`, `wheel` |
+| **Test** | `test`, `test-rust`, `test-python` |
+| **Format** | `fmt`, `fmt-check`, `fmt-rust`, `fmt-python`, `fmt-check-rust`, `fmt-check-python` |
+| **Lint** | `lint`, `lint-rust`, `lint-python` |
+| **CI** | `check`, `ci`, `clean` |
 
-### Build
-
-| Target | Description |
-|--------|-------------|
-| `make build` | Debug build (Rust only, no Python module) |
-| `make build-release` | Release build with LTO |
-| `make wheel` | Build release wheel into `dist/` |
-
-### Test
-
-| Target | Description |
-|--------|-------------|
-| `make test` | All tests (Rust + Python) |
-| `make test-rust` | Rust unit tests only (`cargo test`) |
-| `make test-python` | Python test suite (`pytest tests/ -v`) |
-
-### Format
-
-| Target | Description |
-|--------|-------------|
-| `make fmt` | Format everything (Rust + Python, modifies files) |
-| `make fmt-rust` | Format Rust code (`cargo fmt`) |
-| `make fmt-python` | Format Python code (`ruff format .`) |
-| `make fmt-check` | Check formatting only (no modifications) |
-| `make fmt-check-rust` | Check Rust formatting (`cargo fmt --check --verbose`) |
-| `make fmt-check-python` | Check Python formatting (`ruff format --check .`) |
-
-### Lint
-
-| Target | Description |
-|--------|-------------|
-| `make lint` | Lint everything (Rust + Python) |
-| `make lint-rust` | Rust clippy with `-D warnings` |
-| `make lint-python` | Python ruff check |
-
-### CI & Cleanup
-
-| Target | Description |
-|--------|-------------|
-| `make check` | Format check + lint + tests — what to run before committing |
-| `make ci` | Full CI pipeline: format check, clippy, rust tests, setup, python tests |
-| `make clean` | Remove build artifacts (`cargo clean` + dist/build/cache dirs) |
+CI uses the same `make` targets as local development — there is no drift.
 
 ### Running Individual Commands
 
