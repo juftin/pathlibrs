@@ -613,22 +613,13 @@ impl PurePath {
             );
             Ok::<_, PyErr>(())
         })?;
-        let p = self.inner.parsed(self.flavour);
-        // Non-absolute paths on Windows cannot produce a file: URI
-        if self.flavour == PathFlavour::Windows {
-            if p.drive.is_none() {
-                return Err(pyo3::exceptions::PyValueError::new_err(format!(
-                    "path '{path}' is not absolute on Windows",
-                    path = self._str_repr()
-                )));
-            }
-            if p.root.is_none() {
-                return Err(pyo3::exceptions::PyValueError::new_err(format!(
-                    "path '{path}' is not absolute on Windows",
-                    path = self._str_repr()
-                )));
-            }
+        // Non-absolute paths cannot be expressed as file URIs (RFC 8089).
+        if !self.is_absolute() {
+            return Err(pyo3::exceptions::PyValueError::new_err(
+                "relative path can't be expressed as a file URI",
+            ));
         }
+        let p = self.inner.parsed(self.flavour);
         // Percent-encode the path portion via Python, preserving the drive
         // letter colon (which must not be encoded in file: URIs).
         Python::with_gil(|py| {
@@ -636,36 +627,31 @@ impl PurePath {
             match self.flavour {
                 PathFlavour::Posix => {
                     let encoded: String = quote.call1((self.as_posix(),))?.extract()?;
-                    if p.root.is_some() {
-                        Ok(format!("file://{encoded}"))
-                    } else {
-                        Ok(format!("file:{encoded}"))
-                    }
+                    Ok(format!("file://{encoded}"))
                 }
                 PathFlavour::Windows => {
-                    if let Some(ref drive) = p.drive {
-                        let drive_str = drive.to_string_lossy();
-                        if drive_str.starts_with("\\\\") {
-                            let trimmed = drive_str
-                                .replace('\\', "/")
-                                .trim_start_matches('/')
-                                .to_string();
-                            let rest = self.as_posix()[p.anchor_length..]
-                                .trim_start_matches('/')
-                                .to_string();
-                            let encoded: String = quote.call1((&rest,))?.extract()?;
-                            Ok(format!("file://{trimmed}/{encoded}"))
-                        } else {
-                            let drive_letter = drive_str.trim_end_matches(':');
-                            let rest = self.as_posix()[p.anchor_length..]
-                                .trim_start_matches('/')
-                                .to_string();
-                            let encoded: String = quote.call1((&rest,))?.extract()?;
-                            Ok(format!("file:///{drive_letter}:/{encoded}"))
-                        }
+                    let drive = p
+                        .drive
+                        .as_ref()
+                        .expect("absolute Windows path must have a drive");
+                    let drive_str = drive.to_string_lossy();
+                    if drive_str.starts_with("\\\\") {
+                        let trimmed = drive_str
+                            .replace('\\', "/")
+                            .trim_start_matches('/')
+                            .to_string();
+                        let rest = self.as_posix()[p.anchor_length..]
+                            .trim_start_matches('/')
+                            .to_string();
+                        let encoded: String = quote.call1((&rest,))?.extract()?;
+                        Ok(format!("file://{trimmed}/{encoded}"))
                     } else {
-                        let encoded: String = quote.call1((self.as_posix(),))?.extract()?;
-                        Ok(format!("file:{encoded}"))
+                        let drive_letter = drive_str.trim_end_matches(':');
+                        let rest = self.as_posix()[p.anchor_length..]
+                            .trim_start_matches('/')
+                            .to_string();
+                        let encoded: String = quote.call1((&rest,))?.extract()?;
+                        Ok(format!("file:///{drive_letter}:/{encoded}"))
                     }
                 }
             }

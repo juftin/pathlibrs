@@ -1,5 +1,6 @@
 """Basic smoke tests for pathlibrs Phase 1."""
 
+import pytest
 from pathlibrs import PurePath, PurePosixPath, PureWindowsPath
 
 
@@ -172,10 +173,10 @@ class TestPurePosixPath:
         assert p.as_uri() == "file:///home/user/file.txt"
 
     def test_relative_uri(self) -> None:
+        """Non-absolute paths cannot be expressed as file URIs (RFC 8089)."""
         p = PurePosixPath("relative/path")
-        uri = p.as_uri()
-        assert uri.startswith("file:")
-        assert "relative/path" in uri
+        with pytest.raises(ValueError, match="relative path"):
+            p.as_uri()
 
     def test_str(self) -> None:
         p = PurePosixPath("/foo/bar")
