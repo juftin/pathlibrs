@@ -20,8 +20,6 @@ CompatiblePathTest.test_rtruediv
 CompatiblePathTest.test_truediv
 
 # -- PathSubclassTest — concrete subclass I/O tests (Phase 2+)
-PathSubclassTest.test_absolute_common
-PathSubclassTest.test_absolute_posix
 PathSubclassTest.test_as_bytes_common
 PathSubclassTest.test_as_uri_common
 PathSubclassTest.test_as_uri_non_ascii
@@ -33,7 +31,6 @@ PathSubclassTest.test_bytes_exc_message
 PathSubclassTest.test_complex_symlinks_absolute
 PathSubclassTest.test_complex_symlinks_relative
 PathSubclassTest.test_complex_symlinks_relative_dot_dot
-PathSubclassTest.test_concrete_parser
 PathSubclassTest.test_constructor_nested
 # REMOVED: PathSubclassTest.test_copy_dangling_symlink
 PathSubclassTest.test_copy_dir_no_read_permission
@@ -53,7 +50,6 @@ PathSubclassTest.test_copy_link_preserve_metadata
 PathSubclassTest.test_copy_symlink_to_existing_directory_symlink
 PathSubclassTest.test_copy_symlink_to_existing_symlink
 PathSubclassTest.test_copy_symlink_to_itself
-PathSubclassTest.test_cwd
 PathSubclassTest.test_delete_dir
 PathSubclassTest.test_delete_does_not_choke_on_failing_lstat
 PathSubclassTest.test_delete_file
@@ -68,42 +64,21 @@ PathSubclassTest.test_empty_path
 PathSubclassTest.test_eq_common
 PathSubclassTest.test_eq_posix
 PathSubclassTest.test_equivalences
-PathSubclassTest.test_exists
 # REMOVED: PathSubclassTest.test_expanduser_common
 # REMOVED: PathSubclassTest.test_expanduser_posix
 PathSubclassTest.test_from_uri_pathname2url_posix
 PathSubclassTest.test_from_uri_posix
 PathSubclassTest.test_full_match_case_sensitive
-PathSubclassTest.test_group
 PathSubclassTest.test_handling_bad_descriptor
 # REMOVED: PathSubclassTest.test_hardlink_to
-PathSubclassTest.test_home
 PathSubclassTest.test_info_exists_caching
 PathSubclassTest.test_info_is_dir_caching
 PathSubclassTest.test_info_is_file_caching
 PathSubclassTest.test_info_is_symlink_caching
-PathSubclassTest.test_is_absolute_posix
-PathSubclassTest.test_is_block_device_false
-PathSubclassTest.test_is_char_device_false
-PathSubclassTest.test_is_char_device_true
-PathSubclassTest.test_is_dir
-PathSubclassTest.test_is_dir_no_follow_symlinks
-PathSubclassTest.test_is_fifo_false
-PathSubclassTest.test_is_fifo_true
-PathSubclassTest.test_is_file
-PathSubclassTest.test_is_file_no_follow_symlinks
-PathSubclassTest.test_is_junction_false
 PathSubclassTest.test_is_junction_true
-PathSubclassTest.test_is_mount
 PathSubclassTest.test_is_relative_to_common
-PathSubclassTest.test_is_reserved_deprecated
-PathSubclassTest.test_is_socket_false
-PathSubclassTest.test_is_socket_true
-PathSubclassTest.test_is_symlink
 # REMOVED: PathSubclassTest.test_iterdir_symlink
 PathSubclassTest.test_join_nested
-PathSubclassTest.test_lstat
-PathSubclassTest.test_lstat_nosymlink
 PathSubclassTest.test_match_common
 PathSubclassTest.test_match_empty
 PathSubclassTest.test_match_posix
@@ -148,11 +123,9 @@ PathSubclassTest.test_name_empty
 # REMOVED: PathSubclassTest.test_open_common
 # REMOVED: PathSubclassTest.test_open_mode
 # REMOVED: PathSubclassTest.test_open_unbuffered
-PathSubclassTest.test_owner
 PathSubclassTest.test_parse_path_common
 PathSubclassTest.test_parse_path_posix
 PathSubclassTest.test_parse_windows_path
-PathSubclassTest.test_readlink
 PathSubclassTest.test_relative_to_common
 # REMOVED: PathSubclassTest.test_rename
 PathSubclassTest.test_replace
@@ -161,14 +134,9 @@ PathSubclassTest.test_resolve_common
 PathSubclassTest.test_resolve_dot
 PathSubclassTest.test_resolve_loop
 PathSubclassTest.test_resolve_nonexist_relative_issue38671
-PathSubclassTest.test_resolve_root
 PathSubclassTest.test_rmdir
 PathSubclassTest.test_root_common
 PathSubclassTest.test_root_posix
-PathSubclassTest.test_samefile
-PathSubclassTest.test_stat
-PathSubclassTest.test_stat_no_follow_symlinks
-PathSubclassTest.test_stat_no_follow_symlinks_nosymlink
 PathSubclassTest.test_stem_empty
 # REMOVED: PathSubclassTest.test_symlink_to
 # REMOVED: PathSubclassTest.test_touch_common
@@ -176,7 +144,6 @@ PathSubclassTest.test_stem_empty
 # REMOVED: PathSubclassTest.test_touch_nochange
 # REMOVED: PathSubclassTest.test_unlink
 # REMOVED: PathSubclassTest.test_unlink_missing_ok
-PathSubclassTest.test_unsupported_parser
 PathSubclassTest.test_with_name_empty
 PathSubclassTest.test_with_segments
 PathSubclassTest.test_with_stem_empty
@@ -634,7 +601,6 @@ PathTest.test_equivalences_windows
 PathTest.test_expanduser_windows
 PathTest.test_from_uri_pathname2url_windows
 PathTest.test_from_uri_windows
-PathTest.test_fspath_common
 PathTest.test_group_windows
 PathTest.test_is_absolute_windows
 PathTest.test_is_relative_to_windows
@@ -644,7 +610,6 @@ PathTest.test_owner_windows
 PathTest.test_parse_path_windows
 PathTest.test_relative_to_windows
 PathTest.test_root_windows
-PathTest.test_str_common
 PathTest.test_str_windows
 PathTest.test_with_name_windows
 PathTest.test_with_stem_windows
