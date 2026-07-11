@@ -302,6 +302,3 @@ Full design doc: `DESIGN.md`. Refer to it for architecture decisions, error hand
 - **Before claiming a phase is complete** — verify every unchecked item in that
   phase is addressed and the skip count is zero for public API tests.
 
-The current phase is **Phase 3: Filesystem Mutations & I/O**. Work in ID order
-across the sub-sections: directory mutations first, then file mutations, then
-I/O, then traversal, then 3.14 file-tree operations.
