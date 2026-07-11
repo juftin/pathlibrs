@@ -38,7 +38,9 @@
 
 ## Phase 3: Filesystem Mutations & I/O — Substantially Complete ✓
 
-902 test skips in `skips.txt` (down from 1030; 128 new test passes from ~130 unskipped vendored CPython tests).
+902 test skips in `skips.txt` (down from 1030; 127 new test passes from ~130 unskipped vendored CPython tests).
+
+531 active skip entries (down from 656; 126 removed from `skips.txt`).
 
 ### Directory Mutations
 
@@ -66,17 +68,19 @@
 
 ### 3.14 File-Tree Operations
 
-- [x] `copy()` — copy file or directory tree (basic; preserve_metadata/complex edge cases TBD)
+- [x] `copy()` — copy file or directory tree to exact target (matching CPython semantics)
 - [x] `copy_into()` — copy into an existing directory
-- [x] `move()` — move file or directory tree (basic; edge cases like moving onto self TBD)
+- [x] `move()` — move file or directory tree to exact target (matching CPython semantics)
 - [x] `move_into()` — move into an existing directory
 - [x] `delete()` — delete file or directory tree (basic; private-API `_delete()` tests skipped)
 
 ### Verification
 
-- [x] All basic mutation and I/O vendored CPython tests pass (63 new passes)
+- [x] All basic mutation and I/O vendored CPython tests pass (63→127 new passes)
 - [ ] 3.14 file-tree operation edge case tests pass (complex cases remain skipped)
+- [x] `copy()` and `move()` match CPython semantics: exact-target copy with `ensure_distinct_paths` guards
 - [x] GIL released during all blocking I/O
+- [x] CI passes on all platforms: Linux, macOS, Windows (Python 3.10 + 3.14)
 
 ## Phase 4: Glob & Pattern Matching — Upcoming
 
