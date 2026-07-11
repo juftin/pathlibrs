@@ -1152,18 +1152,25 @@ impl PurePath {
         }
     }
 
-    fn __repr__(&self) -> String {
-        let class_name = match self.flavour {
-            PathFlavour::Posix => "PurePosixPath",
-            PathFlavour::Windows => "PureWindowsPath",
-        };
-        let inner = self._str_repr();
+    fn __repr__<'py>(slf: PyRef<'py, Self>) -> PyResult<String> {
+        let py = slf.py();
+        let bound = unsafe { pyo3::Bound::<'_, pyo3::PyAny>::from_borrowed_ptr(py, slf.as_ptr()) };
+        let cls = bound.getattr("__class__")?;
+        let class_name: String = cls.getattr("__name__")?.extract()?;
+        // Use as_posix() for the inner repr string (CPython behaviour).
+        let inner = slf.as_posix();
         let inner = if inner.is_empty() { "." } else { &inner };
-        format!("{}('{}')", class_name, inner)
+        Ok(format!("{}('{}')", class_name, inner))
     }
 
     fn __fspath__(&self) -> String {
         self.__str__()
+    }
+
+    fn __bytes__(&self) -> PyResult<PyObject> {
+        let raw = self.inner.raw();
+        let encoded = raw.as_encoded_bytes();
+        Python::with_gil(|py| Ok(pyo3::types::PyBytes::new(py, encoded).into()))
     }
 
     fn __reduce__<'py>(slf: PyRef<'py, Self>, py: Python<'py>) -> PyResult<PyObject> {
@@ -1864,13 +1871,28 @@ fn _drives_equal(a: &Option<OsString>, b: &Option<OsString>, windows: bool) -> b
 
 /// Extract a string from a Python object.
 fn _extract_path_str(obj: &Bound<'_, PyAny>) -> PyResult<String> {
+    // Reject bytes arguments (CPython pathlib raises TypeError for bytes).
+    use pyo3::types::PyBytes;
+    if obj.is_instance_of::<PyBytes>() {
+        return Err(pyo3::exceptions::PyTypeError::new_err(
+            "argument should be a str or an os.PathLike object where __fspath__ returns a str, not 'bytes'",
+        ));
+    }
     // First try str extraction (only works for str and str subclasses)
     if let Ok(s) = obj.extract::<String>() {
         return Ok(s);
     }
     // PathLike (has __fspath__)
     if let Ok(fspath) = obj.call_method0("__fspath__") {
-        return fspath.extract::<String>();
+        let s: String = fspath.extract()?;
+        // Also reject PathLike objects returning bytes from __fspath__.
+        use pyo3::types::PyBytes;
+        if fspath.is_instance_of::<PyBytes>() {
+            return Err(pyo3::exceptions::PyTypeError::new_err(
+                "argument should be a str or an os.PathLike object where __fspath__ returns a str, not 'bytes'",
+            ));
+        }
+        return Ok(s);
     }
     // Fallback to str() conversion for compatibility
     Ok(obj.str()?.to_string())

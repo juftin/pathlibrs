@@ -20,12 +20,9 @@ CompatiblePathTest.test_rtruediv
 CompatiblePathTest.test_truediv
 
 # -- PathSubclassTest — concrete subclass I/O tests (Phase 2+)
-PathSubclassTest.test_as_bytes_common
 PathSubclassTest.test_as_uri_common
 PathSubclassTest.test_as_uri_non_ascii
 PathSubclassTest.test_as_uri_posix
-PathSubclassTest.test_bytes
-PathSubclassTest.test_bytes_exc_message
 # REMOVED: PathSubclassTest.test_chmod
 # REMOVED: PathSubclassTest.test_chmod_follow_symlinks_true
 PathSubclassTest.test_complex_symlinks_absolute
@@ -127,7 +124,6 @@ PathSubclassTest.test_parse_windows_path
 PathSubclassTest.test_relative_to_common
 # REMOVED: PathSubclassTest.test_rename
 PathSubclassTest.test_replace
-PathSubclassTest.test_repr_common
 PathSubclassTest.test_resolve_common
 PathSubclassTest.test_resolve_dot
 PathSubclassTest.test_resolve_loop
@@ -142,12 +138,9 @@ PathSubclassTest.test_rmdir
 PathSubclassTest.test_with_segments
 
 # -- PathTest — concrete I/O tests (Phase 2+)
-PathTest.test_as_bytes_common
 PathTest.test_as_uri_common
 PathTest.test_as_uri_non_ascii
 PathTest.test_as_uri_posix
-PathTest.test_bytes
-PathTest.test_bytes_exc_message
 # REMOVED: PathTest.test_chmod
 # REMOVED: PathTest.test_chmod_follow_symlinks_true
 PathTest.test_complex_symlinks_absolute
@@ -241,8 +234,6 @@ PathTest.test_parse_windows_path
 PathTest.test_relative_to_common
 # REMOVED: PathTest.test_rename
 PathTest.test_replace
-PathTest.test_repr_common
-PathTest.test_repr_roundtrips
 PathTest.test_rmdir
 # REMOVED: PathTest.test_symlink_to
 # REMOVED: PathTest.test_touch_common
@@ -260,12 +251,9 @@ PathWalkTest.test_walk_many_open_files
 PathWalkTest.test_walk_symlink_location
 
 # -- PosixPathTest — concrete POSIX I/O tests (Phase 2+)
-PosixPathTest.test_as_bytes_common
 PosixPathTest.test_as_uri_common
 PosixPathTest.test_as_uri_non_ascii
 PosixPathTest.test_as_uri_posix
-PosixPathTest.test_bytes
-PosixPathTest.test_bytes_exc_message
 # REMOVED: PosixPathTest.test_chmod
 # REMOVED: PosixPathTest.test_chmod_follow_symlinks_true
 PosixPathTest.test_complex_symlinks_absolute
@@ -357,8 +345,6 @@ PosixPathTest.test_parse_windows_path
 PosixPathTest.test_relative_to_common
 # REMOVED: PosixPathTest.test_rename
 PosixPathTest.test_replace
-PosixPathTest.test_repr_common
-PosixPathTest.test_repr_roundtrips
 PosixPathTest.test_rmdir
 # REMOVED: PosixPathTest.test_symlink_to
 # REMOVED: PosixPathTest.test_touch_common
@@ -369,14 +355,11 @@ PosixPathTest.test_rmdir
 PosixPathTest.test_with_segments
 
 # -- PurePathSubclassTest — subclass init chain differences
-PurePathSubclassTest.test_as_bytes_common
 PurePathSubclassTest.test_as_posix_common
 PurePathSubclassTest.test_as_uri_common
 PurePathSubclassTest.test_as_uri_non_ascii
 PurePathSubclassTest.test_as_uri_posix
 PurePathSubclassTest.test_as_uri_windows
-PurePathSubclassTest.test_bytes
-PurePathSubclassTest.test_bytes_exc_message
 PurePathSubclassTest.test_concrete_class
 PurePathSubclassTest.test_concrete_parser
 PurePathSubclassTest.test_constructor_nested
@@ -412,7 +395,6 @@ PurePathSubclassTest.test_parse_windows_path
 PurePathSubclassTest.test_pickling_common
 PurePathSubclassTest.test_relative_to_common
 PurePathSubclassTest.test_relative_to_windows
-PurePathSubclassTest.test_repr_common
 PurePathSubclassTest.test_root_windows
 PurePathSubclassTest.test_str_common
 PurePathSubclassTest.test_str_subclass_common
@@ -422,12 +404,9 @@ PurePathSubclassTest.test_with_name_windows
 PurePathSubclassTest.test_with_stem_windows
 
 # -- PurePathTest — base pure path tests for unimplemented features
-PurePathTest.test_as_bytes_common
 PurePathTest.test_as_uri_common
 PurePathTest.test_as_uri_non_ascii
 PurePathTest.test_as_uri_posix
-PurePathTest.test_bytes
-PurePathTest.test_bytes_exc_message
 PurePathTest.test_concrete_class
 PurePathTest.test_concrete_parser
 PurePathTest.test_constructor_nested
@@ -446,16 +425,11 @@ PurePathTest.test_parse_path_common
 PurePathTest.test_parse_path_posix
 PurePathTest.test_parse_windows_path
 PurePathTest.test_relative_to_common
-PurePathTest.test_repr_common
-PurePathTest.test_repr_roundtrips
 
 # -- PurePosixPathTest — POSIX pure path tests for unimplemented features
-PurePosixPathTest.test_as_bytes_common
 PurePosixPathTest.test_as_uri_common
 PurePosixPathTest.test_as_uri_non_ascii
 PurePosixPathTest.test_as_uri_posix
-PurePosixPathTest.test_bytes
-PurePosixPathTest.test_bytes_exc_message
 PurePosixPathTest.test_constructor_nested
 PurePosixPathTest.test_different_parsers_unequal
 PurePosixPathTest.test_different_parsers_unordered
@@ -474,11 +448,8 @@ PurePosixPathTest.test_parse_windows_path
 PurePosixPathTest.test_relative_to_common
 
 # -- PureWindowsPathTest — Windows pure path tests for unimplemented features
-PureWindowsPathTest.test_as_bytes_common
 PureWindowsPathTest.test_as_uri_common
 PureWindowsPathTest.test_as_uri_windows
-PureWindowsPathTest.test_bytes
-PureWindowsPathTest.test_bytes_exc_message
 PureWindowsPathTest.test_constructor_nested
 PureWindowsPathTest.test_constructor_nested_foreign_flavour
 PureWindowsPathTest.test_different_parsers_unequal
@@ -503,7 +474,6 @@ PureWindowsPathTest.test_parse_path_common
 PureWindowsPathTest.test_parse_path_windows
 PureWindowsPathTest.test_relative_to_common
 PureWindowsPathTest.test_relative_to_windows
-PureWindowsPathTest.test_repr_common
 PureWindowsPathTest.test_str_common
 PureWindowsPathTest.test_str_windows
 PureWindowsPathTest.test_with_name_windows
