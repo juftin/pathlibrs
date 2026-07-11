@@ -1382,7 +1382,8 @@ impl PurePath {
     /// Copy this file or directory tree to *target*.
     ///
     /// If *target* is an existing directory, the source is copied *into* it
-    /// (as ``target / source.name``), matching CPython's ``copy()`` behavior.
+    /// (as ``target / source.name``).  CPython copies to the *exact* target
+    /// path — only ``copy_into`` appends ``source.name``.
     #[pyo3(signature = (target, *, follow_symlinks = true, dirs_exist_ok = false, ignore = None, on_error = None))]
     fn copy<'py>(
         slf: PyRef<'py, Self>,
@@ -1394,32 +1395,46 @@ impl PurePath {
     ) -> PyResult<PyObject> {
         let py = slf.py();
         let target_str = _extract_path_str(target)?;
+        let src_str = slf._str_repr();
 
-        // If target is an existing directory, copy_into semantics:
-        // self → target / self.name
-        let final_dst = if std::path::Path::new(&target_str).is_dir() {
-            let name = slf.name().unwrap_or_default();
-            if name.is_empty() {
-                return Err(pyo3::exceptions::PyValueError::new_err(format!(
-                    "'{}' has an empty name",
-                    slf._str_repr()
-                )));
+        // ensure_distinct_paths: raise if source == target or source
+        // is a parent of target (CPython pathlib._os.ensure_distinct_paths).
+        if src_str == target_str {
+            return Err(pyo3::exceptions::PyOSError::new_err(format!(
+                "Source and target are the same path: '{}'",
+                src_str
+            )));
+        }
+        // Check if source is a lexical parent of target.
+        {
+            let src_path = std::path::Path::new(&src_str);
+            let dst_path = std::path::Path::new(&target_str);
+            if dst_path.starts_with(src_path) {
+                // Walk up to see if any component past src_path is '..'
+                let rel = dst_path
+                    .strip_prefix(src_path)
+                    .unwrap_or(std::path::Path::new(""));
+                if !rel
+                    .components()
+                    .any(|c| c == std::path::Component::ParentDir)
+                {
+                    return Err(pyo3::exceptions::PyOSError::new_err(format!(
+                        "Source path is a parent of target path: '{}' -> '{}'",
+                        src_str, target_str
+                    )));
+                }
             }
-            format!("{}/{}", target_str.trim_end_matches('/'), name)
-        } else {
-            target_str.clone()
-        };
+        }
 
-        // Build shutil kwargs for compatibility
         let _ = (ignore, on_error);
         crate::fs::copy_tree(
             slf.inner.raw(),
-            OsStr::new(&final_dst),
+            OsStr::new(&target_str),
             follow_symlinks,
             dirs_exist_ok,
         )?;
 
-        Self::_make_child(py, slf.as_ptr(), OsString::from(&final_dst))
+        Self::_make_child(py, slf.as_ptr(), OsString::from(&target_str))
     }
 
     /// Copy this file or directory tree *into* an existing directory.
