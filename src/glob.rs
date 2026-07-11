@@ -24,14 +24,6 @@ pub struct GlobOptions {
     pub case_sensitive: bool,
     /// Whether to follow symlinks when recursing with ``**``.
     pub recurse_symlinks: bool,
-    /// Whether the user explicitly set ``case_sensitive``.
-    ///
-    /// When ``true``, all pattern parts (including literals) are matched via
-    /// ``scandir`` + ``fnmatch``, so the user's explicit case choice is
-    /// honoured regardless of the underlying filesystem's case sensitivity.
-    /// When ``false``, literal parts use direct path existence checks which
-    /// inherit the filesystem's case sensitivity.
-    pub case_pedantic: bool,
 }
 
 impl Default for GlobOptions {
@@ -39,7 +31,6 @@ impl Default for GlobOptions {
         Self {
             case_sensitive: true,
             recurse_symlinks: false,
-            case_pedantic: false,
         }
     }
 }
@@ -448,65 +439,37 @@ fn glob_walk_single(
             }
 
             PatternPart::Literal(s) => {
-                // CPython uses two strategies for literal matching:
-                //
-                // 1. ``case_pedantic=False`` (default, user did not explicitly
-                //    set ``case_sensitive``): join the literal to the path and
-                //    check existence — inherits the filesystem's case sensitivity.
-                //
-                // 2. ``case_pedantic=True`` (user explicitly set
-                //    ``case_sensitive``): use scandir + fnmatch so the user's
-                //    explicit case preference is honoured regardless of the
-                //    underlying filesystem.
-                if !opts.case_pedantic {
-                    // Fast path: direct existence check.
-                    let child = join_path(&current, s);
-                    if is_last {
-                        // Don't use `exists` flag here — the flag means
-                        // `current` exists, not `current/child`.
-                        if path_exists(&child) {
-                            results.push(child);
-                        }
-                    } else {
-                        let next_is_trailing_empty = part_idx + 1 < parts.len()
-                            && matches!(&parts[part_idx + 1], PatternPart::Special(s) if s.is_empty());
-                        if path_exists(&child)
-                            && (next_is_trailing_empty || StdPath::new(&child).is_dir())
-                        {
-                            stack.push((child, part_idx + 1, true));
-                        }
-                    }
-                } else {
-                    // Pedantic: scandir + fnmatch to honour user's case choice.
-                    let has_trailing_slash = !is_last
-                        && matches!(&parts[part_idx + 1], PatternPart::Special(s) if s.is_empty());
-                    let is_effectively_last = is_last || has_trailing_slash;
+                // Always use scandir + fnmatch for literal matching.
+                // CPython's glob always uses scandir at every level,
+                // which ensures returned paths use the filesystem's
+                // actual casing rather than the pattern's literal.
+                let has_trailing_slash = !is_last
+                    && matches!(&parts[part_idx + 1], PatternPart::Special(s_) if s_.is_empty());
+                let is_effectively_last = is_last || has_trailing_slash;
 
-                    if let Ok(entries) = scandir(&current) {
-                        for entry in entries {
-                            if !fnmatch_bytes(
-                                s.as_bytes(),
-                                entry.name.as_encoded_bytes(),
-                                opts.case_sensitive,
-                            ) {
+                if let Ok(entries) = scandir(&current) {
+                    for entry in entries {
+                        if !fnmatch_bytes(
+                            s.as_bytes(),
+                            entry.name.as_encoded_bytes(),
+                            opts.case_sensitive,
+                        ) {
+                            continue;
+                        }
+                        let child = join_path(&current, &entry.name.to_string_lossy());
+                        if is_effectively_last {
+                            if has_trailing_slash && !entry.followed_is_dir {
                                 continue;
                             }
-                            let child = join_path(&current, &entry.name.to_string_lossy());
-                            if is_effectively_last {
-                                if has_trailing_slash && !entry.followed_is_dir {
-                                    continue;
-                                }
-                                if has_trailing_slash {
-                                    let mut child_bytes = child.as_encoded_bytes().to_vec();
-                                    child_bytes.push(b'/');
-                                    results.push(crate::from_os_bytes(&child_bytes).to_os_string());
-                                } else {
-                                    // exists=True: from scandir
-                                    results.push(child);
-                                }
-                            } else if entry.followed_is_dir {
-                                stack.push((child, part_idx + 1, true));
+                            if has_trailing_slash {
+                                let mut child_bytes = child.as_encoded_bytes().to_vec();
+                                child_bytes.push(b'/');
+                                results.push(crate::from_os_bytes(&child_bytes).to_os_string());
+                            } else {
+                                results.push(child);
                             }
+                        } else if entry.followed_is_dir {
+                            stack.push((child, part_idx + 1, true));
                         }
                     }
                 }

@@ -1406,7 +1406,6 @@ impl PurePath {
         let opts = crate::glob::GlobOptions {
             case_sensitive: cs,
             recurse_symlinks,
-            case_pedantic: case_sensitive.is_some(),
         };
 
         let base = slf.inner.raw();
@@ -1428,8 +1427,8 @@ impl PurePath {
             .map(|p| {
                 let mut s = p.to_string_lossy().into_owned();
                 if strip_dot {
-                    // Strip "./" prefix or "./" from results
-                    if let Some(rest) = s.strip_prefix("./") {
+                    // Strip "./" or ".\\" prefix from results
+                    if let Some(rest) = s.strip_prefix("./").or_else(|| s.strip_prefix(".\\")) {
                         s = rest.to_string();
                     }
                 }
