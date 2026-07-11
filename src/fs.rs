@@ -1215,6 +1215,23 @@ fn copy_dir_recursive_reset_visited() {
     COPY_VISITED.with(|v| v.borrow_mut().clear());
 }
 
+/// Normalize a path without filesystem access (resolve . and .. components).
+fn normalize_path(path: &StdPath) -> std::path::PathBuf {
+    let mut result = std::path::PathBuf::new();
+    for component in path.components() {
+        match component {
+            std::path::Component::ParentDir => {
+                result.pop();
+            }
+            std::path::Component::CurDir => {}
+            c => {
+                result.push(c.as_os_str());
+            }
+        }
+    }
+    result
+}
+
 /// Copy a directory recursively.
 fn copy_dir_recursive(
     src: &StdPath,
@@ -1222,7 +1239,11 @@ fn copy_dir_recursive(
     follow_symlinks: bool,
     dirs_exist_ok: bool,
 ) -> Result<(), io::Error> {
-    let src_real = std::fs::canonicalize(src).unwrap_or_else(|_| src.to_path_buf());
+    // Use canonicalize when available; fall back to path normalization.
+    // canonicalize follows symlinks, which is needed for cycle detection;
+    // normalize_path handles . and .. so different spellings of the same
+    // directory still match.
+    let src_real = std::fs::canonicalize(src).unwrap_or_else(|_| normalize_path(src));
 
     // Cycle detection: if we've already visited this real path, we have a loop.
     let is_new = COPY_VISITED.with(|v| v.borrow_mut().insert(src_real.clone()));
