@@ -45,11 +45,17 @@ fn pathlibrs(m: &Bound<'_, PyModule>) -> PyResult<()> {
     {
         let posix_path = m.getattr("PosixPath")?;
         m.add("Path", posix_path)?;
+        // PurePath = PurePosixPath on POSIX (matches CPython)
+        let pure_posix = m.getattr("PurePosixPath")?;
+        m.add("PurePath", pure_posix)?;
     }
     #[cfg(windows)]
     {
         let windows_path = m.getattr("WindowsPath")?;
         m.add("Path", windows_path)?;
+        // PurePath = PureWindowsPath on Windows (matches CPython)
+        let pure_windows = m.getattr("PureWindowsPath")?;
+        m.add("PurePath", pure_windows)?;
     }
 
     // Iterators
