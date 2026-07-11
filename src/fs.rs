@@ -1208,8 +1208,26 @@ fn copy_dir_recursive(
     follow_symlinks: bool,
     dirs_exist_ok: bool,
 ) -> Result<(), io::Error> {
+    // Thread-local set of visited real paths to detect symlink cycles.
+    thread_local! {
+        static VISITED: std::cell::RefCell<std::collections::HashSet<std::path::PathBuf>> =
+            std::cell::RefCell::new(std::collections::HashSet::new());
+    }
+    let src_real = std::fs::canonicalize(src).unwrap_or_else(|_| src.to_path_buf());
+
+    // Cycle detection: if we've already visited this real path, we have a loop.
+    let is_new = VISITED.with(|v| v.borrow_mut().insert(src_real.clone()));
+    if !is_new {
+        return Err(io::Error::other(format!(
+            "symlink cycle detected while copying '{}'",
+            src.display()
+        )));
+    }
+
     if dst.exists() {
         if !dirs_exist_ok {
+            // Clean up visited entry before returning error.
+            VISITED.with(|v| { v.borrow_mut().remove(&src_real); });
             return Err(io::Error::new(
                 io::ErrorKind::AlreadyExists,
                 format!("'{}' already exists", dst.display()),
@@ -1266,6 +1284,8 @@ fn copy_dir_recursive(
             std::fs::copy(&src_entry, &dst_entry)?;
         }
     }
+
+    VISITED.with(|v| { v.borrow_mut().remove(&src_real); });
     Ok(())
 }
 
