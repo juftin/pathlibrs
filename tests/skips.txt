@@ -179,7 +179,7 @@ PathSubclassTest.test_rglob_posix
 PathSubclassTest.test_rglob_recurse_symlinks_common
 PathSubclassTest.test_rglob_recurse_symlinks_false
 PathSubclassTest.test_rglob_symlink_loop
-# REMOVED: PathSubclassTest.test_rmdir
+PathSubclassTest.test_rmdir
 PathSubclassTest.test_root_common
 PathSubclassTest.test_root_posix
 PathSubclassTest.test_samefile
@@ -319,7 +319,7 @@ PathTest.test_rglob_posix
 PathTest.test_rglob_recurse_symlinks_common
 PathTest.test_rglob_recurse_symlinks_false
 PathTest.test_rglob_symlink_loop
-# REMOVED: PathTest.test_rmdir
+PathTest.test_rmdir
 PathTest.test_root_common
 PathTest.test_root_posix
 PathTest.test_stem_empty
@@ -459,7 +459,7 @@ PosixPathTest.test_rglob_posix
 PosixPathTest.test_rglob_recurse_symlinks_common
 PosixPathTest.test_rglob_recurse_symlinks_false
 PosixPathTest.test_rglob_symlink_loop
-# REMOVED: PosixPathTest.test_rmdir
+PosixPathTest.test_rmdir
 PosixPathTest.test_stem_empty
 # REMOVED: PosixPathTest.test_symlink_to
 # REMOVED: PosixPathTest.test_touch_common
@@ -684,7 +684,7 @@ PathTest.test_constructor_nested_foreign_flavour
 PathTest.test_drive_windows
 PathTest.test_eq_windows
 PathTest.test_equivalences_windows
-# REMOVED: PathTest.test_expanduser_windows
+PathTest.test_expanduser_windows
 PathTest.test_from_uri_pathname2url_windows
 PathTest.test_from_uri_windows
 PathTest.test_fspath_common
