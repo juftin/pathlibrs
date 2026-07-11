@@ -1406,6 +1406,7 @@ impl PurePath {
         let opts = crate::glob::GlobOptions {
             case_sensitive: cs,
             recurse_symlinks,
+            case_pedantic: case_sensitive.is_some(),
         };
 
         let base = slf.inner.raw();

@@ -24,6 +24,14 @@ pub struct GlobOptions {
     pub case_sensitive: bool,
     /// Whether to follow symlinks when recursing with ``**``.
     pub recurse_symlinks: bool,
+    /// Whether the user explicitly set ``case_sensitive``.
+    ///
+    /// When ``true``, all pattern parts (including literals) are
+    /// matched via ``scandir`` + ``fnmatch`` so the user's explicit
+    /// case choice is honoured regardless of the filesystem.
+    /// When ``false``, literal parts use the filesystem's own
+    /// case sensitivity via ``path_exists`` (CPython POSIX default).
+    pub case_pedantic: bool,
 }
 
 impl Default for GlobOptions {
@@ -31,6 +39,7 @@ impl Default for GlobOptions {
         Self {
             case_sensitive: true,
             recurse_symlinks: false,
+            case_pedantic: false,
         }
     }
 }
@@ -439,14 +448,14 @@ fn glob_walk_single(
             }
 
             PatternPart::Literal(s) => {
-                if opts.case_sensitive {
+                if !opts.case_pedantic && opts.case_sensitive {
                     // Fast path: join the literal and check existence.
                     // Inherits the filesystem's own case sensitivity.
-                    // On case-insensitive filesystems (macOS APFS, Windows),
-                    // path_exists("FILEa") matches file "fileA".
-                    // On case-sensitive filesystems (Linux), only exact case.
-                    // CPython preserves the pattern's case for literal glob
-                    // results on POSIX, so we match that behaviour.
+                    // Only used when the user did NOT explicitly set
+                    // case_sensitive AND the platform default is
+                    // case-sensitive.  Matches CPython POSIX default:
+                    // glob("FILEa") matches fileA on macOS APFS.
+                    // Preserves the pattern's case in results.
                     let child = join_path(&current, s);
                     if is_last {
                         if path_exists(&child) {
@@ -462,18 +471,20 @@ fn glob_walk_single(
                         }
                     }
                 } else {
-                    // Case-insensitive: scandir + fnmatch so that
-                    // user-requested case-insensitive matching works even
-                    // on case-sensitive filesystems (Linux).
-                    // Uses the filesystem's actual entry names, which
-                    // matches CPython's behaviour on Windows.
+                    // Scandir + fnmatch: honours the user's explicit
+                    // case_sensitive preference regardless of filesystem.
+                    // Always returns filesystem's actual entry names.
                     let has_trailing_slash = !is_last
                         && matches!(&parts[part_idx + 1], PatternPart::Special(s_) if s_.is_empty());
                     let is_effectively_last = is_last || has_trailing_slash;
 
                     if let Ok(entries) = scandir(&current) {
                         for entry in entries {
-                            if !fnmatch_bytes(s.as_bytes(), entry.name.as_encoded_bytes(), false) {
+                            if !fnmatch_bytes(
+                                s.as_bytes(),
+                                entry.name.as_encoded_bytes(),
+                                opts.case_sensitive,
+                            ) {
                                 continue;
                             }
                             let child = join_path(&current, &entry.name.to_string_lossy());
