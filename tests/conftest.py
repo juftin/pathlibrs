@@ -19,10 +19,34 @@ that pathlibrs does not implement.
 
 import os
 import sys
+import unittest
 
 # ── Redirect pathlib → pathlibrs ────────────────────────────────────────────
 import pathlibrs
 import pytest
+
+# ── Python < 3.12 compat: assertStartsWith / assertEndsWith ───────────────
+# Added in Python 3.12's unittest.TestCase. The vendored CPython 3.14 tests
+# use these methods, so backport them for older Python versions.
+if not hasattr(unittest.TestCase, "assertStartsWith"):
+
+    def _assert_starts_with(self, first, second, msg=None):  # noqa: N802
+        """Fail if first does not start with second."""
+        if not first.startswith(second):
+            standard_msg = f"{first!r} does not start with {second!r}"  # noqa: N806
+            self.fail(self._formatMessage(msg, standard_msg))
+
+    unittest.TestCase.assertStartsWith = _assert_starts_with
+
+if not hasattr(unittest.TestCase, "assertEndsWith"):
+
+    def _assert_ends_with(self, first, second, msg=None):  # noqa: N802
+        """Fail if first does not end with second."""
+        if not first.endswith(second):
+            standard_msg = f"{first!r} does not end with {second!r}"  # noqa: N806
+            self.fail(self._formatMessage(msg, standard_msg))
+
+    unittest.TestCase.assertEndsWith = _assert_ends_with
 
 sys.modules["pathlib"] = pathlibrs
 
