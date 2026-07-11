@@ -502,3 +502,10 @@ PurePathTest.test_drive_windows
 PurePathTest.test_equivalences_windows
 PurePathTest.test_with_name_windows
 PurePathTest.test_with_stem_windows
+
+# -- Windows __eq__: drive-without-root normalization
+# c:a/b and c:/a/b should be equal on Windows (implied root after drive).
+# Needs normalization logic in __eq__ for Windows drive paths.
+PathTest.test_eq_windows
+WindowsPathTest.test_eq_windows
+PathSubclassTest.test_eq_windows
