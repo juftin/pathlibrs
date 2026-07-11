@@ -128,7 +128,9 @@ class TestPurePosixPath:
     def test_eq(self) -> None:
         assert PurePosixPath("/foo") == PurePosixPath("/foo")
         assert PurePosixPath("/foo") != PurePosixPath("/bar")
-        assert PurePosixPath("/foo") == "/foo"
+        # CPython 3.14+: PurePath equality with strings returns NotImplemented
+        # (not handled by PurePath.__eq__), so path != str is always True.
+        assert PurePosixPath("/foo") != "/foo"
 
     def test_hash(self) -> None:
         s = {PurePosixPath("/foo"), PurePosixPath("/bar"), PurePosixPath("/foo")}

@@ -54,8 +54,6 @@ PathSubclassTest.test_delete_symlink
 PathSubclassTest.test_delete_unwritable
 PathSubclassTest.test_different_parsers_unequal
 PathSubclassTest.test_different_parsers_unordered
-PathSubclassTest.test_eq_common
-PathSubclassTest.test_eq_posix
 PathSubclassTest.test_equivalences
 # REMOVED: PathSubclassTest.test_expanduser_common
 # REMOVED: PathSubclassTest.test_expanduser_posix
@@ -115,8 +113,6 @@ PathSubclassTest.test_move_into_other_os
 # REMOVED: PathSubclassTest.test_open_common
 # REMOVED: PathSubclassTest.test_open_mode
 # REMOVED: PathSubclassTest.test_open_unbuffered
-PathSubclassTest.test_parse_path_common
-PathSubclassTest.test_parse_path_posix
 PathSubclassTest.test_parse_windows_path
 PathSubclassTest.test_relative_to_common
 # REMOVED: PathSubclassTest.test_rename
@@ -169,8 +165,6 @@ PathTest.test_delete_symlink
 PathTest.test_delete_unwritable
 PathTest.test_different_parsers_unequal
 PathTest.test_different_parsers_unordered
-PathTest.test_eq_common
-PathTest.test_eq_posix
 PathTest.test_equivalences
 PathTest.test_from_uri_pathname2url_posix
 PathTest.test_from_uri_posix
@@ -222,8 +216,6 @@ PathTest.test_move_into_other_os
 # REMOVED: PathTest.test_open_common
 # REMOVED: PathTest.test_open_mode
 # REMOVED: PathTest.test_open_unbuffered
-PathTest.test_parse_path_common
-PathTest.test_parse_path_posix
 PathTest.test_parse_windows_path
 PathTest.test_relative_to_common
 # REMOVED: PathTest.test_rename
@@ -279,7 +271,6 @@ PosixPathTest.test_delete_symlink
 PosixPathTest.test_delete_unwritable
 PosixPathTest.test_different_parsers_unequal
 PosixPathTest.test_different_parsers_unordered
-PosixPathTest.test_eq_common
 PosixPathTest.test_equivalences
 PosixPathTest.test_from_uri_pathname2url_posix
 PosixPathTest.test_from_uri_posix
@@ -330,8 +321,6 @@ PosixPathTest.test_move_into_other_os
 # REMOVED: PosixPathTest.test_open_common
 # REMOVED: PosixPathTest.test_open_mode
 # REMOVED: PosixPathTest.test_open_unbuffered
-PosixPathTest.test_parse_path_common
-PosixPathTest.test_parse_path_posix
 PosixPathTest.test_parse_windows_path
 PosixPathTest.test_relative_to_common
 # REMOVED: PosixPathTest.test_rename
@@ -356,9 +345,6 @@ PurePathSubclassTest.test_different_parsers_unordered
 PurePathSubclassTest.test_div_nested
 PurePathSubclassTest.test_drive_common
 PurePathSubclassTest.test_drive_windows
-PurePathSubclassTest.test_eq_common
-PurePathSubclassTest.test_eq_posix
-PurePathSubclassTest.test_eq_windows
 PurePathSubclassTest.test_equivalences
 PurePathSubclassTest.test_equivalences_windows
 PurePathSubclassTest.test_fspath_common
@@ -375,8 +361,6 @@ PurePathSubclassTest.test_match_posix
 PurePathSubclassTest.test_match_windows
 PurePathSubclassTest.test_ordering_common
 PurePathSubclassTest.test_ordering_windows
-PurePathSubclassTest.test_parse_path_common
-PurePathSubclassTest.test_parse_path_posix
 PurePathSubclassTest.test_parse_path_windows
 PurePathSubclassTest.test_parse_windows_path
 PurePathSubclassTest.test_pickling_common
@@ -396,7 +380,6 @@ PurePathTest.test_concrete_parser
 PurePathTest.test_constructor_nested
 PurePathTest.test_different_parsers_unequal
 PurePathTest.test_different_parsers_unordered
-PurePathTest.test_eq_common
 PurePathTest.test_equivalences
 PurePathTest.test_full_match_case_sensitive
 PurePathTest.test_is_absolute_posix
@@ -405,8 +388,6 @@ PurePathTest.test_is_reserved_deprecated
 PurePathTest.test_join_nested
 PurePathTest.test_match_common
 PurePathTest.test_match_empty
-PurePathTest.test_parse_path_common
-PurePathTest.test_parse_path_posix
 PurePathTest.test_parse_windows_path
 PurePathTest.test_relative_to_common
 
@@ -414,7 +395,6 @@ PurePathTest.test_relative_to_common
 PurePosixPathTest.test_constructor_nested
 PurePosixPathTest.test_different_parsers_unequal
 PurePosixPathTest.test_different_parsers_unordered
-PurePosixPathTest.test_eq_common
 PurePosixPathTest.test_equivalences
 PurePosixPathTest.test_full_match_case_sensitive
 PurePosixPathTest.test_is_absolute_posix
@@ -423,8 +403,6 @@ PurePosixPathTest.test_is_reserved_deprecated
 PurePosixPathTest.test_join_nested
 PurePosixPathTest.test_match_common
 PurePosixPathTest.test_match_empty
-PurePosixPathTest.test_parse_path_common
-PurePosixPathTest.test_parse_path_posix
 PurePosixPathTest.test_parse_windows_path
 PurePosixPathTest.test_relative_to_common
 
@@ -434,8 +412,6 @@ PureWindowsPathTest.test_constructor_nested_foreign_flavour
 PureWindowsPathTest.test_different_parsers_unequal
 PureWindowsPathTest.test_different_parsers_unordered
 PureWindowsPathTest.test_drive_windows
-PureWindowsPathTest.test_eq_common
-PureWindowsPathTest.test_eq_windows
 PureWindowsPathTest.test_equivalences
 PureWindowsPathTest.test_equivalences_windows
 PureWindowsPathTest.test_fspath_common
@@ -449,7 +425,6 @@ PureWindowsPathTest.test_match_common
 PureWindowsPathTest.test_match_empty
 PureWindowsPathTest.test_match_windows
 PureWindowsPathTest.test_ordering_windows
-PureWindowsPathTest.test_parse_path_common
 PureWindowsPathTest.test_parse_path_windows
 PureWindowsPathTest.test_relative_to_common
 PureWindowsPathTest.test_relative_to_windows
@@ -503,7 +478,6 @@ PosixPathTest.test_matches_writablepath_docstrings
 PathTest.test_absolute_windows
 PathTest.test_constructor_nested_foreign_flavour
 PathTest.test_drive_windows
-PathTest.test_eq_windows
 PathTest.test_equivalences_windows
 PathTest.test_expanduser_windows
 PathTest.test_from_uri_pathname2url_windows

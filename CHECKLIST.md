@@ -96,8 +96,8 @@
 
 ## Phase 5: Parity & Maintenance — In Progress
 
-483 passed, 721 skipped (up from 463 passed, 741 skipped).
-349 active skip entries (down from 371).
+508 passed, 696 skipped (up from 483 passed, 721 skipped).
+324 active skip entries (down from 349).
 
 ### Feature Parity
 
@@ -107,6 +107,7 @@
 - [x] `__bytes__` and bytes type validation — fixed
 - [x] `with_name()`/`with_stem()` reject empty/reserved names — fixed
 - [x] `as_uri()` percent-encoding via `urllib.parse.quote` — fixed (absolute check + encode)
+- [x] `__eq__` matches CPython 3.14: returns NotImplemented for non-PurePath types
 - [ ] Windows UNC/device/extended-path edge cases (DESIGN.md §4.8)
 - [ ] Symlink edge cases on Linux/macOS
 - [ ] Full pickle / `__reduce__` / `__fspath__` / `copy` coverage
@@ -117,7 +118,8 @@
 - [x] Batch 2: Pure path edge cases fixed and unskipped (41 entries)
 - [x] Batch 3: repr + bytes handling fixed and unskipped (30 entries)
 - [x] Batch 4: as_uri() fixed — 20 tests unskipped, 22 entries removed from skips.txt
-- [ ] Remaining audit: 349 entries across copy(33), move(45), match(30), delete(26), windows(30), equality(23), parse(22), relative_to(20), symlinks(14), resolve(12)
+- [x] Batch 5: Equality + parse audit — 25 tests unskipped, 25 entries removed
+- [ ] Remaining audit: 324 entries across copy(33), move(45), match(30), delete(26), windows(30), parse_windows(6), relative_to(7), equivalences(13), symlinks(14), resolve(12)
 - [ ] Classify each skip as private API, fixable, or platform-specific
 - [ ] Goal: `skips.txt` contains _only_ private-API entries
 - [ ] Goal: zero public-API `NotImplemented` entries

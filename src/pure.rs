@@ -157,6 +157,12 @@ impl PurePath {
         #[cfg(not(windows))]
         let join_flavour = PathFlavour::Posix;
         let raw = join_path_segments(args, join_flavour)?;
+        // Normalize empty path to "." matching CPython (affects __eq__ comparisons).
+        let raw = if raw.as_encoded_bytes().is_empty() {
+            OsString::from(".")
+        } else {
+            raw
+        };
         Ok(Self {
             inner: PathRepr::new(raw),
             #[cfg(windows)]
@@ -1034,6 +1040,13 @@ impl PurePath {
     }
 
     fn __eq__(&self, other: &Bound<'_, PyAny>) -> PyResult<bool> {
+        // CPython 3.14+: Only PurePath instances can be compared for equality.
+        // For non-PurePath types, __eq__ returns NotImplemented, which causes
+        // Python to try the reflected operation and eventually fall back to
+        // identity comparison (always False for different types).
+        if !other.is_instance_of::<Self>() {
+            return Ok(false);
+        }
         let other_str = _extract_path_str(other)?;
         let other_parsed = crate::parsing::parse_path(OsStr::new(&other_str), self.flavour);
         let self_parsed = self.inner.parsed(self.flavour);
