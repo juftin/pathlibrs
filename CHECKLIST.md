@@ -94,11 +94,18 @@
 - [x] `glob.rs` module extracted from `iter.rs` / `pattern.rs`
 - [x] Verify: all vendored CPython glob tests pass across platform matrix (51/51 non-Windows tests, Windows tests run on Windows CI)
 
-## Phase 5: Parity & Maintenance — Upcoming
+## Phase 5: Parity & Maintenance — In Progress
+
+463 passed, 741 skipped (up from 352 passed, 852 skipped at baseline).
+371 active skip entries (down from 614 at baseline).
 
 ### Feature Parity
 
-- [ ] `Path.home()`, `Path.cwd()` class methods
+- [x] `Path.home()`, `Path.cwd()` class methods — verified passing for PathSubclassTest
+- [x] Pure path edge cases: name/stem/parts for empty/`.` paths — fixed
+- [x] `__repr__` uses dynamic class name — fixed
+- [x] `__bytes__` and bytes type validation — fixed
+- [x] `with_name()`/`with_stem()` reject empty/reserved names — fixed
 - [ ] Windows UNC/device/extended-path edge cases (DESIGN.md §4.8)
 - [ ] Symlink edge cases on Linux/macOS
 - [ ] Full pickle / `__reduce__` / `__fspath__` / `copy` coverage
@@ -106,7 +113,10 @@
 
 ### Skip Audit
 
-- [ ] Audit every entry in `tests/skips.txt` (656 entries)
+- [x] Batch 1: PathSubclassTest-only entries audited and removed (35 entries)
+- [x] Batch 2: Pure path edge cases fixed and unskipped (41 entries)
+- [x] Batch 3: repr + bytes handling fixed and unskipped (30 entries)
+- [ ] Remaining audit: 371 entries across copy(33), move(45), as_uri(32), match(30), delete(26), windows(30), equality(23), parse(22), relative_to(20), symlinks(14), resolve(12)
 - [ ] Classify each skip as private API, fixable, or platform-specific
 - [ ] Goal: `skips.txt` contains _only_ private-API entries
 - [ ] Goal: zero public-API `NotImplemented` entries
