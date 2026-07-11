@@ -205,6 +205,13 @@ letters, UNC paths, extended-length prefixes) in pure Rust — no Windows OS nee
 - **New methods**: implement in the Rust core first (e.g., `ops.rs` or `fs.rs`), then expose through a thin `#[pymethod]` on the PyO3 class.
 - **Commits**: gitmoji conventional commits (`✨`, `🐛`, `♻️`, etc.). See recent git log for style.
 - **PRs**: conventional commit titles, summary/context/changes/test-plan body format.
+- **Worktrees**: after creating a new git worktree, run `make hooks-install` inside it so pre-commit hooks fire on every commit.
+- **Pre-push gate**: before pushing to GitHub, run the full local CI:
+    ```bash
+    make ci          # format check + clippy + rust tests + python tests
+    make test-windows  # Windows-flavour tests
+    ```
+    Push only after both pass. This catches formatting, lint, and test failures before they hit CI.
 
 ## Pre-Commit Hooks
 
@@ -301,4 +308,3 @@ Full design doc: `DESIGN.md`. Refer to it for architecture decisions, error hand
   phase rather than keeping it in conversation context.
 - **Before claiming a phase is complete** — verify every unchecked item in that
   phase is addressed and the skip count is zero for public API tests.
-
