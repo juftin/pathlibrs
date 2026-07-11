@@ -193,5 +193,7 @@ def pytest_collection_modifyitems(config, items):
         if windows_flavour and method_name in (
             "test_concrete_class",
             "test_concrete_parser",
+            "test_subclass_compat",
+            "test_instance_check",
         ):
             item.add_marker(pytest.mark.skip(reason="Not applicable with --windows-flavour"))
