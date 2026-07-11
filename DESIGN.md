@@ -209,26 +209,34 @@ fn parts_iter(os_str: &OsStr) -> impl Iterator<Item = &OsStr> {
 }
 ```
 
-### 4.6 Glob with WalkDir, Not Recursive listdir
+### 4.6 Glob with Iterative DFS
 
-CPython's `glob()` uses recursive `os.listdir` + `re` matching. Python `rglob("**/*.py")` materializes the entire tree in a list before yielding. Rust implementation uses `walkdir` to stream results:
+The glob engine uses an iterative stack-based depth-first walk to avoid
+recursion depth issues with deeply nested directory trees. Key design
+decisions:
 
-```rust
-// Rust core — returns a lazy Rust iterator
-fn glob(&self, pattern: &OsStr, recursive: bool) -> impl Iterator<Item = PathBuf> {
-    let compiled = GlobPattern::new(pattern);
-    WalkDir::new(self.as_os_str())
-        .max_depth(if recursive { usize::MAX } else { 1 })
-        .into_iter()
-        .filter_entry(|e| compiled.matches(e.path()))
-        .filter_map(|e| e.ok())
-        .map(|e| e.into_path())
-}
-```
+- **Lazy streaming**: The Rust glob iterator yields results via a PyO3
+  `#[pyclass]` implementing Python's iterator protocol (`__iter__` /
+  `__next__`), so Python callers see a lazy generator — not a list.
+- **`..` handling**: The `..` segment is treated literally (not
+  resolved) during traversal. Existence checks are deferred to the
+  final path rather than propagated across `..` boundaries (matching
+  CPython's semantics where `fileA/..` on POSIX is rejected because
+  `fileA` is a regular file).
+- **Case sensitivity** uses a three-tier approach matching CPython:
+  _Implicit_ case-sensitive default inherits filesystem sensitivity
+  (`path_exists` fast path). _Explicit_ `case_sensitive=True/False`
+  is honoured via `scandir` + `fnmatch` regardless of filesystem.
+- **Symlink loop detection** uses a path-based visited set, recording
+  the symlink's own path before resolution so the same symlink accessed
+  via different parents is treated independently.
 
-The Rust iterator is wrapped in a PyO3 `#[pyclass]` that implements the Python iterator protocol (`__iter__` / `__next__`), so Python callers see a lazy generator — not a list.
-
-**Ordering**: CPython's `glob()` uses `os.scandir()`, which returns entries in filesystem order (arbitrary, not sorted). Neither CPython nor this implementation guarantees any specific ordering. Users who need sorted results should call `sorted()` themselves. This matches CPython semantics.
+**Ordering**: CPython's `glob()` uses `os.scandir()`, which returns
+entries in filesystem order (arbitrary, not sorted). Neither CPython
+nor this implementation guarantees any specific ordering. Users who
+need sorted results should call `sorted()` themselves. The iterative
+DFS produces results in reverse-DFS order which are then reversed to
+match CPython's shallowest-first order.
 
 ### 4.7 Error Handling Strategy
 
@@ -441,14 +449,14 @@ The litmus test: **pass CPython's own `test_pathlib.py` from Python 3.14, unchan
 - **3.14 methods:** `copy()`, `copy_into()`, `move()`, `move_into()`, `delete()`
 - **Verify:** All mutation, I/O, and 3.14 file-tree tests pass
 
-### Phase 4: Glob & Pattern Matching — ~1 week
+### Phase 4: Glob & Pattern Matching ✅ Complete
 
 - `glob()`, `rglob()` with full pattern syntax: `**`, `*`, `?`, `[abc]`, `[!abc]`, brace expansion
 - `glob()` / `rglob()` with `case_sensitive` and `recurse_symlinks` kwargs (3.12+/3.13+)
 - Symlink loop detection for recursive globs
 - Glob iterator bridging (Rust → Python via PyO3 iterator protocol)
-- `glob.rs` module extracted from `iter.rs` / `pattern.rs` for standalone glob engine
-- **Verify:** All vendored CPython glob tests pass across platform matrix
+- `glob.rs` module with iterative DFS engine (798 lines)
+- **Verify:** All vendored CPython glob tests pass on Linux, macOS, Windows (3.10 + 3.14)
 
 ### Phase 5: Parity & Maintenance — ~1 week
 
