@@ -1470,26 +1470,24 @@ impl PurePath {
     /// Move this file or directory tree to *target*.
     #[pyo3(name = "move")]
     #[pyo3(signature = (target))]
+    /// CPython: move() first tries ``os.replace()``, falling back to
+    /// copy+delete.  CPython copies to the *exact* target path — only
+    /// ``move_into`` appends ``source.name``.
     fn move_<'py>(slf: PyRef<'py, Self>, target: &Bound<'py, PyAny>) -> PyResult<PyObject> {
         let py = slf.py();
         let target_str = _extract_path_str(target)?;
+        let src_str = slf._str_repr();
 
-        // If target is an existing directory, move_into semantics
-        let final_dst = if std::path::Path::new(&target_str).is_dir() {
-            let name = slf.name().unwrap_or_default();
-            if name.is_empty() {
-                return Err(pyo3::exceptions::PyValueError::new_err(format!(
-                    "'{}' has an empty name",
-                    slf._str_repr()
-                )));
-            }
-            format!("{}/{}", target_str.trim_end_matches('/'), name)
-        } else {
-            target_str.clone()
-        };
+        // ensure_distinct_paths: raise if source == target (CPython match).
+        if src_str == target_str {
+            return Err(pyo3::exceptions::PyOSError::new_err(format!(
+                "Source and target are the same path: '{}'",
+                src_str
+            )));
+        }
 
-        crate::fs::move_tree(slf.inner.raw(), OsStr::new(&final_dst))?;
-        Self::_make_child(py, slf.as_ptr(), OsString::from(&final_dst))
+        crate::fs::move_tree(slf.inner.raw(), OsStr::new(&target_str))?;
+        Self::_make_child(py, slf.as_ptr(), OsString::from(&target_str))
     }
 
     /// Move this file or directory tree *into* an existing directory.
