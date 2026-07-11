@@ -1168,9 +1168,10 @@ impl PurePath {
     }
 
     fn __bytes__(&self) -> PyResult<PyObject> {
-        let raw = self.inner.raw();
-        let encoded = raw.as_encoded_bytes();
-        Python::with_gil(|py| Ok(pyo3::types::PyBytes::new(py, encoded).into()))
+        // Use os.fsencode(str(self)) — CPython behaviour.
+        // __str__ normalises separators to OS-native form (\ on Windows).
+        let raw = self.__str__();
+        Python::with_gil(|py| Ok(pyo3::types::PyBytes::new(py, raw.as_bytes()).into()))
     }
 
     fn __reduce__<'py>(slf: PyRef<'py, Self>, py: Python<'py>) -> PyResult<PyObject> {
