@@ -92,9 +92,9 @@ fn parse_posix_root(bytes: &[u8]) -> (Option<OsString>, usize) {
 /// extended-length prefixes. Both ``\\`` and ``/`` are treated
 /// as separators.
 fn parse_windows(path: &OsStr) -> ParsedPath {
-    let bytes = path.as_encoded_bytes();
+    let raw = path.as_encoded_bytes();
 
-    if bytes.is_empty() {
+    if raw.is_empty() {
         return ParsedPath {
             drive: None,
             root: None,
@@ -104,11 +104,18 @@ fn parse_windows(path: &OsStr) -> ParsedPath {
         };
     }
 
-    // Normalise to a consistent view using only backslashes for anchor detection.
-    let (drive, root, anchor_len) = parse_windows_drive_root(bytes);
+    // Normalise forward slashes to backslashes so that parsed components
+    // (drive, root, parts) always use backslash separators regardless of
+    // whether the input used ``/`` or ``\\``.
+    let normalised: Vec<u8> = raw
+        .iter()
+        .map(|&b| if b == b'/' { b'\\' } else { b })
+        .collect();
+
+    let (drive, root, anchor_len) = parse_windows_drive_root(&normalised);
 
     // Split the remainder into parts (treating both \ and / as separators)
-    let rest = &bytes[anchor_len..];
+    let rest = &normalised[anchor_len..];
     let parts: Vec<OsString> = split_windows_parts(rest);
 
     let has_name = !parts.is_empty();
@@ -154,45 +161,103 @@ fn parse_windows_drive_root(bytes: &[u8]) -> (Option<OsString>, Option<OsString>
         let remaining = &bytes[4..];
         let remaining_len = remaining.len();
 
-        // \\?\UNC\server\share
+        // \\?\UNC  — everything after "UNC" follows the same server\share
+        // pattern as normal UNC but with the \\?\UNC prefix as the drive base.
         if prefix[2] == b'?'
-            && remaining_len >= 4
+            && remaining_len >= 3
             && remaining[0] == b'U'
             && remaining[1] == b'N'
             && remaining[2] == b'C'
-            && is_win_sep(remaining[3])
         {
-            // After "UNC\", find the server name
-            let after_unc = &remaining[4..]; // skip "UNC\"
-            if let Some(sep_pos) = after_unc.iter().position(|&b| is_win_sep(b)) {
-                let server = &after_unc[..sep_pos];
-                let after_server = &after_unc[sep_pos..]; // starts with "\"
+            // Skip "UNC" and optional trailing separator
+            let after_unc = if remaining_len > 3 && is_win_sep(remaining[3]) {
+                &remaining[4..] // skip "UNC\"
+            } else {
+                // \\?\UNC (just the literal, no trailing separator)
+                let mut drive = Vec::with_capacity(4 + 3);
+                drive.extend_from_slice(prefix);
+                drive.extend_from_slice(b"UNC");
+                return (
+                    Some(crate::from_os_bytes(&drive).to_os_string()),
+                    None,
+                    len.min(4 + 3),
+                );
+            };
 
-                // Skip the separator, find the share name
-                if after_server.len() > 1 {
-                    if let Some(sep2_pos) = after_server[1..].iter().position(|&b| is_win_sep(b)) {
-                        let share = &after_server[1..1 + sep2_pos];
-                        // anchor_end = prefix(4) + "UNC"(3) + "\"(1) + server + "\"(1) + share + "\"(1)
-                        let anchor_end = 4 + 3 + 1 + server.len() + 1 + share.len() + 1;
+            if after_unc.is_empty() {
+                // \\?\UNC\  — drive includes trailing separator
+                let mut drive = Vec::with_capacity(4 + 4);
+                drive.extend_from_slice(prefix);
+                drive.extend_from_slice(b"UNC\\");
+                return (Some(crate::from_os_bytes(&drive).to_os_string()), None, len);
+            }
 
-                        let mut drive_str =
-                            Vec::with_capacity(4 + 3 + 1 + server.len() + 1 + share.len());
-                        drive_str.extend_from_slice(prefix);
-                        drive_str.extend_from_slice(b"UNC");
-                        drive_str.push(b'\\');
-                        drive_str.extend_from_slice(server);
-                        drive_str.push(b'\\');
-                        drive_str.extend_from_slice(share);
+            // Find server name (up to next separator or end)
+            match after_unc.iter().position(|&b| is_win_sep(b)) {
+                Some(sep_pos) => {
+                    let server = &after_unc[..sep_pos];
+                    let after_server = &after_unc[sep_pos + 1..];
 
-                        return (
-                            Some(crate::from_os_bytes(&drive_str).to_os_string()),
-                            Some(crate::from_os_bytes(b"\\").to_os_string()),
-                            anchor_end.min(len),
-                        );
+                    if after_server.is_empty() {
+                        // \\?\UNC\server\ — drive includes trailing separator
+                        let mut drive = Vec::with_capacity(4 + 3 + 1 + server.len() + 1);
+                        drive.extend_from_slice(prefix);
+                        drive.extend_from_slice(b"UNC\\");
+                        drive.extend_from_slice(server);
+                        drive.push(b'\\');
+                        return (Some(crate::from_os_bytes(&drive).to_os_string()), None, len);
                     }
+
+                    // Find share (up to next separator or end)
+                    match after_server.iter().position(|&b| is_win_sep(b)) {
+                        Some(share_sep) => {
+                            let share = &after_server[..share_sep];
+                            let anchor_end = 4 + 3 + 1 + server.len() + 1 + share_sep + 1;
+                            let mut drive =
+                                Vec::with_capacity(4 + 3 + 1 + server.len() + 1 + share.len());
+                            drive.extend_from_slice(prefix);
+                            drive.extend_from_slice(b"UNC\\");
+                            drive.extend_from_slice(server);
+                            drive.push(b'\\');
+                            drive.extend_from_slice(share);
+                            return (
+                                Some(crate::from_os_bytes(&drive).to_os_string()),
+                                Some(crate::from_os_bytes(b"\\").to_os_string()),
+                                anchor_end.min(len),
+                            );
+                        }
+                        None => {
+                            // \\?\UNC\server\share — share with no trailing sep
+                            let share = after_server;
+                            let anchor_end = len;
+                            let mut drive =
+                                Vec::with_capacity(4 + 3 + 1 + server.len() + 1 + share.len());
+                            drive.extend_from_slice(prefix);
+                            drive.extend_from_slice(b"UNC\\");
+                            drive.extend_from_slice(server);
+                            drive.push(b'\\');
+                            drive.extend_from_slice(share);
+                            return (
+                                Some(crate::from_os_bytes(&drive).to_os_string()),
+                                Some(crate::from_os_bytes(b"\\").to_os_string()),
+                                anchor_end,
+                            );
+                        }
+                    }
+                }
+                None => {
+                    // \\?\UNC\server — no trailing separator, no root
+                    let server = after_unc;
+                    let mut drive = Vec::with_capacity(4 + 3 + 1 + server.len());
+                    drive.extend_from_slice(prefix);
+                    drive.extend_from_slice(b"UNC\\");
+                    drive.extend_from_slice(server);
+                    return (Some(crate::from_os_bytes(&drive).to_os_string()), None, len);
                 }
             }
         }
+
+        // \\?\C:\  or  \\.\C:\  — drive letter after prefix
 
         // \\?\C:\  or  \\.\C:\  — drive letter after prefix
         if remaining_len >= 2 && is_alpha(remaining[0]) && remaining[1] == b':' {
@@ -211,46 +276,109 @@ fn parse_windows_drive_root(bytes: &[u8]) -> (Option<OsString>, Option<OsString>
             );
         }
 
-        // Extended prefix without drive (unusual but valid)
+        // Extended prefix without drive letter or UNC — everything after the
+        // prefix is the device name and belongs to the drive (e.g.
+        // \\.\BootPartition\, \\.\PhysicalDrive0, \\?\Volume{}\).
+        if remaining_len > 0 {
+            let has_trailing_sep = is_win_sep(remaining[remaining_len - 1]);
+            let drive_body = if has_trailing_sep {
+                &remaining[..remaining_len - 1]
+            } else {
+                remaining
+            };
+            let mut drive = Vec::with_capacity(4 + drive_body.len());
+            drive.extend_from_slice(prefix);
+            drive.extend_from_slice(drive_body);
+            return (
+                Some(crate::from_os_bytes(&drive).to_os_string()),
+                if has_trailing_sep {
+                    Some(crate::from_os_bytes(b"\\").to_os_string())
+                } else {
+                    None
+                },
+                len,
+            );
+        }
+        // Extended prefix with nothing after it (e.g. \\?\ or \\.\)
         return (
             Some(crate::from_os_bytes(prefix).to_os_string()),
-            Some(crate::from_os_bytes(b"\\").to_os_string()),
+            None,
             4.min(len),
         );
     }
 
     // ── UNC path: \\server\share  ──────────────────────────────────────
     if len >= 2 && is_win_sep(bytes[0]) && is_win_sep(bytes[1]) {
-        // Skip the leading \\ and find server name
         let after_slashes = &bytes[2..];
-        if let Some(sep_pos) = after_slashes.iter().position(|&b| is_win_sep(b)) {
-            let server = &after_slashes[..sep_pos];
-            let after_server = &after_slashes[sep_pos..];
-            // Skip the separator and find share name
-            if let Some(sep2_pos) = after_server[1..].iter().position(|&b| is_win_sep(b)) {
-                let share = &after_server[1..1 + sep2_pos];
-                let anchor_end = 2 + sep_pos + 1 + sep2_pos + 1;
 
-                let mut drive_str = Vec::with_capacity(2 + server.len() + 1 + share.len());
-                drive_str.extend_from_slice(b"\\\\");
-                drive_str.extend_from_slice(server);
-                drive_str.push(b'\\');
-                drive_str.extend_from_slice(share);
-
-                return (
-                    Some(crate::from_os_bytes(&drive_str).to_os_string()),
-                    Some(crate::from_os_bytes(b"\\").to_os_string()),
-                    anchor_end.min(len),
-                );
-            }
+        if after_slashes.is_empty() {
+            // Just \\ (exactly two slashes) — drive only, no root
+            return (Some(crate::from_os_bytes(b"\\\\").to_os_string()), None, 2);
         }
 
-        // Just \\ with no server\share — treat as root only
-        return (
-            None,
-            Some(crate::from_os_bytes(b"\\").to_os_string()),
-            1.min(len),
-        );
+        // Find the server name (up to next separator or end)
+        match after_slashes.iter().position(|&b| is_win_sep(b)) {
+            Some(sep_pos) => {
+                // Server found, followed by separator
+                let server = &after_slashes[..sep_pos];
+                let after_server = &after_slashes[sep_pos + 1..]; // skip separator
+
+                if after_server.is_empty() {
+                    // \\server\ — drive includes trailing separator, no root
+                    let mut drive = Vec::with_capacity(2 + server.len() + 1);
+                    drive.extend_from_slice(b"\\\\");
+                    drive.extend_from_slice(server);
+                    drive.push(b'\\');
+                    return (Some(crate::from_os_bytes(&drive).to_os_string()), None, len);
+                }
+
+                // Find the share (up to next separator or end)
+                match after_server.iter().position(|&b| is_win_sep(b)) {
+                    Some(share_sep) => {
+                        // \\server\share\...  — share with trailing separator → root
+                        let share = &after_server[..share_sep];
+                        let anchor_end = 2 + sep_pos + 1 + share_sep + 1;
+
+                        let mut drive = Vec::with_capacity(2 + server.len() + 1 + share.len());
+                        drive.extend_from_slice(b"\\\\");
+                        drive.extend_from_slice(server);
+                        drive.push(b'\\');
+                        drive.extend_from_slice(share);
+
+                        return (
+                            Some(crate::from_os_bytes(&drive).to_os_string()),
+                            Some(crate::from_os_bytes(b"\\").to_os_string()),
+                            anchor_end.min(len),
+                        );
+                    }
+                    None => {
+                        // \\server\share — share with no trailing separator
+                        // The root is implied.
+                        let share = after_server;
+                        let anchor_end = len;
+
+                        let mut drive = Vec::with_capacity(2 + server.len() + 1 + share.len());
+                        drive.extend_from_slice(b"\\\\");
+                        drive.extend_from_slice(server);
+                        drive.push(b'\\');
+                        drive.extend_from_slice(share);
+
+                        return (
+                            Some(crate::from_os_bytes(&drive).to_os_string()),
+                            Some(crate::from_os_bytes(b"\\").to_os_string()),
+                            anchor_end,
+                        );
+                    }
+                }
+            }
+            None => {
+                // \\server — no separator after server, no root
+                let mut drive = Vec::with_capacity(2 + after_slashes.len());
+                drive.extend_from_slice(b"\\\\");
+                drive.extend_from_slice(after_slashes);
+                return (Some(crate::from_os_bytes(&drive).to_os_string()), None, len);
+            }
+        }
     }
 
     // ── Drive letter: C: or C:\  ───────────────────────────────────────

@@ -142,7 +142,7 @@ impl ParentsIter {
         let is_win = self.flavour == PathFlavour::Windows;
         while end > self.anchor_length {
             let b = raw_bytes[end - 1];
-            if (is_win && (b == b'\\' || b == b'/')) || (!is_win && b == b'/') {
+            if b == b'/' || is_win && b == b'\\' {
                 end -= 1;
             } else {
                 break;

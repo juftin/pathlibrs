@@ -48,6 +48,51 @@ impl ParsedPath {
                 .sum::<usize>()
                 .saturating_sub(1) // last part has no trailing separator
     }
+
+    /// Compare two parsed paths with Windows case-insensitivity.
+    ///
+    /// Drives and parts are compared case-insensitively; root is always
+    /// a backslash so it is compared exactly.
+    pub fn eq_windows(&self, other: &ParsedPath) -> bool {
+        // Drives: case-insensitive
+        let drives_eq = match (&self.drive, &other.drive) {
+            (Some(a), Some(b)) => a
+                .as_encoded_bytes()
+                .eq_ignore_ascii_case(b.as_encoded_bytes()),
+            (None, None) => true,
+            _ => false,
+        };
+        if !drives_eq {
+            return false;
+        }
+        // Root: exact (always a backslash on Windows)
+        if self.root != other.root {
+            return false;
+        }
+        // Parts: case-insensitive
+        if self.parts.len() != other.parts.len() {
+            return false;
+        }
+        for (a, b) in self.parts.iter().zip(other.parts.iter()) {
+            if !a
+                .as_encoded_bytes()
+                .eq_ignore_ascii_case(b.as_encoded_bytes())
+            {
+                return false;
+            }
+        }
+        true
+    }
+
+    /// Check if two parsed path parts are equal, with optional case-insensitivity.
+    pub fn parts_equal(a: &OsString, b: &OsString, windows: bool) -> bool {
+        if windows {
+            a.as_encoded_bytes()
+                .eq_ignore_ascii_case(b.as_encoded_bytes())
+        } else {
+            a == b
+        }
+    }
 }
 
 /// Lazy-parsed path representation.

@@ -128,34 +128,24 @@ impl GlobPattern {
     }
 
     /// Match pattern segments against path segments.
+    ///
+    /// Every segment is matched with fnmatch so that glob patterns
+    /// like ``//*/*/*.py`` correctly match UNC paths (``//server/share/file.py``).
+    /// Because segments are already split on ``/``, the ``*`` wildcard
+    /// cannot cross directory boundaries.
     fn match_segments(&self, path_segments: &[&[u8]]) -> bool {
         if self.segments.len() != path_segments.len() {
             return false;
         }
-
-        // Special case: empty pattern matches empty path
         if self.segments.is_empty() {
             return path_segments.is_empty();
         }
-
-        // All segments except the last must match exactly
-        for (i, segment) in self
-            .segments
-            .iter()
-            .enumerate()
-            .take(self.segments.len().saturating_sub(1))
-        {
-            if !bytes_equal(segment, path_segments[i], self.case_sensitive) {
+        for (pat, seg) in self.segments.iter().zip(path_segments.iter()) {
+            if !fnmatch_bytes(pat, seg, self.case_sensitive) {
                 return false;
             }
         }
-
-        // Last segment uses fnmatch
-        if let (Some(pat), Some(path_seg)) = (self.segments.last(), path_segments.last()) {
-            fnmatch_bytes(pat, path_seg, self.case_sensitive)
-        } else {
-            false
-        }
+        true
     }
 }
 

@@ -7,7 +7,7 @@ use std::hash::{Hash, Hasher};
 use std::sync::Mutex;
 
 use pyo3::prelude::*;
-use pyo3::types::{PyAnyMethods, PyString, PyTuple, PyType};
+use pyo3::types::{PyAnyMethods, PyList, PyString, PyTuple, PyType};
 
 use crate::fs::PathInfo;
 use crate::iter::ParentsIter;
@@ -112,7 +112,11 @@ impl PurePath {
             return self.inner.raw().to_os_string();
         }
         if p.parts.len() == 1 {
-            return OsString::from(&self._anchor_str());
+            let anchor = self._anchor_str();
+            if anchor.is_empty() {
+                return OsString::from(".");
+            }
+            return OsString::from(&anchor);
         }
         self._build_path(
             p.drive.as_deref(),
@@ -146,14 +150,21 @@ impl PurePath {
 #[pymethods]
 impl PurePath {
     #[new]
-    #[pyo3(signature = (raw=None))]
-    fn new(raw: Option<&str>) -> Self {
-        let raw = raw.unwrap_or(".");
-        Self {
-            inner: PathRepr::new(OsString::from(raw)),
+    #[pyo3(signature = (*args))]
+    fn new(args: &Bound<'_, PyTuple>) -> PyResult<Self> {
+        #[cfg(windows)]
+        let join_flavour = PathFlavour::Windows;
+        #[cfg(not(windows))]
+        let join_flavour = PathFlavour::Posix;
+        let raw = join_path_segments(args, join_flavour)?;
+        Ok(Self {
+            inner: PathRepr::new(raw),
+            #[cfg(windows)]
+            flavour: PathFlavour::Windows,
+            #[cfg(not(windows))]
             flavour: PathFlavour::Posix,
             path_info: Mutex::new(None),
-        }
+        })
     }
 
     // -- properties ----------------------------------------------------
@@ -286,7 +297,7 @@ impl PurePath {
 
         if let Ok(tuple) = args.downcast::<PyTuple>() {
             for arg in tuple.iter() {
-                let s: String = arg.extract()?;
+                let s = _extract_path_str(&arg)?;
                 if !s.is_empty() {
                     if result.as_encoded_bytes().is_empty() {
                         result = OsString::from(&s);
@@ -304,6 +315,26 @@ impl PurePath {
     }
 
     fn with_name<'py>(slf: PyRef<'py, Self>, name: &str) -> PyResult<PyObject> {
+        if slf.name().is_none() {
+            return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                "'{}' has an empty name",
+                slf._str_repr()
+            )));
+        }
+        // Reject invalid characters in the new name.
+        // On Windows, a bare ":" is invalid (looks like a drive separator),
+        // but "d:" or "d:e" are valid NTFS stream names.
+        // Path separators and null bytes are forbidden on all platforms.
+        if name == ":" {
+            return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                "Invalid name '{name}'"
+            )));
+        }
+        if name.contains('\0') || name.contains('/') || name.contains('\\') {
+            return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                "Invalid name '{name}'"
+            )));
+        }
         let py = slf.py();
         let ptr = slf.as_ptr();
         let new_raw = slf._with_name_raw(name);
@@ -311,11 +342,17 @@ impl PurePath {
     }
 
     fn with_stem<'py>(slf: PyRef<'py, Self>, stem: &str) -> PyResult<PyObject> {
+        if slf.name().is_none() {
+            return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                "'{}' has an empty name",
+                slf._str_repr()
+            )));
+        }
         let name = slf.name().unwrap_or_default();
         let old_suffix = suffix_from_name(OsStr::new(&name))
             .map(|s| s.to_string_lossy().into_owned())
             .unwrap_or_default();
-        let new_name = format!("{}{}", stem, old_suffix);
+        let new_name = format!("{stem}{old_suffix}");
         PurePath::with_name(slf, &new_name)
     }
 
@@ -327,9 +364,64 @@ impl PurePath {
         let new_name = if suffix.is_empty() {
             old_stem
         } else {
-            format!("{}{}", old_stem, suffix)
+            format!("{old_stem}{suffix}")
         };
         PurePath::with_name(slf, &new_name)
+    }
+
+    /// ``_parse_path(raw_path)`` — class method.
+    ///
+    /// Parse a raw path string into ``(drive, root, parts)``.
+    /// The flavour is determined from the class's ``parser`` attribute.
+    #[classmethod]
+    #[pyo3(signature = (raw_path))]
+    fn _parse_path(_cls: &Bound<'_, PyType>, raw_path: &str) -> PyResult<PyObject> {
+        let py = _cls.py();
+        let flavour = if _cls
+            .getattr("parser")?
+            .getattr("sep")?
+            .extract::<String>()?
+            == "/"
+        {
+            PathFlavour::Posix
+        } else {
+            PathFlavour::Windows
+        };
+        let parsed = crate::parsing::parse_path(OsStr::new(raw_path), flavour);
+        let drive: PyObject = parsed
+            .drive
+            .as_ref()
+            .map(|d| d.to_string_lossy().into_owned())
+            .unwrap_or_default()
+            .into_pyobject(py)?
+            .into_any()
+            .unbind();
+        let root: PyObject = parsed
+            .root
+            .as_ref()
+            .map(|r| r.to_string_lossy().into_owned())
+            .unwrap_or_default()
+            .into_pyobject(py)?
+            .into_any()
+            .unbind();
+        let parts_list = {
+            let items: Vec<PyObject> = parsed
+                .parts
+                .iter()
+                .filter(|p| p.as_encoded_bytes() != b".")
+                .map(|p| {
+                    p.to_string_lossy()
+                        .into_owned()
+                        .into_pyobject(py)
+                        .unwrap()
+                        .into_any()
+                        .unbind()
+                })
+                .collect();
+            PyList::new(py, items)?.into_any().unbind()
+        };
+        let result = PyTuple::new(py, [drive, root, parts_list])?;
+        Ok(result.into_any().unbind())
     }
 
     /// ``with_segments(*pathsegments)`` — class method.
@@ -379,18 +471,35 @@ impl PurePath {
         let min_len = self_parsed.parts.len().min(other_parsed.parts.len());
         let mut common = 0usize;
 
-        if self_parsed.drive != other_parsed.drive || self_parsed.root != other_parsed.root {
-            // Anchors differ — no common prefix at all
-            if !walk_up {
+        if !_drives_equal(&self_parsed.drive, &other_parsed.drive, slf._is_windows())
+            || self_parsed.root != other_parsed.root
+        {
+            // Anchors differ — no common prefix.
+            // With walk_up=True, allow it only when BOTH paths have roots
+            // AND the other path has at least one part (so ".." can
+            // conceptually reach a common ancestor).
+            // walk_up across different anchors only works when both paths
+            // have single-letter drives (e.g. C: vs D:), both have roots,
+            // and the other path has at least one part.
+            let both_regular_drives =
+                _is_regular_drive(&self_parsed.drive) && _is_regular_drive(&other_parsed.drive);
+            let both_have_roots = self_parsed.root.is_some() && other_parsed.root.is_some();
+            if !walk_up || !both_have_roots || !both_regular_drives || other_parsed.parts.is_empty()
+            {
                 return Err(pyo3::exceptions::PyValueError::new_err(format!(
                     "'{}' does not start with '{}'",
                     slf._str_repr(),
                     other_str
                 )));
             }
+            // With walk_up=True and both having roots, produce ".." segments
         } else {
             for i in 0..min_len {
-                if self_parsed.parts[i] == other_parsed.parts[i] {
+                if crate::repr::ParsedPath::parts_equal(
+                    &self_parsed.parts[i],
+                    &other_parsed.parts[i],
+                    slf._is_windows(),
+                ) {
                     common += 1;
                 } else {
                     break;
@@ -449,14 +558,18 @@ impl PurePath {
         let other_str = _extract_path_str(other)?;
         let other_parsed = crate::parsing::parse_path(OsStr::new(&other_str), self.flavour);
         let self_parsed = self.inner.parsed(self.flavour);
-        if self_parsed.drive != other_parsed.drive
+        if !_drives_equal(&self_parsed.drive, &other_parsed.drive, self._is_windows())
             || self_parsed.root != other_parsed.root
             || self_parsed.parts.len() < other_parsed.parts.len()
         {
             return Ok(false);
         }
         for i in 0..other_parsed.parts.len() {
-            if self_parsed.parts[i] != other_parsed.parts[i] {
+            if !crate::repr::ParsedPath::parts_equal(
+                &self_parsed.parts[i],
+                &other_parsed.parts[i],
+                self._is_windows(),
+            ) {
                 return Ok(false);
             }
         }
@@ -473,59 +586,109 @@ impl PurePath {
     }
 
     fn as_uri(&self) -> PyResult<String> {
+        // Emit DeprecationWarning — PurePath.as_uri() is deprecated
+        // in favor of concrete Path.as_uri() (CPython compat).
+        Python::with_gil(|py| {
+            let _ = py.import("warnings")?.call_method1(
+                "warn",
+                (
+                    "PurePath.as_uri() is deprecated, use Path.as_uri() instead",
+                    py.get_type::<pyo3::exceptions::PyDeprecationWarning>(),
+                ),
+            );
+            Ok::<_, PyErr>(())
+        })?;
         let p = self.inner.parsed(self.flavour);
-        match self.flavour {
-            PathFlavour::Posix => {
-                if p.root.is_some() {
-                    Ok(format!("file://{}", self.as_posix()))
-                } else {
-                    Ok(format!("file:{}", self.as_posix()))
-                }
+        // Non-absolute paths on Windows cannot produce a file: URI
+        if self.flavour == PathFlavour::Windows {
+            if p.drive.is_none() {
+                return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                    "path '{path}' is not absolute on Windows",
+                    path = self._str_repr()
+                )));
             }
-            PathFlavour::Windows => {
-                if let Some(ref drive) = p.drive {
-                    let drive_str = drive.to_string_lossy();
-                    if drive_str.starts_with("\\\\") {
-                        let trimmed = drive_str
-                            .replace('\\', "/")
-                            .trim_start_matches('/')
-                            .to_string();
-                        let rest: Vec<u8> = self.inner.raw().as_encoded_bytes()[p.anchor_length..]
-                            .iter()
-                            .map(|&b| if b == b'\\' { b'/' } else { b })
-                            .collect();
-                        let rest_str = String::from_utf8_lossy(&rest)
-                            .trim_start_matches('/')
-                            .to_string();
-                        Ok(format!("file://{}/{}", trimmed, rest_str))
-                    } else {
-                        let drive_letter = drive_str.trim_end_matches(':');
-                        let rest: Vec<u8> = self.inner.raw().as_encoded_bytes()[p.anchor_length..]
-                            .iter()
-                            .map(|&b| if b == b'\\' { b'/' } else { b })
-                            .collect();
-                        let rest_str = String::from_utf8_lossy(&rest)
-                            .trim_start_matches('/')
-                            .to_string();
-                        Ok(format!("file:///{}:/{}", drive_letter, rest_str))
-                    }
-                } else {
-                    Ok(format!("file:{}", self.as_posix()))
-                }
+            if p.root.is_none() {
+                return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                    "path '{path}' is not absolute on Windows",
+                    path = self._str_repr()
+                )));
             }
         }
+        // Percent-encode the path portion via Python, preserving the drive
+        // letter colon (which must not be encoded in file: URIs).
+        Python::with_gil(|py| {
+            let quote = py.import("urllib.parse")?.getattr("quote")?;
+            match self.flavour {
+                PathFlavour::Posix => {
+                    let encoded: String = quote.call1((self.as_posix(),))?.extract()?;
+                    if p.root.is_some() {
+                        Ok(format!("file://{encoded}"))
+                    } else {
+                        Ok(format!("file:{encoded}"))
+                    }
+                }
+                PathFlavour::Windows => {
+                    if let Some(ref drive) = p.drive {
+                        let drive_str = drive.to_string_lossy();
+                        if drive_str.starts_with("\\\\") {
+                            let trimmed = drive_str
+                                .replace('\\', "/")
+                                .trim_start_matches('/')
+                                .to_string();
+                            let rest = self.as_posix()[p.anchor_length..]
+                                .trim_start_matches('/')
+                                .to_string();
+                            let encoded: String = quote.call1((&rest,))?.extract()?;
+                            Ok(format!("file://{trimmed}/{encoded}"))
+                        } else {
+                            let drive_letter = drive_str.trim_end_matches(':');
+                            let rest = self.as_posix()[p.anchor_length..]
+                                .trim_start_matches('/')
+                                .to_string();
+                            let encoded: String = quote.call1((&rest,))?.extract()?;
+                            Ok(format!("file:///{drive_letter}:/{encoded}"))
+                        }
+                    } else {
+                        let encoded: String = quote.call1((self.as_posix(),))?.extract()?;
+                        Ok(format!("file:{encoded}"))
+                    }
+                }
+            }
+        })
     }
 
     #[pyo3(name = "match")]
     #[pyo3(signature = (pattern, *, case_sensitive = None))]
     fn match_(&self, pattern: &str, case_sensitive: Option<bool>) -> bool {
         let cs = case_sensitive.unwrap_or(!self._is_windows());
-        pattern::match_path(
-            OsStr::new(pattern),
-            self.inner.raw(),
-            cs,
-            self._is_windows(),
-        )
+        let is_windows = self._is_windows();
+        // On Windows, patterns like "*:" or "c:" prefix a drive component.
+        // Strip the drive from both pattern and path before matching, then
+        // verify the drive matches separately.
+        // The pattern and path must agree on whether a root follows the drive.
+        if is_windows {
+            if let Some((pat_drive, pat_root, pat_rest)) = _split_drive_from_pattern(pattern) {
+                let self_raw = self.inner.raw().to_string_lossy();
+                if let Some((path_drive, path_root, path_rest)) = _split_drive_from_path(&self_raw)
+                {
+                    // Root presence must match
+                    if pat_root != path_root {
+                        return false;
+                    }
+                    // Match drive with fnmatch, then match the rest
+                    if !pattern::fnmatch_bytes(pat_drive.as_bytes(), path_drive.as_bytes(), cs) {
+                        return false;
+                    }
+                    return pattern::match_path(
+                        OsStr::new(pat_rest),
+                        OsStr::new(path_rest),
+                        cs,
+                        is_windows,
+                    );
+                }
+            }
+        }
+        pattern::match_path(OsStr::new(pattern), self.inner.raw(), cs, is_windows)
     }
 
     /// ``full_match(pattern, *, case_sensitive=None)``
@@ -766,8 +929,7 @@ impl PurePath {
         // If os.path.expanduser returns the same string, the user was not found
         if home_str == tilde_name {
             return Err(pyo3::exceptions::PyRuntimeError::new_err(format!(
-                "Could not determine home directory for '{}'",
-                raw_str
+                "Could not determine home directory for '{raw_str}'"
             )));
         }
 
@@ -780,20 +942,34 @@ impl PurePath {
             // e.g., ~/a:b → /home/user/./a:b
             // Applied on all platforms (including Windows) for consistency.
             let tail = if rest.contains(':') {
-                format!("./{}", rest)
+                format!("./{rest}")
             } else {
                 rest.to_string()
             };
-            format!("{}/{}", home_str, tail)
+            format!("{home_str}/{tail}")
         };
 
         Self::_make_child(py, slf.as_ptr(), OsString::from(&result))
     }
 
     /// Return True if the path is absolute.
+    ///
+    /// On Windows, a path is absolute if it has both a drive and a root
+    /// (e.g. ``c:\\\\foo``), or if it is a UNC path starting with two
+    /// slashes (e.g. ``\\\\server\\\\share``). A root-only path like
+    /// ``\\\\foo`` without a drive is NOT absolute on Windows.
     fn is_absolute(&self) -> bool {
         let p = self.inner.parsed(self.flavour);
-        p.root.is_some()
+        if self._is_windows() {
+            // UNC paths (drive starts with \\) are always absolute
+            let is_unc = p
+                .drive
+                .as_ref()
+                .is_some_and(|d| d.as_encoded_bytes().starts_with(b"\\\\"));
+            is_unc || (p.root.is_some() && p.drive.is_some())
+        } else {
+            p.root.is_some()
+        }
     }
 
     /// Return a cached ``PathInfo`` object for this path (CPython 3.12+).
@@ -859,7 +1035,53 @@ impl PurePath {
     fn __eq__(&self, other: &Bound<'_, PyAny>) -> PyResult<bool> {
         let other_str = _extract_path_str(other)?;
         let other_parsed = crate::parsing::parse_path(OsStr::new(&other_str), self.flavour);
-        Ok(self.inner.parsed(self.flavour) == &other_parsed)
+        let self_parsed = self.inner.parsed(self.flavour);
+        if !self._is_windows() {
+            return Ok(self_parsed == &other_parsed);
+        }
+        // Quick structural check first
+        if self_parsed.root != other_parsed.root
+            || self_parsed.parts.len() != other_parsed.parts.len()
+        {
+            return Ok(false);
+        }
+        // Use Python casefold for Unicode-aware case-insensitive comparison.
+        // Fall back to ASCII-only comparison when all components are ASCII.
+        let needs_unicode = |s: &OsString| s.as_encoded_bytes().iter().any(|&b| b >= 128);
+        let any_non_ascii = self_parsed.drive.as_ref().is_some_and(needs_unicode)
+            || other_parsed.drive.as_ref().is_some_and(needs_unicode)
+            || self_parsed.parts.iter().any(&needs_unicode)
+            || other_parsed.parts.iter().any(needs_unicode);
+
+        if any_non_ascii {
+            Python::with_gil(|py| {
+                let drive_eq = match (&self_parsed.drive, &other_parsed.drive) {
+                    (Some(a), Some(b)) => {
+                        let a_py = PyString::new(py, &a.to_string_lossy());
+                        let b_py = PyString::new(py, &b.to_string_lossy());
+                        a_py.call_method0("casefold")?.extract::<String>()?
+                            == b_py.call_method0("casefold")?.extract::<String>()?
+                    }
+                    (None, None) => true,
+                    _ => false,
+                };
+                if !drive_eq {
+                    return Ok(false);
+                }
+                for (a, b) in self_parsed.parts.iter().zip(other_parsed.parts.iter()) {
+                    let a_py = PyString::new(py, &a.to_string_lossy());
+                    let b_py = PyString::new(py, &b.to_string_lossy());
+                    if a_py.call_method0("casefold")?.extract::<String>()?
+                        != b_py.call_method0("casefold")?.extract::<String>()?
+                    {
+                        return Ok(false);
+                    }
+                }
+                Ok(true)
+            })
+        } else {
+            Ok(self_parsed.eq_windows(&other_parsed))
+        }
     }
 
     fn __hash__(&self) -> u64 {
@@ -872,11 +1094,43 @@ impl PurePath {
 
     fn __lt__(&self, other: &Bound<'_, PyAny>) -> PyResult<bool> {
         let other_str = _extract_path_str(other)?;
-        Ok(self.inner.raw().as_encoded_bytes() < other_str.as_bytes())
+        let other_parsed = crate::parsing::parse_path(OsStr::new(&other_str), self.flavour);
+        let self_key = _cmp_key(self.inner.parsed(self.flavour), self._is_windows());
+        let other_key = _cmp_key(&other_parsed, self._is_windows());
+        Ok(self_key < other_key)
+    }
+
+    fn __le__(&self, other: &Bound<'_, PyAny>) -> PyResult<bool> {
+        let other_str = _extract_path_str(other)?;
+        let other_parsed = crate::parsing::parse_path(OsStr::new(&other_str), self.flavour);
+        let self_key = _cmp_key(self.inner.parsed(self.flavour), self._is_windows());
+        let other_key = _cmp_key(&other_parsed, self._is_windows());
+        Ok(self_key <= other_key)
+    }
+
+    fn __gt__(&self, other: &Bound<'_, PyAny>) -> PyResult<bool> {
+        let other_str = _extract_path_str(other)?;
+        let other_parsed = crate::parsing::parse_path(OsStr::new(&other_str), self.flavour);
+        let self_key = _cmp_key(self.inner.parsed(self.flavour), self._is_windows());
+        let other_key = _cmp_key(&other_parsed, self._is_windows());
+        Ok(self_key > other_key)
+    }
+
+    fn __ge__(&self, other: &Bound<'_, PyAny>) -> PyResult<bool> {
+        let other_str = _extract_path_str(other)?;
+        let other_parsed = crate::parsing::parse_path(OsStr::new(&other_str), self.flavour);
+        let self_key = _cmp_key(self.inner.parsed(self.flavour), self._is_windows());
+        let other_key = _cmp_key(&other_parsed, self._is_windows());
+        Ok(self_key >= other_key)
     }
 
     fn __str__(&self) -> String {
-        self.inner.raw().to_string_lossy().into_owned()
+        let raw = self.inner.raw().to_string_lossy().into_owned();
+        if self._is_windows() {
+            raw.replace('/', "\\")
+        } else {
+            raw
+        }
     }
 
     fn __repr__(&self) -> String {
@@ -888,7 +1142,7 @@ impl PurePath {
     }
 
     fn __fspath__(&self) -> String {
-        self.inner.raw().to_string_lossy().into_owned()
+        self.__str__()
     }
 
     fn __reduce__<'py>(slf: PyRef<'py, Self>, py: Python<'py>) -> PyResult<PyObject> {
@@ -912,8 +1166,10 @@ pub struct PurePosixPath;
 #[pymethods]
 impl PurePosixPath {
     #[new]
-    fn new(raw: &str) -> (Self, PurePath) {
-        (Self, PurePath::new_posix(OsString::from(raw)))
+    #[pyo3(signature = (*args))]
+    fn new(args: &Bound<'_, PyTuple>) -> PyResult<(Self, PurePath)> {
+        let raw = join_path_segments(args, PathFlavour::Posix)?;
+        Ok((Self, PurePath::new_posix(raw)))
     }
 }
 
@@ -927,14 +1183,208 @@ pub struct PureWindowsPath;
 #[pymethods]
 impl PureWindowsPath {
     #[new]
-    fn new(raw: &str) -> (Self, PurePath) {
-        (Self, PurePath::new_windows(OsString::from(raw)))
+    #[pyo3(signature = (*args))]
+    fn new(args: &Bound<'_, PyTuple>) -> PyResult<(Self, PurePath)> {
+        let raw = join_path_segments(args, PathFlavour::Windows)?;
+        Ok((Self, PurePath::new_windows(raw)))
     }
 }
 
 // ═══════════════════════════════════════════════════════════════════════
 // helpers
 // ═══════════════════════════════════════════════════════════════════════
+
+/// Join path segments into a single raw path string.
+///
+/// Follows CPython's behaviour: when a segment is anchored (has a drive or root),
+/// all previously accumulated segments are discarded and the path restarts from
+/// that anchored segment.
+fn join_path_segments(args: &Bound<'_, PyTuple>, flavour: PathFlavour) -> PyResult<OsString> {
+    // A single empty arg ("") produces an empty path, matching CPython.
+    if args.len() == 1 {
+        if let Ok(first) = args.get_item(0) {
+            let s = _extract_path_str(&first)?;
+            if s.is_empty() {
+                return Ok(OsString::from(""));
+            }
+        }
+    }
+
+    let sep = if flavour == PathFlavour::Windows {
+        b'\\'
+    } else {
+        b'/'
+    };
+    let mut drive: Option<OsString> = None;
+    let mut root: Option<OsString> = None;
+    let mut parts: Vec<OsString> = Vec::new();
+
+    for arg in args.iter() {
+        let s = _extract_path_str(&arg)?;
+        if s.is_empty() {
+            continue;
+        }
+        let parsed = crate::parsing::parse_path(OsStr::new(&s), flavour);
+        if parsed.drive.is_some() || parsed.root.is_some() {
+            // Anchored segment — reset the accumulated path.
+            // When the new segment has a drive it replaces the old one;
+            // when it has a root it replaces the root.
+            // Only when both are present does the drive reset to None.
+            if parsed.drive.is_some() {
+                drive = parsed.drive;
+            }
+            if parsed.root.is_some() {
+                root = parsed.root;
+            }
+            parts = parsed.parts;
+        } else {
+            // Relative segment — append its parts
+            parts.extend(parsed.parts);
+        }
+    }
+
+    let mut result = Vec::<u8>::new();
+    if let Some(ref d) = drive {
+        result.extend_from_slice(d.as_encoded_bytes());
+    }
+    if let Some(ref r) = root {
+        result.extend_from_slice(r.as_encoded_bytes());
+    }
+    for (i, part) in parts.iter().enumerate() {
+        if i > 0 {
+            result.push(sep);
+        }
+        result.extend_from_slice(part.as_encoded_bytes());
+    }
+
+    if result.is_empty() {
+        Ok(OsString::from("."))
+    } else {
+        Ok(crate::from_os_bytes(&result).to_os_string())
+    }
+}
+
+/// Build a comparison-tuple key from a parsed path.
+///
+/// On Windows, drive and parts are lower-cased for case-insensitive ordering.
+fn _cmp_key(parsed: &crate::repr::ParsedPath, windows: bool) -> (String, String, Vec<String>) {
+    let drive_key = parsed
+        .drive
+        .as_ref()
+        .map(|d| {
+            let s = d.to_string_lossy().into_owned();
+            if windows {
+                s.to_ascii_lowercase()
+            } else {
+                s
+            }
+        })
+        .unwrap_or_default();
+    let root_key = parsed
+        .root
+        .as_ref()
+        .map(|r| r.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    let parts_key: Vec<String> = parsed
+        .parts
+        .iter()
+        .map(|part| {
+            let s = part.to_string_lossy().into_owned();
+            if windows {
+                s.to_ascii_lowercase()
+            } else {
+                s
+            }
+        })
+        .collect();
+    (drive_key, root_key, parts_key)
+}
+
+/// Split a drive-like prefix from a glob pattern string.
+///
+/// Returns ``(drive, rest)`` for Windows drive prefixed patterns like
+/// ``"*:/*.py"`` or ``"c:/*.py"``.
+fn _split_drive_from_pattern(pattern: &str) -> Option<(&str, bool, &str)> {
+    let bytes = pattern.as_bytes();
+    let colon_pos = bytes.iter().position(|&b| b == b':')?;
+    if colon_pos == 0 {
+        return None;
+    }
+    let is_drive_like = bytes[..colon_pos]
+        .iter()
+        .all(|&b| b.is_ascii_alphanumeric() || b == b'*' || b == b'?' || b == b'[');
+    if !is_drive_like {
+        return None;
+    }
+    let after_colon = &pattern[colon_pos + 1..];
+    let has_root = after_colon.starts_with('/') || after_colon.starts_with('\\');
+    let rest = after_colon
+        .strip_prefix('/')
+        .or_else(|| after_colon.strip_prefix('\\'))
+        .unwrap_or(after_colon);
+    let drive = &pattern[..=colon_pos];
+    Some((drive, has_root, rest))
+}
+
+/// Split the Windows drive prefix from a raw path string.
+///
+/// Returns ``(drive, rest)`` for paths like ``"c:/foo"`` or UNC
+/// ``"\\\\server\\share\\foo"``.
+fn _split_drive_from_path(path: &str) -> Option<(&str, bool, &str)> {
+    let bytes = path.as_bytes();
+    // Drive letter: C: or c:
+    if bytes.len() >= 2 && bytes[0].is_ascii_alphabetic() && bytes[1] == b':' {
+        let after_colon = &path[2..];
+        let has_root = after_colon.starts_with('/') || after_colon.starts_with('\\');
+        let rest = after_colon
+            .strip_prefix('/')
+            .or_else(|| after_colon.strip_prefix('\\'))
+            .unwrap_or(after_colon);
+        return Some((&path[..2], has_root, rest));
+    }
+    // UNC: \\server\share
+    if bytes.len() > 2 && bytes[0] == b'\\' && bytes[1] == b'\\' {
+        let after = &bytes[2..];
+        if let Some(sep1) = after.iter().position(|&b| b == b'\\' || b == b'/') {
+            let after_server = &after[sep1 + 1..];
+            if let Some(sep2) = after_server.iter().position(|&b| b == b'\\' || b == b'/') {
+                let drive_end = 2 + sep1 + 1 + sep2;
+                let rest = &path[(drive_end + 1).min(path.len())..];
+                return Some((&path[..drive_end], true, rest));
+            }
+        }
+    }
+    None
+}
+
+/// Check whether a drive is a single-letter Windows drive (e.g. ``"C:"``).
+fn _is_regular_drive(drive: &Option<OsString>) -> bool {
+    match drive {
+        Some(d) => {
+            let bytes = d.as_encoded_bytes();
+            bytes.len() == 2 && bytes[0].is_ascii_alphabetic() && bytes[1] == b':'
+        }
+        None => false,
+    }
+}
+
+/// Compare two drive components for equality.
+///
+/// On Windows, drive comparison is case-insensitive (e.g. ``"C:"`` == ``"c:"``).
+fn _drives_equal(a: &Option<OsString>, b: &Option<OsString>, windows: bool) -> bool {
+    match (a, b) {
+        (Some(a), Some(b)) => {
+            if windows {
+                a.as_encoded_bytes()
+                    .eq_ignore_ascii_case(b.as_encoded_bytes())
+            } else {
+                a == b
+            }
+        }
+        (None, None) => true,
+        _ => false,
+    }
+}
 
 /// Extract a string from a Python object.
 fn _extract_path_str(obj: &Bound<'_, PyAny>) -> PyResult<String> {
@@ -963,7 +1413,7 @@ fn parse_file_uri(uri: &str) -> PyResult<String> {
         .strip_prefix("file:")
         .or_else(|| uri.strip_prefix("FILE:"))
         .ok_or_else(|| {
-            pyo3::exceptions::PyValueError::new_err(format!("URI '{}' is not a file: URI", uri))
+            pyo3::exceptions::PyValueError::new_err(format!("URI '{uri}' is not a file: URI"))
         })?;
 
     // Check for authority (//)
@@ -1002,18 +1452,17 @@ fn parse_file_uri(uri: &str) -> PyResult<String> {
             let drive = path_part.as_bytes()[0] as char;
             let rest_path = &path_part[3..];
             if rest_path.is_empty() {
-                Ok(format!("{}:\\", drive))
+                Ok(format!("{drive}:\\"))
             } else {
-                Ok(format!("{}:\\{}", drive, rest_path))
+                Ok(format!("{drive}:\\{rest_path}"))
             }
         } else {
-            Ok(format!("/{}", path_part))
+            Ok(format!("/{path_part}"))
         }
     } else {
         // Non-local authority — not a local path
         Err(pyo3::exceptions::PyValueError::new_err(format!(
-            "non-local file: URI not supported: '{}'",
-            uri
+            "non-local file: URI not supported: '{uri}'"
         )))
     }
 }
