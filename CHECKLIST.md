@@ -1,0 +1,149 @@
+# Development Checklist
+
+## Phase 1: Pure Paths — Complete
+
+- [x] `PathRepr` struct with lazy parsing
+- [x] `PurePath`, `PurePosixPath`, `PureWindowsPath` PyO3 classes
+- [x] Properties: `parts`, `drive`, `root`, `anchor`, `parent`, `parents`, `name`, `suffix`, `suffixes`, `stem`
+- [x] `joinpath()`, `with_name()`, `with_stem()`, `with_suffix()`, `with_segments()`
+- [x] `relative_to()` with `walk_up` kwarg (3.12+)
+- [x] `is_relative_to()`
+- [x] `as_posix()`, `as_uri()`, `from_uri()`
+- [x] `match()` and `full_match()` with `case_sensitive` kwarg (3.13+)
+- [x] Dunders: `__str__`, `__repr__`, `__fspath__`, `__eq__`, `__hash__`, `__lt__`
+- [x] `/` operator (`__truediv__`, `__rtruediv__`)
+- [x] Pickle / `__reduce__` support
+- [x] POSIX and Windows parsing in pure Rust
+- [x] Glob pattern matching (fnmatch-style)
+- [x] Vendored CPython 3.14.6 test suite runner
+- [x] `parser` class attribute (posixpath / ntpath)
+- [x] Python subclassing support via `#[pyclass(subclass)]`
+- [x] 36 Rust unit tests
+- [x] 65 Python smoke tests
+- [x] All vendored pure-path CPython tests pass
+
+## Phase 2: Filesystem Properties — Complete
+
+- [x] `stat()`, `lstat()` — returns `StatResult` with all metadata fields
+- [x] `exists()`, `is_dir()`, `is_file()`, `is_symlink()`
+- [x] `is_mount()`, `is_junction()`
+- [x] `PathInfo` — cached stat result (3.12+)
+- [x] `samefile()`
+- [x] `owner()`, `group()`
+- [x] `resolve()`, `absolute()`
+- [x] `readlink()`
+- [x] `expanduser()` (POSIX and Windows)
+- [x] GIL release during all I/O syscalls
+- [x] Path classes: `Path`, `PosixPath`, `WindowsPath` (concrete)
+
+## Phase 3: Filesystem Mutations & I/O — Next
+
+656 test skips in `skips.txt`, almost all `PathSubclassTest.*` waiting on this phase.
+
+### Directory Mutations
+
+- [ ] `mkdir()` with `mode`, `parents`, `exist_ok`
+- [ ] `rmdir()`
+- [ ] `chmod()`, `lchmod()`
+
+### File Mutations
+
+- [ ] `touch()` with `mode`, `exist_ok`
+- [ ] `unlink()` with `missing_ok`
+- [ ] `rename()`, `replace()`
+- [ ] `symlink_to()`, `hardlink_to()`
+
+### I/O
+
+- [ ] `open()` — delegate to Python `io.open()` per DESIGN.md §11.1
+- [ ] `read_bytes()`, `read_text()`
+- [ ] `write_bytes()`, `write_text()`
+
+### Directory Traversal
+
+- [ ] `iterdir()`
+- [ ] `walk()` with `topdown`, `bottomup`, `onerror`, `follow_symlinks`
+
+### 3.14 File-Tree Operations
+
+- [ ] `copy()` — copy file or directory tree
+- [ ] `copy_into()` — copy into an existing directory
+- [ ] `move()` — move file or directory tree
+- [ ] `move_into()` — move into an existing directory
+- [ ] `delete()` — delete file or directory tree
+
+### Verification
+
+- [ ] All mutation and I/O vendored CPython tests pass
+- [ ] 3.14 file-tree operation tests pass
+- [ ] GIL released during all blocking I/O
+
+## Phase 4: Glob & Pattern Matching — Upcoming
+
+- [ ] `glob()` with full pattern syntax: `**`, `*`, `?`, `[abc]`, `[!abc]`
+- [ ] `rglob()` with full pattern syntax
+- [ ] Brace expansion in patterns
+- [ ] `case_sensitive` kwarg (3.12+)
+- [ ] `recurse_symlinks` kwarg (3.13+)
+- [ ] Symlink loop detection for recursive globs
+- [ ] Glob iterator bridging (Rust iterator → Python iterator protocol)
+- [ ] `glob.rs` module extracted from `iter.rs` / `pattern.rs`
+- [ ] Verify: all vendored CPython glob tests pass across platform matrix
+
+## Phase 5: Parity & Maintenance — Upcoming
+
+### Feature Parity
+
+- [ ] `Path.home()`, `Path.cwd()` class methods
+- [ ] Windows UNC/device/extended-path edge cases (DESIGN.md §4.8)
+- [ ] Symlink edge cases on Linux/macOS
+- [ ] Full pickle / `__reduce__` / `__fspath__` / `copy` coverage
+- [ ] `as_uri()` percent-encoding via `urllib.parse.quote`
+
+### Skip Audit
+
+- [ ] Audit every entry in `tests/skips.txt` (656 entries)
+- [ ] Classify each skip as private API, fixable, or platform-specific
+- [ ] Goal: `skips.txt` contains _only_ private-API entries
+- [ ] Goal: zero public-API `NotImplemented` entries
+
+### Automated Vendored Test Tracking
+
+- [ ] CI workflow to periodically fetch latest CPython `test_pathlib.py`
+- [ ] Auto-open issue/PR on upstream test changes
+- [ ] Run updated test suite against `pathlibrs` automatically
+
+### Performance Benchmarks
+
+- [ ] Pure operations: `.parent`, `.stem`, `.suffix`, `.name`, `.with_name()`, `/`, `__str__`
+- [ ] Stat: `.exists()`, `.is_file()`, `.is_dir()`, `.stat()` (hot + cold cache)
+- [ ] I/O: `.read_text()`, `.write_text()`, `.read_bytes()`, `.write_bytes()`
+- [ ] Directory: `.iterdir()`, `.walk()` on varied tree shapes
+- [ ] Glob: `.glob()`, `.rglob()` on small, medium, and deep trees
+- [ ] Mutations: `.mkdir()`, `.unlink()`, `.rename()`, `.symlink_to()`, `.copy()`, `.move()`, `.delete()`
+- [ ] Memory: object size (100k instances), allocation count, peak RSS during `rglob`
+- [ ] CI workflow runs benchmarks on every push to main
+- [ ] Results published in `docs/benchmarks.md` + JSON archive
+- [ ] Regression alerting if any benchmark regresses >10%
+
+### Acceptance Criteria
+
+- [ ] Full vendored CPython 3.14 test suite passes on all platforms (3.10, 3.14)
+- [ ] `skips.txt` contains only private-API entries
+- [ ] Automated upstream test tracking in place and passing CI
+- [ ] Benchmark suite runs in CI with publishable results
+- [ ] Performance ≥ parity with built-in `pathlib` on all metrics
+
+## CI / Infrastructure
+
+- [x] AGENTS.md with project overview and agent instructions
+- [x] CLAUDE.md symlinked to AGENTS.md
+- [x] Makefile with self-documenting `make help`
+- [x] `.pre-commit-config.yaml` with Rust + Python hooks
+- [x] CI workflow (`.github/workflows/ci.yml`) using Make targets
+- [x] Vendored CPython 3.14.6 test suite
+- [x] `tests/conftest.py` with `--windows-flavour` support
+- [ ] Automated upstream test sync workflow (`.github/workflows/vendored-sync.yml`)
+- [ ] Automated benchmark workflow (`.github/workflows/benchmarks.yml`)
+- [ ] Benchmark fixtures and helpers (`benchmarks/`)
+- [ ] Published benchmark results (`docs/benchmarks.md`)

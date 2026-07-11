@@ -5,7 +5,9 @@ repos:
       rev: v6.0.0
       hooks:
           - id: trailing-whitespace
+            exclude: ^tests/vendored/
           - id: end-of-file-fixer
+            exclude: ^tests/vendored/
           - id: check-yaml
             exclude: mkdocs.yaml
           - id: check-ast
@@ -18,7 +20,7 @@ repos:
       hooks:
           - id: pretty-format-toml
             args: [--autofix, --no-sort]
-            exclude: ^uv.lock
+            exclude: ^(uv\.lock|Cargo\.lock)$
 
     - repo: local
       hooks:
@@ -29,6 +31,21 @@ repos:
             language: system
             pass_filenames: false
             files: pyproject.toml
+          - id: cargo-fmt
+            name: cargo-fmt
+            description: Runs cargo fmt
+            entry: cargo fmt --
+            language: system
+            types:
+                - rust
+          - id: cargo-clippy
+            name: cargo-clippy
+            description: Runs cargo clippy
+            entry: cargo clippy --all-targets -- -D warnings
+            language: system
+            types:
+                - rust
+            pass_filenames: false
           - id: ruff-format
             name: format
             description: Runs Code Auto-Formatters
@@ -36,6 +53,7 @@ repos:
             language: system
             types:
                 - python
+            exclude: ^tests/vendored/
           - id: ruff-check
             name: lint
             description: Runs Code Linters
@@ -43,6 +61,7 @@ repos:
             language: system
             types:
                 - python
+            exclude: ^tests/vendored/
           - id: prettier
             name: prettier
             description: Runs Prettier Code Formatter

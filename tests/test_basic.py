@@ -1,4 +1,5 @@
 """Basic smoke tests for pathlibrs Phase 1."""
+
 from pathlibrs import PurePath, PurePosixPath, PureWindowsPath
 
 
@@ -110,6 +111,7 @@ class TestPurePosixPath:
 
     def test_relative_to_error(self) -> None:
         import pytest
+
         p = PurePosixPath("/foo/bar")
         with pytest.raises(ValueError):
             p.relative_to("/baz")
@@ -141,11 +143,13 @@ class TestPurePosixPath:
 
     def test_fspath(self) -> None:
         import os
+
         p = PurePosixPath("/foo/bar")
         assert os.fspath(p) == "/foo/bar"
 
     def test_reduce(self) -> None:
         import pickle
+
         p = PurePosixPath("/foo/bar")
         pickled = pickle.dumps(p)
         restored = pickle.loads(pickled)
@@ -354,6 +358,7 @@ class TestNewFeatures:
 
     def test_from_uri_non_local_raises(self) -> None:
         import pytest
+
         with pytest.raises(ValueError, match="non-local"):
             PurePosixPath.from_uri("file://remote.example.com/path")
 
@@ -383,7 +388,7 @@ class TestPosixVsWindows:
         posix = PurePosixPath("foo")
         windows = PureWindowsPath("foo")
         # They're different classes
-        assert type(posix) != type(windows)
+        assert type(posix) is not type(windows)
 
     def test_as_posix_from_windows(self) -> None:
         p = PureWindowsPath("C:\\Users\\Name")

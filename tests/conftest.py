@@ -31,7 +31,7 @@ sys.modules["pathlib"] = pathlibrs
 # Python 3.13 (which reference ``pathlib._local``) can be unpickled in 3.14+.
 # It is just ``from pathlib import *``.  pathlibrs doesn't ship a ``_local``
 # submodule, so we inject one dynamically when the vendored test runs.
-import types
+import types  # noqa: E402
 
 _local = types.ModuleType("pathlib._local")
 _local.__doc__ = "Shim for Python 3.13 pickle compatibility (injected by pathlibrs test harness)."
