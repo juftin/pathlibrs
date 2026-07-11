@@ -740,6 +740,7 @@ fn lchmod_raw(path: &OsStr, mode: u32) -> PyResult<()> {
 
 /// Change permissions on a symlink without following it (non-Unix stub).
 #[cfg(not(unix))]
+#[allow(dead_code)]
 fn lchmod_raw(_path: &OsStr, _mode: u32) -> PyResult<()> {
     Err(pyo3::exceptions::PyNotImplementedError::new_err(
         "lchmod is not available on this platform",
@@ -1177,7 +1178,7 @@ pub fn copy_tree(
                     std::os::unix::fs::symlink(&target, dst_path)?;
                     #[cfg(windows)]
                     {
-                        let target_md = std::fs::symlink_metadata(&resolved_target(src_path));
+                        let target_md = std::fs::symlink_metadata(resolved_target(src_path));
                         let is_dir = target_md.map(|m| m.is_dir()).unwrap_or(false);
                         if is_dir {
                             std::os::windows::fs::symlink_dir(&target, dst_path)?;
@@ -1425,7 +1426,6 @@ pub fn move_tree(src: &OsStr, dst: &OsStr) -> PyResult<()> {
 // Cross-platform helper for symlink target resolving
 #[cfg(windows)]
 fn resolved_target(src_path: &StdPath) -> std::path::PathBuf {
-    use std::os::windows::fs::MetadataExt;
     if let Ok(target) = std::fs::read_link(src_path) {
         if target.is_relative() {
             src_path.parent().unwrap_or(StdPath::new(".")).join(&target)
