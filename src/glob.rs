@@ -448,7 +448,16 @@ fn glob_walk_single(
             }
 
             PatternPart::Literal(s) => {
-                if !opts.case_pedantic && opts.case_sensitive {
+                // If the next part is .., skip existence checking.
+                // .. resolves parentage so the literal's existence
+                // doesn't matter (CPython: non-existent "xyzzy/.."
+                // is stat'able on Windows after .. normalization).
+                let next_is_dotdot = part_idx + 1 < parts.len()
+                    && matches!(&parts[part_idx + 1], PatternPart::Special(s_) if s_ == "..");
+                if next_is_dotdot {
+                    let child = join_path(&current, s);
+                    stack.push((child, part_idx + 1, true));
+                } else if !opts.case_pedantic && opts.case_sensitive {
                     // Fast path: join the literal and check existence.
                     // Inherits the filesystem's own case sensitivity.
                     // Only used when the user did NOT explicitly set
