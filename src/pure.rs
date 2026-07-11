@@ -320,14 +320,12 @@ impl PurePath {
         // Path separators and null bytes are forbidden on all platforms.
         if name == ":" {
             return Err(pyo3::exceptions::PyValueError::new_err(format!(
-                "Invalid name '{}'",
-                name
+                "Invalid name '{name}'"
             )));
         }
         if name.contains('\0') || name.contains('/') || name.contains('\\') {
             return Err(pyo3::exceptions::PyValueError::new_err(format!(
-                "Invalid name '{}'",
-                name
+                "Invalid name '{name}'"
             )));
         }
         let py = slf.py();
@@ -347,7 +345,7 @@ impl PurePath {
         let old_suffix = suffix_from_name(OsStr::new(&name))
             .map(|s| s.to_string_lossy().into_owned())
             .unwrap_or_default();
-        let new_name = format!("{}{}", stem, old_suffix);
+        let new_name = format!("{stem}{old_suffix}");
         PurePath::with_name(slf, &new_name)
     }
 
@@ -359,7 +357,7 @@ impl PurePath {
         let new_name = if suffix.is_empty() {
             old_stem
         } else {
-            format!("{}{}", old_stem, suffix)
+            format!("{old_stem}{suffix}")
         };
         PurePath::with_name(slf, &new_name)
     }
@@ -602,7 +600,7 @@ impl PurePath {
             if encoded.starts_with("file:") {
                 Ok(encoded)
             } else {
-                Ok(format!("file:{}", encoded))
+                Ok(format!("file:{encoded}"))
             }
         })
     }
@@ -879,8 +877,7 @@ impl PurePath {
         // If os.path.expanduser returns the same string, the user was not found
         if home_str == tilde_name {
             return Err(pyo3::exceptions::PyRuntimeError::new_err(format!(
-                "Could not determine home directory for '{}'",
-                raw_str
+                "Could not determine home directory for '{raw_str}'"
             )));
         }
 
@@ -893,11 +890,11 @@ impl PurePath {
             // e.g., ~/a:b → /home/user/./a:b
             // Applied on all platforms (including Windows) for consistency.
             let tail = if rest.contains(':') {
-                format!("./{}", rest)
+                format!("./{rest}")
             } else {
                 rest.to_string()
             };
-            format!("{}/{}", home_str, tail)
+            format!("{home_str}/{tail}")
         };
 
         Self::_make_child(py, slf.as_ptr(), OsString::from(&result))
@@ -1302,7 +1299,7 @@ fn parse_file_uri(uri: &str) -> PyResult<String> {
         .strip_prefix("file:")
         .or_else(|| uri.strip_prefix("FILE:"))
         .ok_or_else(|| {
-            pyo3::exceptions::PyValueError::new_err(format!("URI '{}' is not a file: URI", uri))
+            pyo3::exceptions::PyValueError::new_err(format!("URI '{uri}' is not a file: URI"))
         })?;
 
     // Check for authority (//)
@@ -1341,18 +1338,17 @@ fn parse_file_uri(uri: &str) -> PyResult<String> {
             let drive = path_part.as_bytes()[0] as char;
             let rest_path = &path_part[3..];
             if rest_path.is_empty() {
-                Ok(format!("{}:\\", drive))
+                Ok(format!("{drive}:\\"))
             } else {
-                Ok(format!("{}:\\{}", drive, rest_path))
+                Ok(format!("{drive}:\\{rest_path}"))
             }
         } else {
-            Ok(format!("/{}", path_part))
+            Ok(format!("/{path_part}"))
         }
     } else {
         // Non-local authority — not a local path
         Err(pyo3::exceptions::PyValueError::new_err(format!(
-            "non-local file: URI not supported: '{}'",
-            uri
+            "non-local file: URI not supported: '{uri}'"
         )))
     }
 }
