@@ -152,7 +152,11 @@ impl PurePath {
     #[new]
     #[pyo3(signature = (*args))]
     fn new(args: &Bound<'_, PyTuple>) -> PyResult<Self> {
-        let raw = join_path_segments(args, PathFlavour::Posix)?;
+        #[cfg(windows)]
+        let join_flavour = PathFlavour::Windows;
+        #[cfg(not(windows))]
+        let join_flavour = PathFlavour::Posix;
+        let raw = join_path_segments(args, join_flavour)?;
         Ok(Self {
             inner: PathRepr::new(raw),
             #[cfg(windows)]
