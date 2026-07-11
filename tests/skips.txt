@@ -28,28 +28,28 @@ PathSubclassTest.test_as_uri_non_ascii
 PathSubclassTest.test_as_uri_posix
 PathSubclassTest.test_bytes
 PathSubclassTest.test_bytes_exc_message
-PathSubclassTest.test_chmod
-PathSubclassTest.test_chmod_follow_symlinks_true
+# REMOVED: PathSubclassTest.test_chmod
+# REMOVED: PathSubclassTest.test_chmod_follow_symlinks_true
 PathSubclassTest.test_complex_symlinks_absolute
 PathSubclassTest.test_complex_symlinks_relative
 PathSubclassTest.test_complex_symlinks_relative_dot_dot
 PathSubclassTest.test_concrete_parser
 PathSubclassTest.test_constructor_nested
-PathSubclassTest.test_copy_dangling_symlink
+# REMOVED: PathSubclassTest.test_copy_dangling_symlink
 PathSubclassTest.test_copy_dir_no_read_permission
 PathSubclassTest.test_copy_dir_preserve_metadata
-PathSubclassTest.test_copy_directory_symlink_follow_symlinks_false
+# REMOVED: PathSubclassTest.test_copy_directory_symlink_follow_symlinks_false
 PathSubclassTest.test_copy_directory_symlink_into_itself
 PathSubclassTest.test_copy_directory_symlink_to_existing_directory_symlink
 PathSubclassTest.test_copy_directory_symlink_to_existing_symlink
-PathSubclassTest.test_copy_directory_symlink_to_itself
+# REMOVED: PathSubclassTest.test_copy_directory_symlink_to_itself
 PathSubclassTest.test_copy_error_handling
 PathSubclassTest.test_copy_file_preserve_metadata
-PathSubclassTest.test_copy_file_to_existing_symlink
-PathSubclassTest.test_copy_file_to_existing_symlink_follow_symlinks_false
+# REMOVED: PathSubclassTest.test_copy_file_to_existing_symlink
+# REMOVED: PathSubclassTest.test_copy_file_to_existing_symlink_follow_symlinks_false
 PathSubclassTest.test_copy_link_preserve_metadata
-PathSubclassTest.test_copy_symlink_follow_symlinks_false
-PathSubclassTest.test_copy_symlink_follow_symlinks_true
+# REMOVED: PathSubclassTest.test_copy_symlink_follow_symlinks_false
+# REMOVED: PathSubclassTest.test_copy_symlink_follow_symlinks_true
 PathSubclassTest.test_copy_symlink_to_existing_directory_symlink
 PathSubclassTest.test_copy_symlink_to_existing_symlink
 PathSubclassTest.test_copy_symlink_to_itself
@@ -69,8 +69,8 @@ PathSubclassTest.test_eq_common
 PathSubclassTest.test_eq_posix
 PathSubclassTest.test_equivalences
 PathSubclassTest.test_exists
-PathSubclassTest.test_expanduser_common
-PathSubclassTest.test_expanduser_posix
+# REMOVED: PathSubclassTest.test_expanduser_common
+# REMOVED: PathSubclassTest.test_expanduser_posix
 PathSubclassTest.test_from_uri_pathname2url_posix
 PathSubclassTest.test_from_uri_posix
 PathSubclassTest.test_full_match_case_sensitive
@@ -88,7 +88,7 @@ PathSubclassTest.test_glob_posix
 PathSubclassTest.test_glob_recurse_symlinks_common
 PathSubclassTest.test_group
 PathSubclassTest.test_handling_bad_descriptor
-PathSubclassTest.test_hardlink_to
+# REMOVED: PathSubclassTest.test_hardlink_to
 PathSubclassTest.test_home
 PathSubclassTest.test_info_exists_caching
 PathSubclassTest.test_info_is_dir_caching
@@ -112,7 +112,7 @@ PathSubclassTest.test_is_reserved_deprecated
 PathSubclassTest.test_is_socket_false
 PathSubclassTest.test_is_socket_true
 PathSubclassTest.test_is_symlink
-PathSubclassTest.test_iterdir_symlink
+# REMOVED: PathSubclassTest.test_iterdir_symlink
 PathSubclassTest.test_join_nested
 PathSubclassTest.test_lstat
 PathSubclassTest.test_lstat_nosymlink
@@ -120,53 +120,53 @@ PathSubclassTest.test_match_common
 PathSubclassTest.test_match_empty
 PathSubclassTest.test_match_posix
 PathSubclassTest.test_matches_writablepath_docstrings
-PathSubclassTest.test_mkdir
-PathSubclassTest.test_mkdir_concurrent_parent_creation
-PathSubclassTest.test_mkdir_exist_ok
-PathSubclassTest.test_mkdir_exist_ok_root
-PathSubclassTest.test_mkdir_exist_ok_with_parent
-PathSubclassTest.test_mkdir_no_parents_file
+# REMOVED: PathSubclassTest.test_mkdir
+# REMOVED: PathSubclassTest.test_mkdir_concurrent_parent_creation
+# REMOVED: PathSubclassTest.test_mkdir_exist_ok
+# REMOVED: PathSubclassTest.test_mkdir_exist_ok_root
+# REMOVED: PathSubclassTest.test_mkdir_exist_ok_with_parent
+# REMOVED: PathSubclassTest.test_mkdir_no_parents_file
 PathSubclassTest.test_mkdir_parents
-PathSubclassTest.test_mkdir_with_child_file
-PathSubclassTest.test_move_dangling_symlink
-PathSubclassTest.test_move_dangling_symlink_other_fs
-PathSubclassTest.test_move_dir
+# REMOVED: PathSubclassTest.test_mkdir_with_child_file
+# REMOVED: PathSubclassTest.test_move_dangling_symlink
+# REMOVED: PathSubclassTest.test_move_dangling_symlink_other_fs
+# REMOVED: PathSubclassTest.test_move_dir
 PathSubclassTest.test_move_dir_into_itself
 PathSubclassTest.test_move_dir_into_itself_other_fs
-PathSubclassTest.test_move_dir_other_fs
-PathSubclassTest.test_move_dir_symlink
-PathSubclassTest.test_move_dir_symlink_other_fs
+# REMOVED: PathSubclassTest.test_move_dir_other_fs
+# REMOVED: PathSubclassTest.test_move_dir_symlink
+# REMOVED: PathSubclassTest.test_move_dir_symlink_other_fs
 PathSubclassTest.test_move_dir_symlink_to_itself
 PathSubclassTest.test_move_dir_symlink_to_itself_other_fs
 PathSubclassTest.test_move_dir_to_dir
 PathSubclassTest.test_move_dir_to_dir_other_fs
-PathSubclassTest.test_move_dir_to_itself
-PathSubclassTest.test_move_file
-PathSubclassTest.test_move_file_other_fs
-PathSubclassTest.test_move_file_symlink
-PathSubclassTest.test_move_file_symlink_other_fs
+# REMOVED: PathSubclassTest.test_move_dir_to_itself
+# REMOVED: PathSubclassTest.test_move_file
+# REMOVED: PathSubclassTest.test_move_file_other_fs
+# REMOVED: PathSubclassTest.test_move_file_symlink
+# REMOVED: PathSubclassTest.test_move_file_symlink_other_fs
 PathSubclassTest.test_move_file_symlink_to_itself
 PathSubclassTest.test_move_file_symlink_to_itself_other_fs
 PathSubclassTest.test_move_file_to_dir
 PathSubclassTest.test_move_file_to_dir_other_fs
-PathSubclassTest.test_move_file_to_file
-PathSubclassTest.test_move_file_to_file_other_fs
+# REMOVED: PathSubclassTest.test_move_file_to_file
+# REMOVED: PathSubclassTest.test_move_file_to_file_other_fs
 PathSubclassTest.test_move_file_to_itself
 PathSubclassTest.test_move_into
 PathSubclassTest.test_move_into_empty_name
 PathSubclassTest.test_move_into_empty_name_other_os
 PathSubclassTest.test_move_into_other_os
 PathSubclassTest.test_name_empty
-PathSubclassTest.test_open_common
-PathSubclassTest.test_open_mode
-PathSubclassTest.test_open_unbuffered
+# REMOVED: PathSubclassTest.test_open_common
+# REMOVED: PathSubclassTest.test_open_mode
+# REMOVED: PathSubclassTest.test_open_unbuffered
 PathSubclassTest.test_owner
 PathSubclassTest.test_parse_path_common
 PathSubclassTest.test_parse_path_posix
 PathSubclassTest.test_parse_windows_path
 PathSubclassTest.test_readlink
 PathSubclassTest.test_relative_to_common
-PathSubclassTest.test_rename
+# REMOVED: PathSubclassTest.test_rename
 PathSubclassTest.test_replace
 PathSubclassTest.test_repr_common
 PathSubclassTest.test_resolve_common
@@ -187,12 +187,12 @@ PathSubclassTest.test_stat
 PathSubclassTest.test_stat_no_follow_symlinks
 PathSubclassTest.test_stat_no_follow_symlinks_nosymlink
 PathSubclassTest.test_stem_empty
-PathSubclassTest.test_symlink_to
-PathSubclassTest.test_touch_common
-PathSubclassTest.test_touch_mode
-PathSubclassTest.test_touch_nochange
-PathSubclassTest.test_unlink
-PathSubclassTest.test_unlink_missing_ok
+# REMOVED: PathSubclassTest.test_symlink_to
+# REMOVED: PathSubclassTest.test_touch_common
+# REMOVED: PathSubclassTest.test_touch_mode
+# REMOVED: PathSubclassTest.test_touch_nochange
+# REMOVED: PathSubclassTest.test_unlink
+# REMOVED: PathSubclassTest.test_unlink_missing_ok
 PathSubclassTest.test_unsupported_parser
 PathSubclassTest.test_with_name_empty
 PathSubclassTest.test_with_segments
@@ -205,27 +205,27 @@ PathTest.test_as_uri_non_ascii
 PathTest.test_as_uri_posix
 PathTest.test_bytes
 PathTest.test_bytes_exc_message
-PathTest.test_chmod
-PathTest.test_chmod_follow_symlinks_true
+# REMOVED: PathTest.test_chmod
+# REMOVED: PathTest.test_chmod_follow_symlinks_true
 PathTest.test_complex_symlinks_absolute
 PathTest.test_complex_symlinks_relative
 PathTest.test_complex_symlinks_relative_dot_dot
 PathTest.test_constructor_nested
-PathTest.test_copy_dangling_symlink
+# REMOVED: PathTest.test_copy_dangling_symlink
 PathTest.test_copy_dir_no_read_permission
 PathTest.test_copy_dir_preserve_metadata
-PathTest.test_copy_directory_symlink_follow_symlinks_false
+# REMOVED: PathTest.test_copy_directory_symlink_follow_symlinks_false
 PathTest.test_copy_directory_symlink_into_itself
 PathTest.test_copy_directory_symlink_to_existing_directory_symlink
 PathTest.test_copy_directory_symlink_to_existing_symlink
-PathTest.test_copy_directory_symlink_to_itself
+# REMOVED: PathTest.test_copy_directory_symlink_to_itself
 PathTest.test_copy_error_handling
 PathTest.test_copy_file_preserve_metadata
-PathTest.test_copy_file_to_existing_symlink
-PathTest.test_copy_file_to_existing_symlink_follow_symlinks_false
+# REMOVED: PathTest.test_copy_file_to_existing_symlink
+# REMOVED: PathTest.test_copy_file_to_existing_symlink_follow_symlinks_false
 PathTest.test_copy_link_preserve_metadata
-PathTest.test_copy_symlink_follow_symlinks_false
-PathTest.test_copy_symlink_follow_symlinks_true
+# REMOVED: PathTest.test_copy_symlink_follow_symlinks_false
+# REMOVED: PathTest.test_copy_symlink_follow_symlinks_true
 PathTest.test_copy_symlink_to_existing_directory_symlink
 PathTest.test_copy_symlink_to_existing_symlink
 PathTest.test_copy_symlink_to_itself
@@ -259,58 +259,58 @@ PathTest.test_glob_permissions
 PathTest.test_glob_posix
 PathTest.test_glob_recurse_symlinks_common
 PathTest.test_handling_bad_descriptor
-PathTest.test_hardlink_to
+# REMOVED: PathTest.test_hardlink_to
 PathTest.test_is_relative_to_common
-PathTest.test_iterdir_symlink
+# REMOVED: PathTest.test_iterdir_symlink
 PathTest.test_join_nested
 PathTest.test_match_common
 PathTest.test_match_empty
 PathTest.test_match_posix
-PathTest.test_mkdir
-PathTest.test_mkdir_concurrent_parent_creation
-PathTest.test_mkdir_exist_ok
-PathTest.test_mkdir_exist_ok_root
-PathTest.test_mkdir_exist_ok_with_parent
-PathTest.test_mkdir_no_parents_file
+# REMOVED: PathTest.test_mkdir
+# REMOVED: PathTest.test_mkdir_concurrent_parent_creation
+# REMOVED: PathTest.test_mkdir_exist_ok
+# REMOVED: PathTest.test_mkdir_exist_ok_root
+# REMOVED: PathTest.test_mkdir_exist_ok_with_parent
+# REMOVED: PathTest.test_mkdir_no_parents_file
 PathTest.test_mkdir_parents
-PathTest.test_mkdir_with_child_file
-PathTest.test_move_dangling_symlink
-PathTest.test_move_dangling_symlink_other_fs
-PathTest.test_move_dir
+# REMOVED: PathTest.test_mkdir_with_child_file
+# REMOVED: PathTest.test_move_dangling_symlink
+# REMOVED: PathTest.test_move_dangling_symlink_other_fs
+# REMOVED: PathTest.test_move_dir
 PathTest.test_move_dir_into_itself
 PathTest.test_move_dir_into_itself_other_fs
-PathTest.test_move_dir_other_fs
-PathTest.test_move_dir_symlink
-PathTest.test_move_dir_symlink_other_fs
+# REMOVED: PathTest.test_move_dir_other_fs
+# REMOVED: PathTest.test_move_dir_symlink
+# REMOVED: PathTest.test_move_dir_symlink_other_fs
 PathTest.test_move_dir_symlink_to_itself
 PathTest.test_move_dir_symlink_to_itself_other_fs
 PathTest.test_move_dir_to_dir
 PathTest.test_move_dir_to_dir_other_fs
-PathTest.test_move_dir_to_itself
-PathTest.test_move_file
-PathTest.test_move_file_other_fs
-PathTest.test_move_file_symlink
-PathTest.test_move_file_symlink_other_fs
+# REMOVED: PathTest.test_move_dir_to_itself
+# REMOVED: PathTest.test_move_file
+# REMOVED: PathTest.test_move_file_other_fs
+# REMOVED: PathTest.test_move_file_symlink
+# REMOVED: PathTest.test_move_file_symlink_other_fs
 PathTest.test_move_file_symlink_to_itself
 PathTest.test_move_file_symlink_to_itself_other_fs
 PathTest.test_move_file_to_dir
 PathTest.test_move_file_to_dir_other_fs
-PathTest.test_move_file_to_file
-PathTest.test_move_file_to_file_other_fs
+# REMOVED: PathTest.test_move_file_to_file
+# REMOVED: PathTest.test_move_file_to_file_other_fs
 PathTest.test_move_file_to_itself
 PathTest.test_move_into
 PathTest.test_move_into_empty_name
 PathTest.test_move_into_empty_name_other_os
 PathTest.test_move_into_other_os
 PathTest.test_name_empty
-PathTest.test_open_common
-PathTest.test_open_mode
-PathTest.test_open_unbuffered
+# REMOVED: PathTest.test_open_common
+# REMOVED: PathTest.test_open_mode
+# REMOVED: PathTest.test_open_unbuffered
 PathTest.test_parse_path_common
 PathTest.test_parse_path_posix
 PathTest.test_parse_windows_path
 PathTest.test_relative_to_common
-PathTest.test_rename
+# REMOVED: PathTest.test_rename
 PathTest.test_replace
 PathTest.test_repr_common
 PathTest.test_repr_roundtrips
@@ -323,12 +323,12 @@ PathTest.test_rmdir
 PathTest.test_root_common
 PathTest.test_root_posix
 PathTest.test_stem_empty
-PathTest.test_symlink_to
-PathTest.test_touch_common
-PathTest.test_touch_mode
-PathTest.test_touch_nochange
-PathTest.test_unlink
-PathTest.test_unlink_missing_ok
+# REMOVED: PathTest.test_symlink_to
+# REMOVED: PathTest.test_touch_common
+# REMOVED: PathTest.test_touch_mode
+# REMOVED: PathTest.test_touch_nochange
+# REMOVED: PathTest.test_unlink
+# REMOVED: PathTest.test_unlink_missing_ok
 PathTest.test_with_name_empty
 PathTest.test_with_segments
 PathTest.test_with_stem_empty
@@ -347,27 +347,27 @@ PosixPathTest.test_as_uri_non_ascii
 PosixPathTest.test_as_uri_posix
 PosixPathTest.test_bytes
 PosixPathTest.test_bytes_exc_message
-PosixPathTest.test_chmod
-PosixPathTest.test_chmod_follow_symlinks_true
+# REMOVED: PosixPathTest.test_chmod
+# REMOVED: PosixPathTest.test_chmod_follow_symlinks_true
 PosixPathTest.test_complex_symlinks_absolute
 PosixPathTest.test_complex_symlinks_relative
 PosixPathTest.test_complex_symlinks_relative_dot_dot
 PosixPathTest.test_constructor_nested
-PosixPathTest.test_copy_dangling_symlink
+# REMOVED: PosixPathTest.test_copy_dangling_symlink
 PosixPathTest.test_copy_dir_no_read_permission
 PosixPathTest.test_copy_dir_preserve_metadata
-PosixPathTest.test_copy_directory_symlink_follow_symlinks_false
+# REMOVED: PosixPathTest.test_copy_directory_symlink_follow_symlinks_false
 PosixPathTest.test_copy_directory_symlink_into_itself
 PosixPathTest.test_copy_directory_symlink_to_existing_directory_symlink
 PosixPathTest.test_copy_directory_symlink_to_existing_symlink
-PosixPathTest.test_copy_directory_symlink_to_itself
+# REMOVED: PosixPathTest.test_copy_directory_symlink_to_itself
 PosixPathTest.test_copy_error_handling
 PosixPathTest.test_copy_file_preserve_metadata
-PosixPathTest.test_copy_file_to_existing_symlink
-PosixPathTest.test_copy_file_to_existing_symlink_follow_symlinks_false
+# REMOVED: PosixPathTest.test_copy_file_to_existing_symlink
+# REMOVED: PosixPathTest.test_copy_file_to_existing_symlink_follow_symlinks_false
 PosixPathTest.test_copy_link_preserve_metadata
-PosixPathTest.test_copy_symlink_follow_symlinks_false
-PosixPathTest.test_copy_symlink_follow_symlinks_true
+# REMOVED: PosixPathTest.test_copy_symlink_follow_symlinks_false
+# REMOVED: PosixPathTest.test_copy_symlink_follow_symlinks_true
 PosixPathTest.test_copy_symlink_to_existing_directory_symlink
 PosixPathTest.test_copy_symlink_to_existing_symlink
 PosixPathTest.test_copy_symlink_to_itself
@@ -400,57 +400,57 @@ PosixPathTest.test_glob_permissions
 PosixPathTest.test_glob_posix
 PosixPathTest.test_glob_recurse_symlinks_common
 PosixPathTest.test_handling_bad_descriptor
-PosixPathTest.test_hardlink_to
+# REMOVED: PosixPathTest.test_hardlink_to
 PosixPathTest.test_is_relative_to_common
-PosixPathTest.test_iterdir_symlink
+# REMOVED: PosixPathTest.test_iterdir_symlink
 PosixPathTest.test_join_nested
 PosixPathTest.test_match_common
 PosixPathTest.test_match_empty
-PosixPathTest.test_mkdir
-PosixPathTest.test_mkdir_concurrent_parent_creation
-PosixPathTest.test_mkdir_exist_ok
-PosixPathTest.test_mkdir_exist_ok_root
-PosixPathTest.test_mkdir_exist_ok_with_parent
-PosixPathTest.test_mkdir_no_parents_file
+# REMOVED: PosixPathTest.test_mkdir
+# REMOVED: PosixPathTest.test_mkdir_concurrent_parent_creation
+# REMOVED: PosixPathTest.test_mkdir_exist_ok
+# REMOVED: PosixPathTest.test_mkdir_exist_ok_root
+# REMOVED: PosixPathTest.test_mkdir_exist_ok_with_parent
+# REMOVED: PosixPathTest.test_mkdir_no_parents_file
 PosixPathTest.test_mkdir_parents
-PosixPathTest.test_mkdir_with_child_file
-PosixPathTest.test_move_dangling_symlink
-PosixPathTest.test_move_dangling_symlink_other_fs
-PosixPathTest.test_move_dir
+# REMOVED: PosixPathTest.test_mkdir_with_child_file
+# REMOVED: PosixPathTest.test_move_dangling_symlink
+# REMOVED: PosixPathTest.test_move_dangling_symlink_other_fs
+# REMOVED: PosixPathTest.test_move_dir
 PosixPathTest.test_move_dir_into_itself
 PosixPathTest.test_move_dir_into_itself_other_fs
-PosixPathTest.test_move_dir_other_fs
-PosixPathTest.test_move_dir_symlink
-PosixPathTest.test_move_dir_symlink_other_fs
+# REMOVED: PosixPathTest.test_move_dir_other_fs
+# REMOVED: PosixPathTest.test_move_dir_symlink
+# REMOVED: PosixPathTest.test_move_dir_symlink_other_fs
 PosixPathTest.test_move_dir_symlink_to_itself
 PosixPathTest.test_move_dir_symlink_to_itself_other_fs
 PosixPathTest.test_move_dir_to_dir
 PosixPathTest.test_move_dir_to_dir_other_fs
-PosixPathTest.test_move_dir_to_itself
-PosixPathTest.test_move_file
-PosixPathTest.test_move_file_other_fs
-PosixPathTest.test_move_file_symlink
-PosixPathTest.test_move_file_symlink_other_fs
+# REMOVED: PosixPathTest.test_move_dir_to_itself
+# REMOVED: PosixPathTest.test_move_file
+# REMOVED: PosixPathTest.test_move_file_other_fs
+# REMOVED: PosixPathTest.test_move_file_symlink
+# REMOVED: PosixPathTest.test_move_file_symlink_other_fs
 PosixPathTest.test_move_file_symlink_to_itself
 PosixPathTest.test_move_file_symlink_to_itself_other_fs
 PosixPathTest.test_move_file_to_dir
 PosixPathTest.test_move_file_to_dir_other_fs
-PosixPathTest.test_move_file_to_file
-PosixPathTest.test_move_file_to_file_other_fs
+# REMOVED: PosixPathTest.test_move_file_to_file
+# REMOVED: PosixPathTest.test_move_file_to_file_other_fs
 PosixPathTest.test_move_file_to_itself
 PosixPathTest.test_move_into
 PosixPathTest.test_move_into_empty_name
 PosixPathTest.test_move_into_empty_name_other_os
 PosixPathTest.test_move_into_other_os
 PosixPathTest.test_name_empty
-PosixPathTest.test_open_common
-PosixPathTest.test_open_mode
-PosixPathTest.test_open_unbuffered
+# REMOVED: PosixPathTest.test_open_common
+# REMOVED: PosixPathTest.test_open_mode
+# REMOVED: PosixPathTest.test_open_unbuffered
 PosixPathTest.test_parse_path_common
 PosixPathTest.test_parse_path_posix
 PosixPathTest.test_parse_windows_path
 PosixPathTest.test_relative_to_common
-PosixPathTest.test_rename
+# REMOVED: PosixPathTest.test_rename
 PosixPathTest.test_replace
 PosixPathTest.test_repr_common
 PosixPathTest.test_repr_roundtrips
@@ -461,12 +461,12 @@ PosixPathTest.test_rglob_recurse_symlinks_false
 PosixPathTest.test_rglob_symlink_loop
 PosixPathTest.test_rmdir
 PosixPathTest.test_stem_empty
-PosixPathTest.test_symlink_to
-PosixPathTest.test_touch_common
-PosixPathTest.test_touch_mode
-PosixPathTest.test_touch_nochange
-PosixPathTest.test_unlink
-PosixPathTest.test_unlink_missing_ok
+# REMOVED: PosixPathTest.test_symlink_to
+# REMOVED: PosixPathTest.test_touch_common
+# REMOVED: PosixPathTest.test_touch_mode
+# REMOVED: PosixPathTest.test_touch_nochange
+# REMOVED: PosixPathTest.test_unlink
+# REMOVED: PosixPathTest.test_unlink_missing_ok
 PosixPathTest.test_with_name_empty
 PosixPathTest.test_with_segments
 PosixPathTest.test_with_stem_empty
@@ -643,7 +643,7 @@ PathTest.test_delete_outer_junction
 PathTest.test_from_uri_pathname2url_windows
 PathTest.test_from_uri_windows
 PathTest.test_glob_windows
-PathTest.test_mkdir_with_unknown_drive
+# REMOVED: PathTest.test_mkdir_with_unknown_drive
 PathTest.test_rglob_windows
 
 # -- WindowsPathTest inherited test methods that need own entries (truediv/rtruediv) --

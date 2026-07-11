@@ -4,11 +4,18 @@
 //! ``Python::allow_threads``.
 
 use std::ffi::{OsStr, OsString};
-use std::io;
+use std::io::{self, Write};
 use std::path::Path as StdPath;
 use std::sync::OnceLock;
 
 use pyo3::prelude::*;
+use pyo3::types::PyBytes;
+
+// Thread-local set for copy symlink cycle detection.
+thread_local! {
+    static COPY_VISITED: std::cell::RefCell<std::collections::HashSet<std::path::PathBuf>> =
+        std::cell::RefCell::new(std::collections::HashSet::new());
+}
 
 // ═══════════════════════════════════════════════════════════════════════
 // StatResult — a simple stat_result-like object
@@ -168,18 +175,22 @@ fn secs_since_epoch(ft: u64) -> f64 {
 
 /// Convert an std::io::Error to a PyErr, mapping to the appropriate
 /// Python exception type (FileNotFoundError, PermissionError, etc.).
+///
+/// Sets ``errno`` on the exception so CPython tests that check
+/// ``exception.errno == errno.ENOENT`` pass.
 fn io_err_to_pyerr(err: io::Error) -> PyErr {
-    match err.kind() {
-        io::ErrorKind::NotFound => pyo3::exceptions::PyFileNotFoundError::new_err(err.to_string()),
-        io::ErrorKind::PermissionDenied => {
-            pyo3::exceptions::PyPermissionError::new_err(err.to_string())
-        }
-        io::ErrorKind::AlreadyExists => {
-            pyo3::exceptions::PyFileExistsError::new_err(err.to_string())
-        }
-        io::ErrorKind::InvalidInput => pyo3::exceptions::PyValueError::new_err(err.to_string()),
-        _ => pyo3::exceptions::PyOSError::new_err(err.to_string()),
-    }
+    let raw_os_error = err.raw_os_error();
+    let msg = err.to_string();
+    Python::with_gil(|py| {
+        let exc_type: Bound<'_, pyo3::types::PyType> = match err.kind() {
+            io::ErrorKind::NotFound => py.get_type::<pyo3::exceptions::PyFileNotFoundError>(),
+            io::ErrorKind::PermissionDenied => py.get_type::<pyo3::exceptions::PyPermissionError>(),
+            io::ErrorKind::AlreadyExists => py.get_type::<pyo3::exceptions::PyFileExistsError>(),
+            _ => py.get_type::<pyo3::exceptions::PyOSError>(),
+        };
+        let errno_val: PyObject = raw_os_error.into_pyobject(py).unwrap().into_any().unbind();
+        PyErr::from_type(exc_type, (errno_val, msg))
+    })
 }
 
 /// Retrieve ``std::fs::Metadata``, releasing the GIL.
@@ -530,5 +541,1004 @@ fn resolve_non_strict(path: &StdPath) -> Result<std::path::PathBuf, io::Error> {
     } else {
         let cwd = std::env::current_dir()?;
         Ok(cwd.join(path))
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Phase 3: Directory Mutations
+// ═══════════════════════════════════════════════════════════════════════
+
+/// Create a directory at ``path``.
+///
+/// Parameters
+/// ----------
+/// mode : u32
+///     Permission mode (Unix-only; ignored on Windows).
+/// parents : bool
+///     If ``True``, create all missing parent directories.
+/// exist_ok : bool
+///     If ``True``, do not raise when the directory already exists.
+pub fn mkdir(path: &OsStr, mode: u32, parents: bool, exist_ok: bool) -> PyResult<()> {
+    let path_buf = StdPath::new(path).to_path_buf();
+
+    // Check if the path already exists
+    if path_buf.exists() {
+        if path_buf.is_dir() {
+            if !exist_ok {
+                return Err(file_exists_error(format!(
+                    "'{}' already exists",
+                    path_buf.display()
+                )));
+            }
+            // Directory exists and exist_ok is true — nothing to do
+            return Ok(());
+        }
+        // Path exists but is not a directory (e.g., a file)
+        return Err(file_exists_error(format!(
+            "'{}' exists and is not a directory",
+            path_buf.display()
+        )));
+    }
+
+    if parents {
+        // Check each parent component — if any exists as a file, raise
+        let mut ancestor = path_buf.clone();
+        while let Some(parent) = ancestor.parent() {
+            if parent.as_os_str().is_empty() {
+                break;
+            }
+            if parent.exists() && !parent.is_dir() {
+                return Err(not_a_directory_error(format!(
+                    "'{}' exists and is not a directory",
+                    parent.display()
+                )));
+            }
+            ancestor = parent.to_path_buf();
+        }
+    }
+
+    let result = Python::with_gil(|py| {
+        py.allow_threads(|| -> Result<(), io::Error> {
+            if parents {
+                std::fs::create_dir_all(&path_buf)?;
+            } else {
+                std::fs::create_dir(&path_buf)?;
+            }
+            Ok(())
+        })
+    });
+
+    match result {
+        Ok(()) => {
+            // Set permissions after creation (Unix-only).
+            // Only override when the caller explicitly requested a mode.
+            #[cfg(unix)]
+            {
+                if mode != 0o777 {
+                    use std::os::unix::fs::PermissionsExt;
+                    let perms = std::fs::Permissions::from_mode(mode);
+                    let perm_result = Python::with_gil(|py| {
+                        py.allow_threads(|| std::fs::set_permissions(&path_buf, perms))
+                    });
+                    if let Err(e) = perm_result {
+                        return Err(io_err_to_pyerr(e));
+                    }
+                }
+            }
+            #[cfg(not(unix))]
+            {
+                let _ = mode;
+            }
+            Ok(())
+        }
+        Err(e) => Err(io_err_to_pyerr(e)),
+    }
+}
+
+/// Create a FileExistsError with errno set to EEXIST.
+fn file_exists_error(msg: String) -> PyErr {
+    Python::with_gil(|py| {
+        let exc_type = py.get_type::<pyo3::exceptions::PyFileExistsError>();
+        let errno_val = 17i32.into_pyobject(py).unwrap().into_any().unbind();
+        PyErr::from_type(exc_type, (errno_val, msg))
+    })
+}
+
+/// Create a NotADirectoryError with errno set to ENOTDIR.
+fn not_a_directory_error(msg: String) -> PyErr {
+    Python::with_gil(|py| {
+        let exc_type = py.get_type::<pyo3::exceptions::PyOSError>();
+        let errno_val = 20i32.into_pyobject(py).unwrap().into_any().unbind();
+        PyErr::from_type(exc_type, (errno_val, msg))
+    })
+}
+
+/// Remove an empty directory at ``path``.
+pub fn rmdir(path: &OsStr) -> PyResult<()> {
+    let path_buf = StdPath::new(path).to_path_buf();
+    let result = Python::with_gil(|py| py.allow_threads(|| std::fs::remove_dir(&path_buf)));
+    match result {
+        Ok(()) => Ok(()),
+        Err(e) => Err(io_err_to_pyerr(e)),
+    }
+}
+
+/// Change file mode (permissions).
+///
+/// On Unix, sets the full permission bits. On Windows, only the read-only
+/// flag is supported.
+pub fn chmod(path: &OsStr, mode: u32, follow_symlinks: bool) -> PyResult<()> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let path_buf = StdPath::new(path).to_path_buf();
+        if follow_symlinks {
+            let perms = std::fs::Permissions::from_mode(mode);
+            let result = Python::with_gil(|py| {
+                py.allow_threads(|| std::fs::set_permissions(&path_buf, perms))
+            });
+            result.map_err(io_err_to_pyerr)
+        } else {
+            // lchmod: change permissions on the symlink itself.
+            // Use libc::fchmodat with AT_SYMLINK_NOFOLLOW.
+            lchmod_raw(path, mode)
+        }
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = follow_symlinks;
+        // On Windows, delegate to Python's os.chmod
+        Python::with_gil(|py| {
+            let path_str = path.to_string_lossy();
+            let os_mod = py.import("os")?;
+            os_mod.call_method1("chmod", (path_str.as_ref(), mode))?;
+            Ok(())
+        })
+    }
+}
+
+/// Change permissions on a symlink without following it (Unix only).
+#[cfg(unix)]
+fn lchmod_raw(path: &OsStr, mode: u32) -> PyResult<()> {
+    use std::ffi::CString;
+
+    let path_bytes = path.as_encoded_bytes();
+    let c_path = CString::new(path_bytes)
+        .map_err(|e| pyo3::exceptions::PyValueError::new_err(format!("invalid path: {e}")))?;
+
+    // macOS/BSD: fchmodat with AT_SYMLINK_NOFOLLOW
+    // Linux: lchmod is not supported (raises NotImplementedError)
+    let result = Python::with_gil(|py| {
+        py.allow_threads(|| unsafe {
+            let ret = libc::fchmodat(
+                libc::AT_FDCWD,
+                c_path.as_ptr(),
+                mode as libc::mode_t,
+                libc::AT_SYMLINK_NOFOLLOW,
+            );
+            if ret != 0 {
+                Err(io::Error::last_os_error())
+            } else {
+                Ok(())
+            }
+        })
+    });
+
+    match result {
+        Ok(()) => Ok(()),
+        Err(e) => {
+            // EOPNOTSUPP/ENOTSUP: lchmod not supported (Linux)
+            if e.raw_os_error() == Some(libc::EOPNOTSUPP) || e.raw_os_error() == Some(libc::ENOTSUP)
+            {
+                // Fall back to Python's os.lchmod for the error message
+                Python::with_gil(|py| {
+                    let path_str = path.to_string_lossy();
+                    let os_mod = py.import("os")?;
+                    os_mod.call_method1("lchmod", (path_str.as_ref(), mode))?;
+                    Ok(())
+                })
+            } else {
+                Err(io_err_to_pyerr(e))
+            }
+        }
+    }
+}
+
+/// Change permissions on a symlink without following it (non-Unix stub).
+#[cfg(not(unix))]
+#[allow(dead_code)]
+fn lchmod_raw(_path: &OsStr, _mode: u32) -> PyResult<()> {
+    Err(pyo3::exceptions::PyNotImplementedError::new_err(
+        "lchmod is not available on this platform",
+    ))
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Phase 3: File Mutations
+// ═══════════════════════════════════════════════════════════════════════
+
+/// Create a file or update its modification time.
+pub fn touch(path: &OsStr, mode: u32, exist_ok: bool) -> PyResult<()> {
+    let path_buf = StdPath::new(path).to_path_buf();
+    let exists = path_buf.exists();
+    let result = Python::with_gil(|py| {
+        py.allow_threads(|| -> Result<(), io::Error> {
+            if exists {
+                if !exist_ok {
+                    return Err(io::Error::new(
+                        io::ErrorKind::AlreadyExists,
+                        format!("'{}' already exists", path_buf.display()),
+                    ));
+                }
+                // Update modification time only
+                let file = std::fs::OpenOptions::new().write(true).open(&path_buf)?;
+                file.set_modified(std::time::SystemTime::now())?;
+            } else {
+                // Create new empty file
+                std::fs::File::create(&path_buf)?;
+                #[cfg(unix)]
+                {
+                    use std::os::unix::fs::PermissionsExt;
+                    if mode != 0o666 {
+                        let perms = std::fs::Permissions::from_mode(mode);
+                        std::fs::set_permissions(&path_buf, perms)?;
+                    }
+                }
+                let _ = mode;
+            }
+            Ok(())
+        })
+    });
+
+    result.map_err(io_err_to_pyerr)
+}
+
+/// Remove (unlink) a file or symlink.
+pub fn unlink(path: &OsStr, missing_ok: bool) -> PyResult<()> {
+    let path_buf = StdPath::new(path).to_path_buf();
+    let result = Python::with_gil(|py| {
+        py.allow_threads(|| -> Result<(), io::Error> {
+            match std::fs::remove_file(&path_buf) {
+                Ok(()) => Ok(()),
+                Err(e) => {
+                    // On Windows, remove_file fails for directory symlinks.
+                    // Fall back to remove_dir if the path is a directory.
+                    #[cfg(windows)]
+                    if std::fs::symlink_metadata(&path_buf)
+                        .map(|m| m.is_dir())
+                        .unwrap_or(false)
+                    {
+                        return std::fs::remove_dir(&path_buf);
+                    }
+                    Err(e)
+                }
+            }
+        })
+    });
+    match result {
+        Ok(()) => Ok(()),
+        Err(e) => {
+            if missing_ok && e.kind() == io::ErrorKind::NotFound {
+                Ok(())
+            } else {
+                Err(io_err_to_pyerr(e))
+            }
+        }
+    }
+}
+
+/// Rename a file or directory (same filesystem).
+///
+/// ``rename()`` replaces the destination on POSIX but raises on Windows
+/// if the destination exists.
+pub fn rename(src: &OsStr, dst: &OsStr) -> PyResult<()> {
+    let src_buf = StdPath::new(src).to_path_buf();
+    let dst_buf = StdPath::new(dst).to_path_buf();
+    let result = Python::with_gil(|py| py.allow_threads(|| std::fs::rename(&src_buf, &dst_buf)));
+    match result {
+        Ok(()) => Ok(()),
+        Err(e) => Err(io_err_to_pyerr(e)),
+    }
+}
+
+/// Replace one file or directory with another (cross-platform atomic).
+///
+/// On POSIX, ``rename()`` is atomic and replaces the destination.
+/// On Windows, ``std::fs::rename`` fails if ``dst`` exists, so we
+/// must remove it first.
+pub fn replace(src: &OsStr, dst: &OsStr) -> PyResult<()> {
+    let src_buf = StdPath::new(src).to_path_buf();
+    let dst_buf = StdPath::new(dst).to_path_buf();
+
+    #[cfg(windows)]
+    {
+        // On Windows, std::fs::rename fails if dst exists.
+        // Remove dst first if it exists.
+        let result = Python::with_gil(|py| {
+            py.allow_threads(|| -> Result<(), io::Error> {
+                // Try to remove dst first (might be file or empty dir)
+                if dst_buf.is_dir() {
+                    std::fs::remove_dir(&dst_buf)?;
+                } else if dst_buf.exists() {
+                    std::fs::remove_file(&dst_buf)?;
+                }
+                std::fs::rename(&src_buf, &dst_buf)?;
+                Ok(())
+            })
+        });
+        result.map_err(io_err_to_pyerr)
+    }
+
+    #[cfg(not(windows))]
+    {
+        let result =
+            Python::with_gil(|py| py.allow_threads(|| std::fs::rename(&src_buf, &dst_buf)));
+        result.map_err(io_err_to_pyerr)
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Phase 3: Link Creation
+// ═══════════════════════════════════════════════════════════════════════
+
+/// Create a symbolic link at ``link`` pointing to ``target``.
+///
+/// On Windows, ``target_is_directory`` indicates whether the target is a
+/// directory (required for correct symlink creation on Windows).
+#[cfg(unix)]
+pub fn symlink(target: &OsStr, link: &OsStr, target_is_directory: bool) -> PyResult<()> {
+    let _ = target_is_directory;
+    let target_buf = StdPath::new(target).to_path_buf();
+    let link_buf = StdPath::new(link).to_path_buf();
+    let result = Python::with_gil(|py| {
+        py.allow_threads(|| std::os::unix::fs::symlink(&target_buf, &link_buf))
+    });
+    result.map_err(io_err_to_pyerr)
+}
+
+/// Create a symbolic link at ``link`` pointing to ``target`` (Windows).
+#[cfg(not(unix))]
+pub fn symlink(target: &OsStr, link: &OsStr, target_is_directory: bool) -> PyResult<()> {
+    let target_buf = StdPath::new(target).to_path_buf();
+    let link_buf = StdPath::new(link).to_path_buf();
+    let result = Python::with_gil(|py| {
+        py.allow_threads(|| {
+            if target_is_directory {
+                std::os::windows::fs::symlink_dir(&target_buf, &link_buf)
+            } else {
+                std::os::windows::fs::symlink_file(&target_buf, &link_buf)
+            }
+        })
+    });
+    result.map_err(io_err_to_pyerr)
+}
+
+/// Create a hard link at ``dst`` pointing to ``src``.
+pub fn hardlink(src: &OsStr, dst: &OsStr) -> PyResult<()> {
+    let src_buf = StdPath::new(src).to_path_buf();
+    let dst_buf = StdPath::new(dst).to_path_buf();
+    let result = Python::with_gil(|py| py.allow_threads(|| std::fs::hard_link(&src_buf, &dst_buf)));
+    result.map_err(io_err_to_pyerr)
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Phase 3: File I/O
+// ═══════════════════════════════════════════════════════════════════════
+
+/// Read the entire contents of a file as bytes.
+pub fn read_bytes(path: &OsStr) -> PyResult<Vec<u8>> {
+    let path_buf = StdPath::new(path).to_path_buf();
+    let result = Python::with_gil(|py| py.allow_threads(|| std::fs::read(&path_buf)));
+    result.map_err(io_err_to_pyerr)
+}
+
+/// Read the entire contents of a file as text, with optional encoding.
+pub fn read_text(path: &OsStr, encoding: Option<&str>, errors: Option<&str>) -> PyResult<String> {
+    let bytes = read_bytes(path)?;
+    let enc = encoding.unwrap_or("utf-8");
+    let err_handling = errors.unwrap_or("strict");
+
+    Python::with_gil(|py| {
+        let codecs = py.import("codecs")?;
+        let decoded =
+            codecs.call_method1("decode", (PyBytes::new(py, &bytes), enc, err_handling))?;
+        decoded.extract::<String>()
+    })
+}
+
+/// Write bytes to a file, creating it if it doesn't exist.
+pub fn write_bytes(path: &OsStr, data: &[u8]) -> PyResult<()> {
+    let path_buf = StdPath::new(path).to_path_buf();
+    let data_buf = data.to_vec();
+    let result = Python::with_gil(|py| {
+        py.allow_threads(|| -> Result<(), io::Error> {
+            let mut f = std::fs::File::create(&path_buf)?;
+            f.write_all(&data_buf)?;
+            Ok(())
+        })
+    });
+    result.map_err(io_err_to_pyerr)
+}
+
+/// Write text to a file, encoding with the given encoding.
+pub fn write_text(
+    path: &OsStr,
+    data: &str,
+    encoding: Option<&str>,
+    errors: Option<&str>,
+    newline: Option<&str>,
+) -> PyResult<()> {
+    let enc = encoding.unwrap_or("utf-8");
+    let err_handling = errors.unwrap_or("strict");
+
+    // Encode the text via Python's codecs module for full CPython compatibility.
+    let encoded = Python::with_gil(|py| {
+        let codecs = py.import("codecs")?;
+        let result = codecs.call_method1("encode", (data, enc, err_handling))?;
+        result.extract::<Vec<u8>>()
+    })?;
+
+    // Apply newline translation if requested
+    let final_bytes = if let Some(nl) = newline {
+        if nl.is_empty() || nl == "\n" {
+            encoded
+        } else {
+            // Translate \n to the target newline
+            let mut result = Vec::new();
+            let nl_bytes = nl.as_bytes();
+            for &b in &encoded {
+                if b == b'\n' {
+                    result.extend_from_slice(nl_bytes);
+                } else if b == b'\r' {
+                    // Skip \r in universal newline mode when nl is set
+                    continue;
+                } else {
+                    result.push(b);
+                }
+            }
+            result
+        }
+    } else {
+        encoded
+    };
+
+    write_bytes(path, &final_bytes)
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Phase 3: Directory Traversal
+// ═══════════════════════════════════════════════════════════════════════
+
+/// A single directory entry from ``iterdir()``.
+#[derive(Debug, Clone)]
+pub struct DirEntry {
+    /// The full path of the entry.
+    pub path: OsString,
+    /// The filename component only.
+    pub name: OsString,
+    /// Whether the entry is a directory.
+    pub is_dir: bool,
+    /// Whether the entry is a symlink.
+    pub is_symlink: bool,
+}
+
+/// Iterate over entries in a directory.
+///
+/// Returns a ``Vec<DirEntry>`` with the directory contents.
+/// Entries ``"."`` and ``".."`` are excluded.
+pub fn read_dir(path: &OsStr) -> PyResult<Vec<DirEntry>> {
+    let path_buf = StdPath::new(path).to_path_buf();
+    let result = Python::with_gil(|py| {
+        py.allow_threads(|| -> Result<Vec<DirEntry>, io::Error> {
+            let mut entries = Vec::new();
+            let dir = std::fs::read_dir(&path_buf)?;
+            for entry in dir {
+                let entry = entry?;
+                let name = entry.file_name();
+                // Skip "." and ".." (they're included by read_dir on some platforms)
+                if name == "." || name == ".." {
+                    continue;
+                }
+                let ft = entry.file_type()?;
+                let full_path = entry.path();
+                entries.push(DirEntry {
+                    path: OsString::from(full_path.as_os_str()),
+                    name,
+                    is_dir: ft.is_dir(),
+                    is_symlink: ft.is_symlink(),
+                });
+            }
+            Ok(entries)
+        })
+    });
+    result.map_err(io_err_to_pyerr)
+}
+
+/// A single ``(dirpath, dirnames, filenames)`` walk entry.
+type WalkEntry = (OsString, Vec<OsString>, Vec<OsString>);
+
+/// Walk a directory tree, yielding ``(dirpath, dirnames, filenames)`` tuples.
+///
+/// This function collects all entries immediately (not lazy). The caller
+/// is expected to iterate over the results and manage top-down vs bottom-up
+/// ordering.
+///
+/// Parameters
+/// ----------
+/// path : &OsStr
+///     Root directory to walk.
+/// topdown : bool
+///     If ``True``, yield directories before their contents.
+/// follow_symlinks : bool
+///     If ``True``, follow symlinks to directories.
+pub fn walk_entries(
+    path: &OsStr,
+    topdown: bool,
+    follow_symlinks: bool,
+) -> PyResult<Vec<WalkEntry>> {
+    let mut results: Vec<WalkEntry> = Vec::new();
+    let mut stack: Vec<OsString> = vec![OsString::from(path)];
+
+    while let Some(current) = stack.pop() {
+        let entries = match read_dir(&current) {
+            Ok(e) => e,
+            Err(_) => continue,
+        };
+
+        let mut dirnames: Vec<OsString> = Vec::new();
+        let mut filenames: Vec<OsString> = Vec::new();
+
+        for entry in &entries {
+            if entry.is_dir {
+                dirnames.push(entry.name.clone());
+            } else {
+                filenames.push(entry.name.clone());
+            }
+        }
+
+        results.push((current.clone(), dirnames.clone(), filenames));
+
+        if !follow_symlinks {
+            // Only push non-symlink directories
+            for entry in &entries {
+                if entry.is_dir && !entry.is_symlink {
+                    stack.push(entry.path.clone());
+                }
+            }
+        } else {
+            for entry in &entries {
+                if entry.is_dir {
+                    stack.push(entry.path.clone());
+                }
+            }
+        }
+    }
+
+    if topdown {
+        // Results are already collected depth-first (stack-based).
+        // For top-down, we need to reorder: yield parent before children.
+        // Since we used a stack (LIFO), the results are actually in reverse
+        // depth-first order. Let's just sort by depth.
+        results.sort_by_key(|(p, _, _)| {
+            p.as_encoded_bytes()
+                .iter()
+                .filter(|&&b| b == b'/' || b == b'\\')
+                .count()
+        });
+    } else {
+        // Bottom-up: deeper directories first.
+        results.sort_by_key(|(p, _, _)| {
+            std::cmp::Reverse(
+                p.as_encoded_bytes()
+                    .iter()
+                    .filter(|&&b| b == b'/' || b == b'\\')
+                    .count(),
+            )
+        });
+    }
+
+    Ok(results)
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Phase 3: 3.14 File-Tree Operations
+// ═══════════════════════════════════════════════════════════════════════
+
+/// Copy a file or directory tree from ``src`` to ``dst``.
+///
+/// For files: copies file contents and metadata.
+/// For directories: recursively copies the entire tree.
+/// For symlinks: copies the symlink (not the target), or follows if
+/// ``follow_symlinks=True``.
+pub fn copy_tree(
+    src: &OsStr,
+    dst: &OsStr,
+    follow_symlinks: bool,
+    dirs_exist_ok: bool,
+) -> PyResult<()> {
+    let src_path = StdPath::new(src);
+    let dst_path = StdPath::new(dst);
+
+    // Clear any stale visited-path state from previous copy operations.
+    copy_dir_recursive_reset_visited();
+
+    let result = Python::with_gil(|py| {
+        py.allow_threads(|| -> Result<(), io::Error> {
+            let md = std::fs::symlink_metadata(src_path)?;
+            let ft = md.file_type();
+
+            if ft.is_symlink() {
+                if follow_symlinks {
+                    // Follow the symlink and copy what it points to
+                    let target_path = std::fs::read_link(src_path)?;
+                    // Resolve relative to src's directory
+                    let resolved = if target_path.is_relative() {
+                        src_path
+                            .parent()
+                            .unwrap_or(StdPath::new("."))
+                            .join(&target_path)
+                    } else {
+                        target_path
+                    };
+                    // Check if resolved target exists
+                    let target_md = std::fs::symlink_metadata(&resolved)?;
+                    if target_md.is_dir() {
+                        copy_dir_recursive(&resolved, dst_path, follow_symlinks, dirs_exist_ok)?;
+                    } else {
+                        std::fs::create_dir_all(dst_path.parent().unwrap_or(StdPath::new(".")))?;
+                        std::fs::copy(&resolved, dst_path)?;
+                    }
+                } else {
+                    // Copy just the symlink
+                    let target = std::fs::read_link(src_path)?;
+                    if dst_path.exists() {
+                        if dst_path.is_symlink() || dst_path.is_file() {
+                            std::fs::remove_file(dst_path)?;
+                        } else {
+                            return Err(io::Error::new(
+                                io::ErrorKind::AlreadyExists,
+                                format!("'{}' already exists", dst_path.display()),
+                            ));
+                        }
+                    }
+                    #[cfg(unix)]
+                    std::os::unix::fs::symlink(&target, dst_path)?;
+                    #[cfg(windows)]
+                    {
+                        let target_md = std::fs::symlink_metadata(resolved_target(src_path));
+                        let is_dir = target_md.map(|m| m.is_dir()).unwrap_or(false);
+                        if is_dir {
+                            std::os::windows::fs::symlink_dir(&target, dst_path)?;
+                        } else {
+                            std::os::windows::fs::symlink_file(&target, dst_path)?;
+                        }
+                    }
+                }
+            } else if ft.is_dir() {
+                copy_dir_recursive(src_path, dst_path, follow_symlinks, dirs_exist_ok)?;
+            } else {
+                // Regular file
+                std::fs::create_dir_all(dst_path.parent().unwrap_or(StdPath::new(".")))?;
+                std::fs::copy(src_path, dst_path)?;
+            }
+            Ok(())
+        })
+    });
+
+    result.map_err(io_err_to_pyerr)
+}
+
+/// Reset the visited-path set between top-level copy operations.
+fn copy_dir_recursive_reset_visited() {
+    COPY_VISITED.with(|v| v.borrow_mut().clear());
+}
+
+/// Normalize . and .. components without filesystem access.
+fn normalize_path(path: &StdPath) -> std::path::PathBuf {
+    let mut result = std::path::PathBuf::new();
+    for component in path.components() {
+        match component {
+            std::path::Component::ParentDir => {
+                result.pop();
+            }
+            std::path::Component::CurDir => {}
+            c => {
+                result.push(c.as_os_str());
+            }
+        }
+    }
+    result
+}
+
+/// Resolve symlinks in a path recursively, then normalize . and .. components.
+/// Returns the real path for cycle-detection purposes.
+fn resolve_path(path: &StdPath) -> std::path::PathBuf {
+    let mut current = path.to_path_buf();
+    let mut seen = std::collections::HashSet::new();
+    // Resolve any symlink at the tip of the path (not intermediate components).
+    // This is sufficient for cycle detection during copy operations.
+    for _ in 0..64 {
+        match std::fs::symlink_metadata(&current) {
+            Ok(md) if md.file_type().is_symlink() => {
+                let target = match std::fs::read_link(&current) {
+                    Ok(t) => t,
+                    Err(_) => break,
+                };
+                let resolved = if target.is_relative() {
+                    current.parent().unwrap_or(StdPath::new(".")).join(&target)
+                } else {
+                    target
+                };
+                if !seen.insert(resolved.clone()) {
+                    // Symlink loop detected — return as-is to avoid infinite loop.
+                    break;
+                }
+                current = resolved;
+            }
+            _ => break,
+        }
+    }
+    normalize_path(&current)
+}
+
+/// Copy a directory recursively.
+fn copy_dir_recursive(
+    src: &StdPath,
+    dst: &StdPath,
+    follow_symlinks: bool,
+    dirs_exist_ok: bool,
+) -> Result<(), io::Error> {
+    // Normalize src so that child entry paths (e.g., read_dir results)
+    // resolve correctly when computing symlink targets.
+    // Without this, base/dirB/../dirB/linkD + ../dirB compounds to
+    // base/dirB/../dirB/../dirB instead of the intended base/dirB.
+    let src = normalize_path(src);
+
+    // Resolve symlinks and normalize to get a stable key for cycle detection.
+    let src_real = resolve_path(&src);
+
+    // Cycle detection: if we've already visited this real path, we have a loop.
+    let is_new = COPY_VISITED.with(|v| v.borrow_mut().insert(src_real.clone()));
+    if !is_new {
+        return Err(io::Error::other(format!(
+            "symlink cycle detected while copying '{}'",
+            src.display()
+        )));
+    }
+
+    if dst.exists() {
+        if !dirs_exist_ok {
+            // Clean up visited entry before returning error.
+            COPY_VISITED.with(|v| {
+                v.borrow_mut().remove(&src_real);
+            });
+            return Err(io::Error::new(
+                io::ErrorKind::AlreadyExists,
+                format!("'{}' already exists", dst.display()),
+            ));
+        }
+    } else {
+        std::fs::create_dir_all(dst)?;
+    }
+
+    for entry in std::fs::read_dir(&src)? {
+        let entry = entry?;
+        let entry_name = entry.file_name();
+        if entry_name == "." || entry_name == ".." {
+            continue;
+        }
+        let src_entry = entry.path();
+        let dst_entry = dst.join(&entry_name);
+
+        let md = std::fs::symlink_metadata(&src_entry)?;
+        if md.file_type().is_symlink() {
+            if follow_symlinks {
+                let target = std::fs::read_link(&src_entry)?;
+                let resolved = if target.is_relative() {
+                    src_entry
+                        .parent()
+                        .unwrap_or(StdPath::new("."))
+                        .join(&target)
+                } else {
+                    target
+                };
+                let target_md = std::fs::symlink_metadata(&resolved)?;
+                if target_md.is_dir() {
+                    copy_dir_recursive(&resolved, &dst_entry, true, false)?;
+                } else {
+                    std::fs::copy(&resolved, &dst_entry)?;
+                }
+            } else {
+                let target = std::fs::read_link(&src_entry)?;
+                #[cfg(unix)]
+                std::os::unix::fs::symlink(&target, &dst_entry)?;
+                #[cfg(windows)]
+                {
+                    let is_dir = target_md_on_windows(&src_entry, &target);
+                    if is_dir {
+                        std::os::windows::fs::symlink_dir(&target, &dst_entry)?;
+                    } else {
+                        std::os::windows::fs::symlink_file(&target, &dst_entry)?;
+                    }
+                }
+            }
+        } else if md.is_dir() {
+            copy_dir_recursive(&src_entry, &dst_entry, follow_symlinks, false)?;
+        } else {
+            std::fs::copy(&src_entry, &dst_entry)?;
+        }
+    }
+
+    COPY_VISITED.with(|v| {
+        v.borrow_mut().remove(&src_real);
+    });
+    Ok(())
+}
+
+/// Helper: check if a symlink target is a directory on Windows.
+#[cfg(windows)]
+fn target_md_on_windows(src_entry: &StdPath, target: &StdPath) -> bool {
+    let resolved = if target.is_relative() {
+        src_entry.parent().unwrap_or(StdPath::new(".")).join(target)
+    } else {
+        target.to_path_buf()
+    };
+    std::fs::symlink_metadata(&resolved)
+        .map(|m| m.is_dir())
+        .unwrap_or(false)
+}
+
+/// Delete a file or directory tree recursively.
+///
+/// For files and symlinks: removes the entry.
+/// For directories: recursively removes the entire tree.
+pub fn delete_tree(path: &OsStr, ignore_errors: bool) -> PyResult<()> {
+    let path_buf = StdPath::new(path).to_path_buf();
+    let result = Python::with_gil(|py| {
+        py.allow_threads(|| -> Result<(), io::Error> {
+            delete_recursive(path_buf.as_path(), ignore_errors)
+        })
+    });
+    result.map_err(|e| {
+        if ignore_errors {
+            // If ignore_errors is true, we shouldn't have gotten here
+            // because all errors should have been caught. But just in case:
+            return pyo3::exceptions::PyOSError::new_err(e.to_string());
+        }
+        io_err_to_pyerr(e)
+    })
+}
+
+/// Recursively delete a path.
+fn delete_recursive(path: &StdPath, ignore_errors: bool) -> Result<(), io::Error> {
+    let md = match std::fs::symlink_metadata(path) {
+        Ok(m) => m,
+        Err(e) => {
+            if ignore_errors {
+                return Ok(());
+            }
+            return Err(e);
+        }
+    };
+
+    if md.file_type().is_symlink() {
+        // Symlinks are removed without following
+        match std::fs::remove_file(path) {
+            Ok(()) => Ok(()),
+            Err(e) => {
+                if ignore_errors {
+                    Ok(())
+                } else {
+                    Err(e)
+                }
+            }
+        }
+    } else if md.is_dir() {
+        // Read and delete children
+        match std::fs::read_dir(path) {
+            Ok(entries) => {
+                for entry in entries {
+                    match entry {
+                        Ok(entry) => {
+                            let entry_path = entry.path();
+                            let _ = delete_recursive(&entry_path, ignore_errors);
+                        }
+                        Err(e) => {
+                            if !ignore_errors {
+                                return Err(e);
+                            }
+                        }
+                    }
+                }
+            }
+            Err(e) => {
+                if !ignore_errors {
+                    return Err(e);
+                }
+            }
+        }
+        match std::fs::remove_dir(path) {
+            Ok(()) => Ok(()),
+            Err(e) => {
+                if ignore_errors {
+                    Ok(())
+                } else {
+                    Err(e)
+                }
+            }
+        }
+    } else {
+        // File, fifo, socket, etc.
+        match std::fs::remove_file(path) {
+            Ok(()) => Ok(()),
+            Err(e) => {
+                if ignore_errors {
+                    Ok(())
+                } else {
+                    Err(e)
+                }
+            }
+        }
+    }
+}
+
+/// Move a file or directory tree from ``src`` to ``dst``.
+///
+/// Tries to rename first (same-filesystem fast path). Falls back to
+/// copy + delete for cross-filesystem moves.
+pub fn move_tree(src: &OsStr, dst: &OsStr) -> PyResult<()> {
+    let src_path = StdPath::new(src);
+    let dst_path = StdPath::new(dst);
+
+    // Try rename first (fast path for same filesystem)
+    if Python::with_gil(|py| py.allow_threads(|| std::fs::rename(src_path, dst_path))).is_ok() {
+        return Ok(());
+    }
+
+    // Fall back to copy + delete (cross-filesystem)
+    // First, determine if src is a file or directory
+    let result = Python::with_gil(|py| {
+        py.allow_threads(|| -> Result<(), io::Error> {
+            let md = std::fs::symlink_metadata(src_path)?;
+            if md.file_type().is_symlink() {
+                // Copy symlink, then remove original
+                let target = std::fs::read_link(src_path)?;
+                #[cfg(unix)]
+                std::os::unix::fs::symlink(&target, dst_path)?;
+                #[cfg(windows)]
+                {
+                    if md.is_dir() {
+                        std::os::windows::fs::symlink_dir(&target, dst_path)?;
+                    } else {
+                        std::os::windows::fs::symlink_file(&target, dst_path)?;
+                    }
+                }
+                std::fs::remove_file(src_path)?;
+            } else if md.is_dir() {
+                copy_dir_recursive(src_path, dst_path, false, false)?;
+                delete_recursive(src_path, false)?;
+            } else {
+                std::fs::create_dir_all(dst_path.parent().unwrap_or(StdPath::new(".")))?;
+                std::fs::copy(src_path, dst_path)?;
+                std::fs::remove_file(src_path)?;
+            }
+            Ok(())
+        })
+    });
+
+    result.map_err(io_err_to_pyerr)
+}
+
+// Cross-platform helper for symlink target resolving
+#[cfg(windows)]
+fn resolved_target(src_path: &StdPath) -> std::path::PathBuf {
+    if let Ok(target) = std::fs::read_link(src_path) {
+        if target.is_relative() {
+            src_path.parent().unwrap_or(StdPath::new(".")).join(&target)
+        } else {
+            target
+        }
+    } else {
+        src_path.to_path_buf()
     }
 }

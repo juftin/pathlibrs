@@ -36,47 +36,51 @@
 - [x] GIL release during all I/O syscalls
 - [x] Path classes: `Path`, `PosixPath`, `WindowsPath` (concrete)
 
-## Phase 3: Filesystem Mutations & I/O — Next
+## Phase 3: Filesystem Mutations & I/O — Substantially Complete ✓
 
-656 test skips in `skips.txt`, almost all `PathSubclassTest.*` waiting on this phase.
+902 test skips in `skips.txt` (down from 1030; 127 new test passes from ~130 unskipped vendored CPython tests).
+
+531 active skip entries (down from 656; 126 removed from `skips.txt`).
 
 ### Directory Mutations
 
-- [ ] `mkdir()` with `mode`, `parents`, `exist_ok`
-- [ ] `rmdir()`
-- [ ] `chmod()`, `lchmod()`
+- [x] `mkdir()` with `mode`, `parents`, `exist_ok`
+- [x] `rmdir()`
+- [x] `chmod()`, `lchmod()`
 
 ### File Mutations
 
-- [ ] `touch()` with `mode`, `exist_ok`
-- [ ] `unlink()` with `missing_ok`
-- [ ] `rename()`, `replace()`
-- [ ] `symlink_to()`, `hardlink_to()`
+- [x] `touch()` with `mode`, `exist_ok`
+- [x] `unlink()` with `missing_ok`
+- [x] `rename()`, `replace()`
+- [x] `symlink_to()`, `hardlink_to()`
 
 ### I/O
 
-- [ ] `open()` — delegate to Python `io.open()` per DESIGN.md §11.1
-- [ ] `read_bytes()`, `read_text()`
-- [ ] `write_bytes()`, `write_text()`
+- [x] `open()` — delegate to Python `io.open()` per DESIGN.md §11.1
+- [x] `read_bytes()`, `read_text()`
+- [x] `write_bytes()`, `write_text()`
 
 ### Directory Traversal
 
-- [ ] `iterdir()`
-- [ ] `walk()` with `topdown`, `bottomup`, `onerror`, `follow_symlinks`
+- [x] `iterdir()`
+- [x] `walk()` with `topdown`, `bottomup`, `onerror`, `follow_symlinks` (basic; complex edge cases TBD)
 
 ### 3.14 File-Tree Operations
 
-- [ ] `copy()` — copy file or directory tree
-- [ ] `copy_into()` — copy into an existing directory
-- [ ] `move()` — move file or directory tree
-- [ ] `move_into()` — move into an existing directory
-- [ ] `delete()` — delete file or directory tree
+- [x] `copy()` — copy file or directory tree to exact target (matching CPython semantics)
+- [x] `copy_into()` — copy into an existing directory
+- [x] `move()` — move file or directory tree to exact target (matching CPython semantics)
+- [x] `move_into()` — move into an existing directory
+- [x] `delete()` — delete file or directory tree (basic; private-API `_delete()` tests skipped)
 
 ### Verification
 
-- [ ] All mutation and I/O vendored CPython tests pass
-- [ ] 3.14 file-tree operation tests pass
-- [ ] GIL released during all blocking I/O
+- [x] All basic mutation and I/O vendored CPython tests pass (63→127 new passes)
+- [ ] 3.14 file-tree operation edge case tests pass (complex cases remain skipped)
+- [x] `copy()` and `move()` match CPython semantics: exact-target copy with `ensure_distinct_paths` guards
+- [x] GIL released during all blocking I/O
+- [x] CI passes on all platforms: Linux, macOS, Windows (Python 3.10 + 3.14)
 
 ## Phase 4: Glob & Pattern Matching — Upcoming
 
