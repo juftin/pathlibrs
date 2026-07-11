@@ -56,10 +56,9 @@ impl ParsedPath {
     pub fn eq_windows(&self, other: &ParsedPath) -> bool {
         // Drives: case-insensitive
         let drives_eq = match (&self.drive, &other.drive) {
-            (Some(a), Some(b)) => {
-                a.as_encoded_bytes()
-                    .eq_ignore_ascii_case(b.as_encoded_bytes())
-            }
+            (Some(a), Some(b)) => a
+                .as_encoded_bytes()
+                .eq_ignore_ascii_case(b.as_encoded_bytes()),
             (None, None) => true,
             _ => false,
         };

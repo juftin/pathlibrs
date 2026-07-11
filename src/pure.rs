@@ -465,11 +465,8 @@ impl PurePath {
         let min_len = self_parsed.parts.len().min(other_parsed.parts.len());
         let mut common = 0usize;
 
-        if !_drives_equal(
-            &self_parsed.drive,
-            &other_parsed.drive,
-            slf._is_windows(),
-        ) || self_parsed.root != other_parsed.root
+        if !_drives_equal(&self_parsed.drive, &other_parsed.drive, slf._is_windows())
+            || self_parsed.root != other_parsed.root
         {
             // Anchors differ — no common prefix at all
             return Err(pyo3::exceptions::PyValueError::new_err(format!(
@@ -541,11 +538,8 @@ impl PurePath {
         let other_str = _extract_path_str(other)?;
         let other_parsed = crate::parsing::parse_path(OsStr::new(&other_str), self.flavour);
         let self_parsed = self.inner.parsed(self.flavour);
-        if !_drives_equal(
-            &self_parsed.drive,
-            &other_parsed.drive,
-            self._is_windows(),
-        ) || self_parsed.root != other_parsed.root
+        if !_drives_equal(&self_parsed.drive, &other_parsed.drive, self._is_windows())
+            || self_parsed.root != other_parsed.root
             || self_parsed.parts.len() < other_parsed.parts.len()
         {
             return Ok(false);
@@ -575,15 +569,13 @@ impl PurePath {
         // Emit DeprecationWarning — PurePath.as_uri() is deprecated
         // in favor of concrete Path.as_uri() (CPython compat).
         Python::with_gil(|py| {
-            let _ = py
-                .import("warnings")?
-                .call_method1(
-                    "warn",
-                    (
-                        "PurePath.as_uri() is deprecated, use Path.as_uri() instead",
-                        py.get_type::<pyo3::exceptions::PyDeprecationWarning>(),
-                    ),
-                );
+            let _ = py.import("warnings")?.call_method1(
+                "warn",
+                (
+                    "PurePath.as_uri() is deprecated, use Path.as_uri() instead",
+                    py.get_type::<pyo3::exceptions::PyDeprecationWarning>(),
+                ),
+            );
             Ok::<_, PyErr>(())
         })?;
         let p = self.inner.parsed(self.flavour);
@@ -625,23 +617,16 @@ impl PurePath {
         // verify the drive matches separately.
         // The pattern and path must agree on whether a root follows the drive.
         if is_windows {
-            if let Some((pat_drive, pat_root, pat_rest)) =
-                _split_drive_from_pattern(pattern)
-            {
+            if let Some((pat_drive, pat_root, pat_rest)) = _split_drive_from_pattern(pattern) {
                 let self_raw = self.inner.raw().to_string_lossy();
-                if let Some((path_drive, path_root, path_rest)) =
-                    _split_drive_from_path(&self_raw)
+                if let Some((path_drive, path_root, path_rest)) = _split_drive_from_path(&self_raw)
                 {
                     // Root presence must match
                     if pat_root != path_root {
                         return false;
                     }
                     // Match drive with fnmatch, then match the rest
-                    if !pattern::fnmatch_bytes(
-                        pat_drive.as_bytes(),
-                        path_drive.as_bytes(),
-                        cs,
-                    ) {
+                    if !pattern::fnmatch_bytes(pat_drive.as_bytes(), path_drive.as_bytes(), cs) {
                         return false;
                     }
                     return pattern::match_path(
@@ -653,12 +638,7 @@ impl PurePath {
                 }
             }
         }
-        pattern::match_path(
-            OsStr::new(pattern),
-            self.inner.raw(),
-            cs,
-            is_windows,
-        )
+        pattern::match_path(OsStr::new(pattern), self.inner.raw(), cs, is_windows)
     }
 
     /// ``full_match(pattern, *, case_sensitive=None)``
@@ -1129,10 +1109,7 @@ impl PureWindowsPath {
 /// Follows CPython's behaviour: when a segment is anchored (has a drive or root),
 /// all previously accumulated segments are discarded and the path restarts from
 /// that anchored segment.
-fn join_path_segments(
-    args: &Bound<'_, PyTuple>,
-    flavour: PathFlavour,
-) -> PyResult<OsString> {
+fn join_path_segments(args: &Bound<'_, PyTuple>, flavour: PathFlavour) -> PyResult<OsString> {
     let sep = if flavour == PathFlavour::Windows {
         b'\\'
     } else {
@@ -1190,10 +1167,7 @@ fn join_path_segments(
 /// Build a comparison-tuple key from a parsed path.
 ///
 /// On Windows, drive and parts are lower-cased for case-insensitive ordering.
-fn _cmp_key(
-    parsed: &crate::repr::ParsedPath,
-    windows: bool,
-) -> (String, String, Vec<String>) {
+fn _cmp_key(parsed: &crate::repr::ParsedPath, windows: bool) -> (String, String, Vec<String>) {
     let drive_key = parsed
         .drive
         .as_ref()
@@ -1236,9 +1210,9 @@ fn _split_drive_from_pattern(pattern: &str) -> Option<(&str, bool, &str)> {
     if colon_pos == 0 {
         return None;
     }
-    let is_drive_like = bytes[..colon_pos].iter().all(|&b| {
-        b.is_ascii_alphanumeric() || b == b'*' || b == b'?' || b == b'['
-    });
+    let is_drive_like = bytes[..colon_pos]
+        .iter()
+        .all(|&b| b.is_ascii_alphanumeric() || b == b'*' || b == b'?' || b == b'[');
     if !is_drive_like {
         return None;
     }
@@ -1261,8 +1235,7 @@ fn _split_drive_from_path(path: &str) -> Option<(&str, bool, &str)> {
     // Drive letter: C: or c:
     if bytes.len() >= 2 && bytes[0].is_ascii_alphabetic() && bytes[1] == b':' {
         let after_colon = &path[2..];
-        let has_root =
-            after_colon.starts_with('/') || after_colon.starts_with('\\');
+        let has_root = after_colon.starts_with('/') || after_colon.starts_with('\\');
         let rest = after_colon
             .strip_prefix('/')
             .or_else(|| after_colon.strip_prefix('\\'))
