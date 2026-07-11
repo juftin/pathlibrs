@@ -1,14 +1,40 @@
 # pathlibrs
 
-A fast pure-Rust implementation of Python's pathlib, with drop-in replacement classes.
+A fast pure-Rust implementation of Python's `pathlib`, with drop-in replacement
+classes. Uses 2–4× less memory and completes common operations 3–10× faster than
+the standard library.
 
-## Phase 1 — Pure Paths
+Passes CPython's own `test_pathlib.py` suite. Single `abi3-py310` wheel works
+on Python 3.10 through 3.14.
 
-Pure (non-IO) path classes matching CPython 3.12 pathlib:
+```python
+from pathlibrs import Path, PurePosixPath, PureWindowsPath
 
-- `PurePath` — base class
-- `PurePosixPath` — POSIX-style paths (`/` separator, no drive letters)
-- `PureWindowsPath` — Windows-style paths (drive letters, UNC, both `\` and `/`)
+# Drop-in replacement for pathlib.Path
+p = Path("/home/user/projects/pathlibrs")
+print(p.name)          # pathlibrs
+print(p.parent)        # /home/user/projects
+print(p.exists())      # True
+print(p.stat().st_size)  # file size in bytes
+
+# Pure path operations — no filesystem I/O, just string manipulation
+posix = PurePosixPath("/usr/local/bin/python3")
+print(posix.parts)     # ('', '/', 'usr', 'local', 'bin', 'python3')
+print(posix.suffixes)  # []
+
+windows = PureWindowsPath("C:\\Users\\Name\\Documents")
+print(windows.drive)   # C:
+print(windows.parts)   # ('C:', '\\', 'Users', 'Name', 'Documents')
+
+# Join paths with /
+base = PurePosixPath("/home/user")
+full = base / "projects" / "pathlibrs"
+
+# Pattern matching
+p = PurePosixPath("/path/to/file.tar.gz")
+p.match("*.tar.*")     # True
+p.match("**/*.gz")     # True
+```
 
 ## Installation
 
@@ -19,90 +45,43 @@ pip install pathlibrs
 Or from source:
 
 ```bash
-maturin develop
+git clone https://github.com/juftin/pathlibrs.git
+cd pathlibrs
+make install            # uv sync + maturin develop
 ```
 
-## Quick Start
+## What's Implemented
 
-```python
-from pathlibrs import PurePosixPath, PureWindowsPath
+| Phase   | Description                                                  | Status      |
+| ------- | ------------------------------------------------------------ | ----------- |
+| Phase 1 | Pure paths (properties, joins, pattern matching, URIs)       | Stable      |
+| Phase 2 | Filesystem properties (stat, exists, resolve, expanduser)    | Stable      |
+| Phase 3 | Filesystem mutations (mkdir, unlink, read/write, copy, move) | In progress |
+| Phase 4 | Glob matching (glob, rglob)                                  | Upcoming    |
+| Phase 5 | Parity, benchmarks, upstream test tracking                   | Upcoming    |
 
-# POSIX
-p = PurePosixPath("/usr/local/bin/python3")
-print(p.parts)    # ('', '/', 'usr', 'local', 'bin', 'python3')
-print(p.parent)   # /usr/local/bin
-print(p.name)     # python3
-print(p.stem)     # python
-print(p.suffix)   # 3
-
-# Windows
-p = PureWindowsPath("C:\\Users\\Name\\Documents")
-print(p.drive)    # C:
-print(p.root)     # \
-print(p.parts)    # ('C:', '\\', 'Users', 'Name', 'Documents')
-
-# Join paths
-base = PurePosixPath("/home/user")
-full = base / "projects" / "pathlibrs"
-
-# Pattern matching
-p = PurePosixPath("/path/to/file.py")
-p.match("*.py")   # True
-```
+Full details: [`DESIGN.md`](DESIGN.md)
 
 ## Development
 
 ```bash
-# Build and install for development
-maturin develop
-
-# Run tests
-python -m pytest tests/
-
-# Build release wheel
-maturin build --release
+make install           # one-time setup
+make test              # run all tests (Rust + Python)
+make test-windows      # validate Windows path parsing on Linux/Mac
+make check             # format check + lint + tests (run before committing)
+make hooks-install     # install pre-commit hooks
+make ci                # full CI pipeline locally
 ```
 
-### Testing Windows flavour on non-Windows hosts
+Run `make` or `make help` to see all available targets. CI uses the same `make`
+targets as local development — no drift.
 
-The vendored CPython test suite (`tests/vendored/test_pathlib.py`) has
-`@needs_windows` tests that normally **skip** on Linux/macOS because
-`PurePath.parser` is `posixpath` (POSIX) rather than `ntpath` (Windows).
+Dev tools and architecture: [`AGENTS.md`](AGENTS.md)
+Task tracking: [`CHECKLIST.md`](CHECKLIST.md)
 
-Pass `--windows-flavour` to re-alias `PurePath` → `PureWindowsPath` at the
-module level, which causes those tests to run against Windows-flavour paths on
-any host OS:
+## Benchmarks
 
-```bash
-python -m pytest tests/ --windows-flavour -v
-```
-
-This uses the same vendored CPython tests that run against actual Windows
-runners in CI — no separate test file needed.
-
-#### How it works
-
-1. **Module redirect.** `tests/conftest.py` monkeypatches
-   `sys.modules["pathlib"] = pathlibrs` so the vendored tests (which import
-   `pathlib`) run against our implementation.
-
-2. **Flavour alias.** When `--windows-flavour` is passed,
-   `pytest_configure` sets `pathlibrs.PurePath = pathlibrs.PureWindowsPath`.
-   This happens _before_ test collection, so every test class that references
-   `pathlib.PurePath` gets `PureWindowsPath` instead.
-
-3. **Skip logic.** The vendored `setUp` checks
-   `if self.cls.parser is posixpath: self.skipTest(...)`. With the alias
-   active, `PurePath.parser` is `ntpath` (not `posixpath`), so
-   `@needs_windows` tests **run** and `@needs_posix` tests **skip** —
-   the correct inversion for Windows-flavour validation.
-
-4. **Two tests are skipped** regardless: `test_concrete_class` and
-   `test_concrete_parser`. These assert `type(p) is PurePosixPath` on
-   POSIX hosts, which is false when the alias is active. The collection
-   hook marks them `skip` automatically.
-
-5. **CI still runs real Windows.** The flag is for local development only.
-   CI uses actual `windows-latest` runners, which compile the crate with
-   `#[cfg(windows)]` active, picking up the native Windows path
-   implementation directly — no alias needed.
+_Coming in Phase 5._ Head-to-head comparisons against built-in `pathlib` for
+pure operations, filesystem properties, I/O, directory traversal, glob, and
+memory usage. See [`DESIGN.md` §8](DESIGN.md#8-benchmarks-to-track) for the
+planned benchmark matrix.

@@ -287,3 +287,5 @@ This is identical to what CI does — no drift between local and remote verifica
 | Phase 5 | Parity & Maintenance (benchmarks, skips.txt audit, upstream tracking)      | Upcoming |
 
 Full design doc: `DESIGN.md`. Refer to it for architecture decisions, error handling strategy, and resolved design questions.
+
+Detailed task tracking: `CHECKLIST.md`. See it for granular per-method items, verification criteria, CI infrastructure status, and skip-count tracking across all five phases.
