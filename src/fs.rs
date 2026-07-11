@@ -11,6 +11,12 @@ use std::sync::OnceLock;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 
+// Thread-local set for copy symlink cycle detection.
+thread_local! {
+    static COPY_VISITED: std::cell::RefCell<std::collections::HashSet<std::path::PathBuf>> =
+        std::cell::RefCell::new(std::collections::HashSet::new());
+}
+
 // ═══════════════════════════════════════════════════════════════════════
 // StatResult — a simple stat_result-like object
 // ═══════════════════════════════════════════════════════════════════════
@@ -1135,6 +1141,9 @@ pub fn copy_tree(
     let src_path = StdPath::new(src);
     let dst_path = StdPath::new(dst);
 
+    // Clear any stale visited-path state from previous copy operations.
+    copy_dir_recursive_reset_visited();
+
     let result = Python::with_gil(|py| {
         py.allow_threads(|| -> Result<(), io::Error> {
             let md = std::fs::symlink_metadata(src_path)?;
@@ -1201,6 +1210,11 @@ pub fn copy_tree(
     result.map_err(io_err_to_pyerr)
 }
 
+/// Reset the visited-path set between top-level copy operations.
+fn copy_dir_recursive_reset_visited() {
+    COPY_VISITED.with(|v| v.borrow_mut().clear());
+}
+
 /// Copy a directory recursively.
 fn copy_dir_recursive(
     src: &StdPath,
@@ -1208,15 +1222,10 @@ fn copy_dir_recursive(
     follow_symlinks: bool,
     dirs_exist_ok: bool,
 ) -> Result<(), io::Error> {
-    // Thread-local set of visited real paths to detect symlink cycles.
-    thread_local! {
-        static VISITED: std::cell::RefCell<std::collections::HashSet<std::path::PathBuf>> =
-            std::cell::RefCell::new(std::collections::HashSet::new());
-    }
     let src_real = std::fs::canonicalize(src).unwrap_or_else(|_| src.to_path_buf());
 
     // Cycle detection: if we've already visited this real path, we have a loop.
-    let is_new = VISITED.with(|v| v.borrow_mut().insert(src_real.clone()));
+    let is_new = COPY_VISITED.with(|v| v.borrow_mut().insert(src_real.clone()));
     if !is_new {
         return Err(io::Error::other(format!(
             "symlink cycle detected while copying '{}'",
@@ -1227,7 +1236,7 @@ fn copy_dir_recursive(
     if dst.exists() {
         if !dirs_exist_ok {
             // Clean up visited entry before returning error.
-            VISITED.with(|v| { v.borrow_mut().remove(&src_real); });
+            COPY_VISITED.with(|v| { v.borrow_mut().remove(&src_real); });
             return Err(io::Error::new(
                 io::ErrorKind::AlreadyExists,
                 format!("'{}' already exists", dst.display()),
@@ -1285,7 +1294,7 @@ fn copy_dir_recursive(
         }
     }
 
-    VISITED.with(|v| { v.borrow_mut().remove(&src_real); });
+    COPY_VISITED.with(|v| { v.borrow_mut().remove(&src_real); });
     Ok(())
 }
 
