@@ -1236,7 +1236,9 @@ fn copy_dir_recursive(
     if dst.exists() {
         if !dirs_exist_ok {
             // Clean up visited entry before returning error.
-            COPY_VISITED.with(|v| { v.borrow_mut().remove(&src_real); });
+            COPY_VISITED.with(|v| {
+                v.borrow_mut().remove(&src_real);
+            });
             return Err(io::Error::new(
                 io::ErrorKind::AlreadyExists,
                 format!("'{}' already exists", dst.display()),
@@ -1294,7 +1296,9 @@ fn copy_dir_recursive(
         }
     }
 
-    COPY_VISITED.with(|v| { v.borrow_mut().remove(&src_real); });
+    COPY_VISITED.with(|v| {
+        v.borrow_mut().remove(&src_real);
+    });
     Ok(())
 }
 
