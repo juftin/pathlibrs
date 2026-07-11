@@ -68,7 +68,10 @@ fn pathlibrs(m: &Bound<'_, PyModule>) -> PyResult<()> {
     let pure_posix = m.getattr("PurePosixPath")?;
     pure_posix.setattr("parser", &posixpath_mod)?;
     let pure_path = m.getattr("PurePath")?;
-    pure_path.setattr("parser", &posixpath_mod)?;
+    // PurePath.parser = os.path (platform-native)
+    let os_mod = py.import("os")?;
+    let os_path = os_mod.getattr("path")?;
+    pure_path.setattr("parser", &os_path)?;
     let posix_path = m.getattr("PosixPath")?;
     posix_path.setattr("parser", &posixpath_mod)?;
     // Path = PosixPath on POSIX, so parser is already set
