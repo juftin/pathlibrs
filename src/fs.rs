@@ -1215,7 +1215,7 @@ fn copy_dir_recursive_reset_visited() {
     COPY_VISITED.with(|v| v.borrow_mut().clear());
 }
 
-/// Normalize a path without filesystem access (resolve . and .. components).
+/// Normalize . and .. components without filesystem access.
 fn normalize_path(path: &StdPath) -> std::path::PathBuf {
     let mut result = std::path::PathBuf::new();
     for component in path.components() {
@@ -1232,6 +1232,37 @@ fn normalize_path(path: &StdPath) -> std::path::PathBuf {
     result
 }
 
+/// Resolve symlinks in a path recursively, then normalize . and .. components.
+/// Returns the real path for cycle-detection purposes.
+fn resolve_path(path: &StdPath) -> std::path::PathBuf {
+    let mut current = path.to_path_buf();
+    let mut seen = std::collections::HashSet::new();
+    // Resolve any symlink at the tip of the path (not intermediate components).
+    // This is sufficient for cycle detection during copy operations.
+    for _ in 0..64 {
+        match std::fs::symlink_metadata(&current) {
+            Ok(md) if md.file_type().is_symlink() => {
+                let target = match std::fs::read_link(&current) {
+                    Ok(t) => t,
+                    Err(_) => break,
+                };
+                let resolved = if target.is_relative() {
+                    current.parent().unwrap_or(StdPath::new(".")).join(&target)
+                } else {
+                    target
+                };
+                if !seen.insert(resolved.clone()) {
+                    // Symlink loop detected — return as-is to avoid infinite loop.
+                    break;
+                }
+                current = resolved;
+            }
+            _ => break,
+        }
+    }
+    normalize_path(&current)
+}
+
 /// Copy a directory recursively.
 fn copy_dir_recursive(
     src: &StdPath,
@@ -1239,11 +1270,8 @@ fn copy_dir_recursive(
     follow_symlinks: bool,
     dirs_exist_ok: bool,
 ) -> Result<(), io::Error> {
-    // Use canonicalize when available; fall back to path normalization.
-    // canonicalize follows symlinks, which is needed for cycle detection;
-    // normalize_path handles . and .. so different spellings of the same
-    // directory still match.
-    let src_real = std::fs::canonicalize(src).unwrap_or_else(|_| normalize_path(src));
+    // Resolve symlinks and normalize to get a stable key for cycle detection.
+    let src_real = resolve_path(src);
 
     // Cycle detection: if we've already visited this real path, we have a loop.
     let is_new = COPY_VISITED.with(|v| v.borrow_mut().insert(src_real.clone()));
