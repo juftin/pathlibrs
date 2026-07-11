@@ -692,7 +692,11 @@ mod tests {
         // Only fileA matches
         let just_names: Vec<String> = results
             .iter()
-            .map(|p| p.to_string_lossy().replace(&*base_str, ""))
+            .map(|p| {
+                p.to_string_lossy()
+                    .replace(&*base_str, "")
+                    .replace('\\', "/")
+            })
             .filter(|s| !s.is_empty())
             .collect();
         assert_eq!(just_names, vec!["/fileA"]);
@@ -709,7 +713,8 @@ mod tests {
             .map(|p| {
                 p.to_string_lossy()
                     .replace(&*base_str, "")
-                    .trim_start_matches('/')
+                    .trim_start_matches(['/', '\\'])
+                    .replace('\\', "/")
                     .to_string()
             })
             .collect();
@@ -728,7 +733,8 @@ mod tests {
             .map(|p| {
                 p.to_string_lossy()
                     .replace(&*base_str, "")
-                    .trim_start_matches('/')
+                    .trim_start_matches(['/', '\\'])
+                    .replace('\\', "/")
                     .to_string()
             })
             .collect();
@@ -748,7 +754,8 @@ mod tests {
             .map(|p| {
                 p.to_string_lossy()
                     .replace(&*base_str, "")
-                    .trim_start_matches('/')
+                    .trim_start_matches(['/', '\\'])
+                    .replace('\\', "/")
                     .to_string()
             })
             .collect();
@@ -772,7 +779,8 @@ mod tests {
             .map(|p| {
                 p.to_string_lossy()
                     .replace(&*base_str, "")
-                    .trim_start_matches('/')
+                    .trim_start_matches(['/', '\\'])
+                    .replace('\\', "/")
                     .to_string()
             })
             .collect();
