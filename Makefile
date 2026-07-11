@@ -41,6 +41,10 @@ test-rust: ## Run Rust unit tests only (fast, no Python).
 test-python: ## Run Python test suite (smoke tests + vendored CPython tests).
 	uv run pytest tests/ -v
 
+.PHONY: test-windows
+test-windows: ## Run Windows-flavour tests on any host OS (for Linux/Mac before pushing).
+	uv run python -m pytest tests/ --windows-flavour -v
+
 ##@ Format
 
 .PHONY: fmt

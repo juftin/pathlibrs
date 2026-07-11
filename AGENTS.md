@@ -100,11 +100,12 @@ the current target listing — the Makefile is self-documenting.
 
 ### Test
 
-| Target             | Description                            |
-| ------------------ | -------------------------------------- |
-| `make test`        | All tests (Rust + Python)              |
-| `make test-rust`   | Rust unit tests only (`cargo test`)    |
-| `make test-python` | Python test suite (`pytest tests/ -v`) |
+| Target              | Description                                          |
+| ------------------- | ---------------------------------------------------- |
+| `make test`         | All tests (Rust + Python)                            |
+| `make test-rust`    | Rust unit tests only (`cargo test`)                  |
+| `make test-python`  | Python test suite (`pytest tests/ -v`)               |
+| `make test-windows` | Run Windows-flavour tests on any host OS (see below) |
 
 ### Format
 
@@ -164,6 +165,21 @@ Fast, pure-Rust tests in `src/` modules. Cover parsing, operations, pattern matc
 `tests/skips.txt` lists tests to skip because they access CPython private API (`_flavour`, `_NormalAccessor`, or any `_`-prefixed internals). **Only private-API tests should be skipped.** A public-API test in `skips.txt` is a bug to fix.
 
 The test runner (`tests/conftest.py`) handles import redirection and skip logic. Do not modify vendored test files — add skips to `skips.txt` instead.
+
+### Windows Testing on Linux/Mac
+
+The vendored test suite includes `@needs_windows` tests that normally only run on
+Windows CI runners. Use `--windows-flavour` to alias `PurePath → PureWindowsPath`
+and validate Windows path parsing on any host OS:
+
+```bash
+make test-windows
+```
+
+**Run this locally before pushing from a Linux or Mac host.** CI tests Windows
+behaviour on the Windows runner, but catching Windows-specific failures before
+pushing saves a CI cycle. This exercises the full Windows path parser (drive
+letters, UNC paths, extended-length prefixes) in pure Rust — no Windows OS needed.
 
 ## Code Style
 
