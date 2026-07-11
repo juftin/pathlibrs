@@ -441,10 +441,12 @@ fn glob_walk_single(
             PatternPart::Special(s) => {
                 // ., .., or trailing empty — append literally to the path.
                 let child = join_path(&current, s);
-                // Propagate exists flag: if current exists, the child
-                // (with . or .. or / appended) also exists in the filesystem,
-                // even if lstat would fail due to permissions on macOS.
-                stack.push((child, part_idx + 1, exists));
+                // Don't propagate the exists flag across .. boundaries.
+                // .. changes the path's semantics — we must re-check
+                // existence at the final path (e.g., fileA/.. on POSIX
+                // should fail because fileA is a regular file).
+                // The exists flag IS safe for . and / (trailing empty).
+                stack.push((child, part_idx + 1, exists && s != ".."));
             }
 
             PatternPart::Literal(s) => {
