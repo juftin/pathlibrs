@@ -1270,8 +1270,14 @@ fn copy_dir_recursive(
     follow_symlinks: bool,
     dirs_exist_ok: bool,
 ) -> Result<(), io::Error> {
+    // Normalize src so that child entry paths (e.g., read_dir results)
+    // resolve correctly when computing symlink targets.
+    // Without this, base/dirB/../dirB/linkD + ../dirB compounds to
+    // base/dirB/../dirB/../dirB instead of the intended base/dirB.
+    let src = normalize_path(src);
+
     // Resolve symlinks and normalize to get a stable key for cycle detection.
-    let src_real = resolve_path(src);
+    let src_real = resolve_path(&src);
 
     // Cycle detection: if we've already visited this real path, we have a loop.
     let is_new = COPY_VISITED.with(|v| v.borrow_mut().insert(src_real.clone()));
@@ -1297,7 +1303,7 @@ fn copy_dir_recursive(
         std::fs::create_dir_all(dst)?;
     }
 
-    for entry in std::fs::read_dir(src)? {
+    for entry in std::fs::read_dir(&src)? {
         let entry = entry?;
         let entry_name = entry.file_name();
         if entry_name == "." || entry_name == ".." {
