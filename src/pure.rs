@@ -155,6 +155,9 @@ impl PurePath {
         let raw = join_path_segments(args, PathFlavour::Posix)?;
         Ok(Self {
             inner: PathRepr::new(raw),
+            #[cfg(windows)]
+            flavour: PathFlavour::Windows,
+            #[cfg(not(windows))]
             flavour: PathFlavour::Posix,
             path_info: Mutex::new(None),
         })
@@ -467,21 +470,25 @@ impl PurePath {
             || self_parsed.root != other_parsed.root
         {
             // Anchors differ — no common prefix at all
-            return Err(pyo3::exceptions::PyValueError::new_err(format!(
-                "'{}' does not start with '{}'",
-                slf._str_repr(),
-                other_str
-            )));
-        }
-        for i in 0..min_len {
-            if crate::repr::ParsedPath::parts_equal(
-                &self_parsed.parts[i],
-                &other_parsed.parts[i],
-                slf._is_windows(),
-            ) {
-                common += 1;
-            } else {
-                break;
+            if !walk_up {
+                return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                    "'{}' does not start with '{}'",
+                    slf._str_repr(),
+                    other_str
+                )));
+            }
+            // With walk_up=True, different anchors produce all ".." segments
+        } else {
+            for i in 0..min_len {
+                if crate::repr::ParsedPath::parts_equal(
+                    &self_parsed.parts[i],
+                    &other_parsed.parts[i],
+                    slf._is_windows(),
+                ) {
+                    common += 1;
+                } else {
+                    break;
+                }
             }
         }
 
@@ -592,17 +599,42 @@ impl PurePath {
                 )));
             }
         }
-        // Build the file: URI using Python's urllib for URL encoding
-        Python::with_gil(|py| {
-            let urllib = py.import("urllib.request")?;
-            let pathname2url = urllib.getattr("pathname2url")?;
-            let encoded: String = pathname2url.call1((self.__str__(),))?.extract()?;
-            if encoded.starts_with("file:") {
-                Ok(encoded)
-            } else {
-                Ok(format!("file:{encoded}"))
+        match self.flavour {
+            PathFlavour::Posix => {
+                if p.root.is_some() {
+                    Ok(format!("file://{}", self.as_posix()))
+                } else {
+                    Ok(format!("file:{}", self.as_posix()))
+                }
             }
-        })
+            PathFlavour::Windows => {
+                if let Some(ref drive) = p.drive {
+                    let drive_str = drive.to_string_lossy();
+                    if drive_str.starts_with("\\\\") {
+                        let trimmed = drive_str
+                            .replace('\\', "/")
+                            .trim_start_matches('/')
+                            .to_string();
+                        let rest = self.as_posix()[p.anchor_length..]
+                            .trim_start_matches('/')
+                            .to_string();
+                        if rest.is_empty() {
+                            Ok(format!("file://{}/", trimmed))
+                        } else {
+                            Ok(format!("file://{}/{}", trimmed, rest))
+                        }
+                    } else {
+                        let drive_letter = drive_str.trim_end_matches(':');
+                        let rest = self.as_posix()[p.anchor_length..]
+                            .trim_start_matches('/')
+                            .to_string();
+                        Ok(format!("file:///{}:/{}", drive_letter, rest))
+                    }
+                } else {
+                    Ok(format!("file:{}", self.as_posix()))
+                }
+            }
+        }
     }
 
     #[pyo3(name = "match")]
@@ -1107,6 +1139,16 @@ impl PureWindowsPath {
 /// all previously accumulated segments are discarded and the path restarts from
 /// that anchored segment.
 fn join_path_segments(args: &Bound<'_, PyTuple>, flavour: PathFlavour) -> PyResult<OsString> {
+    // A single empty arg ("") produces an empty path, matching CPython.
+    if args.len() == 1 {
+        if let Ok(first) = args.get_item(0) {
+            let s = _extract_path_str(&first)?;
+            if s.is_empty() {
+                return Ok(OsString::from(""));
+            }
+        }
+    }
+
     let sep = if flavour == PathFlavour::Windows {
         b'\\'
     } else {
