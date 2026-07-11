@@ -1036,10 +1036,51 @@ impl PurePath {
         let other_str = _extract_path_str(other)?;
         let other_parsed = crate::parsing::parse_path(OsStr::new(&other_str), self.flavour);
         let self_parsed = self.inner.parsed(self.flavour);
-        if self._is_windows() {
-            Ok(self_parsed.eq_windows(&other_parsed))
+        if !self._is_windows() {
+            return Ok(self_parsed == &other_parsed);
+        }
+        // Quick structural check first
+        if self_parsed.root != other_parsed.root
+            || self_parsed.parts.len() != other_parsed.parts.len()
+        {
+            return Ok(false);
+        }
+        // Use Python casefold for Unicode-aware case-insensitive comparison.
+        // Fall back to ASCII-only comparison when all components are ASCII.
+        let needs_unicode = |s: &OsString| s.as_encoded_bytes().iter().any(|&b| b >= 128);
+        let any_non_ascii = self_parsed.drive.as_ref().is_some_and(needs_unicode)
+            || other_parsed.drive.as_ref().is_some_and(needs_unicode)
+            || self_parsed.parts.iter().any(&needs_unicode)
+            || other_parsed.parts.iter().any(needs_unicode);
+
+        if any_non_ascii {
+            Python::with_gil(|py| {
+                let drive_eq = match (&self_parsed.drive, &other_parsed.drive) {
+                    (Some(a), Some(b)) => {
+                        let a_py = PyString::new(py, &a.to_string_lossy());
+                        let b_py = PyString::new(py, &b.to_string_lossy());
+                        a_py.call_method0("casefold")?.extract::<String>()?
+                            == b_py.call_method0("casefold")?.extract::<String>()?
+                    }
+                    (None, None) => true,
+                    _ => false,
+                };
+                if !drive_eq {
+                    return Ok(false);
+                }
+                for (a, b) in self_parsed.parts.iter().zip(other_parsed.parts.iter()) {
+                    let a_py = PyString::new(py, &a.to_string_lossy());
+                    let b_py = PyString::new(py, &b.to_string_lossy());
+                    if a_py.call_method0("casefold")?.extract::<String>()?
+                        != b_py.call_method0("casefold")?.extract::<String>()?
+                    {
+                        return Ok(false);
+                    }
+                }
+                Ok(true)
+            })
         } else {
-            Ok(self_parsed == &other_parsed)
+            Ok(self_parsed.eq_windows(&other_parsed))
         }
     }
 
