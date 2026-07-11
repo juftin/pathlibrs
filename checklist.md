@@ -70,21 +70,21 @@
 - [ ] Pickle / `__reduce__` / `__fspath__` / `copy` full coverage
 - [ ] Benchmark suite against CPython pathlib
 - [ ] **Skip audit** — drive `skips.txt` to private-API only
-  - [ ] Audit every entry in `tests/skips.txt`
-  - [ ] Each skip is either private API or implemented
-  - [ ] Goal: zero public-API entries in `skips.txt`
+    - [ ] Audit every entry in `tests/skips.txt`
+    - [ ] Each skip is either private API or implemented
+    - [ ] Goal: zero public-API entries in `skips.txt`
 - [ ] **Automated vendored test tracking**
-  - [ ] CI workflow to fetch latest CPython `test_pathlib.py`
-  - [ ] Auto-open issue/PR on upstream test changes
+    - [ ] CI workflow to fetch latest CPython `test_pathlib.py`
+    - [ ] Auto-open issue/PR on upstream test changes
 - [ ] **Performance testing & benchmarking**
-  - [ ] Pure operations benchmark
-  - [ ] Stat operations benchmark
-  - [ ] I/O operations benchmark
-  - [ ] Directory traversal benchmark
-  - [ ] Glob benchmark (Phase 4)
-  - [ ] Mutations benchmark
-  - [ ] Memory benchmark
-  - [ ] CI workflow with regression alerting (>10% regression)
+    - [ ] Pure operations benchmark
+    - [ ] Stat operations benchmark
+    - [ ] I/O operations benchmark
+    - [ ] Directory traversal benchmark
+    - [ ] Glob benchmark (Phase 4)
+    - [ ] Mutations benchmark
+    - [ ] Memory benchmark
+    - [ ] CI workflow with regression alerting (>10% regression)
 - [ ] Acceptance: full CPython 3.14 test suite passes on all platforms (3.10–3.14)
 - [ ] Acceptance: `skips.txt` contains only private-API entries
 - [ ] Acceptance: benchmark suite runs in CI

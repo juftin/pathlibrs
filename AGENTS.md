@@ -30,6 +30,7 @@ Python callers (from pathlibrs import Path)
 ```
 
 Key design choices:
+
 - **Lazy parsing**: `PathRepr` stores an `OsString` + `OnceCell<Box<ParsedPath>>`. Parsed on first access.
 - **Separate Rust core**: All logic in testable, PyO3-free Rust modules. PyO3 classes are thin wrappers.
 - **No `_flavour` object**: Platform dispatch via compile-time `cfg` + traits — zero runtime overhead.
@@ -37,17 +38,17 @@ Key design choices:
 
 ## File Map
 
-| Source | Purpose |
-|--------|---------|
-| `src/lib.rs` | PyO3 module init, re-exports, `from_os_bytes` helper |
-| `src/repr.rs` | `PathRepr` struct, `ParsedPath`, lazy parsing |
-| `src/parsing.rs` | POSIX and Windows path parsers |
-| `src/ops.rs` | Pure path operations (stem, suffix, parent, etc.) |
-| `src/pattern.rs` | Glob/fnmatch pattern compilation and matching |
-| `src/iter.rs` | Iterator types (`PartsIter`, `ParentsIter`) |
-| `src/pure.rs` | `PurePath`, `PurePosixPath`, `PureWindowsPath` PyO3 classes |
-| `src/concrete.rs` | `Path`, `PosixPath`, `WindowsPath` PyO3 classes |
-| `src/fs.rs` | Filesystem operations: `stat`, `exists`, `is_dir`, `PathInfo`, `expanduser`, `resolve` |
+| Source            | Purpose                                                                                |
+| ----------------- | -------------------------------------------------------------------------------------- |
+| `src/lib.rs`      | PyO3 module init, re-exports, `from_os_bytes` helper                                   |
+| `src/repr.rs`     | `PathRepr` struct, `ParsedPath`, lazy parsing                                          |
+| `src/parsing.rs`  | POSIX and Windows path parsers                                                         |
+| `src/ops.rs`      | Pure path operations (stem, suffix, parent, etc.)                                      |
+| `src/pattern.rs`  | Glob/fnmatch pattern compilation and matching                                          |
+| `src/iter.rs`     | Iterator types (`PartsIter`, `ParentsIter`)                                            |
+| `src/pure.rs`     | `PurePath`, `PurePosixPath`, `PureWindowsPath` PyO3 classes                            |
+| `src/concrete.rs` | `Path`, `PosixPath`, `WindowsPath` PyO3 classes                                        |
+| `src/fs.rs`       | Filesystem operations: `stat`, `exists`, `is_dir`, `PathInfo`, `expanduser`, `resolve` |
 
 ## Build System
 
@@ -83,56 +84,56 @@ the current target listing — the Makefile is self-documenting.
 
 ### Setup & Install
 
-| Target | Description |
-|--------|-------------|
-| `make setup` | Install Python dev dependencies (`uv sync --group dev`) |
+| Target         | Description                                                         |
+| -------------- | ------------------------------------------------------------------- |
+| `make setup`   | Install Python dev dependencies (`uv sync --group dev`)             |
 | `make install` | Setup + build and install pathlibrs in dev mode (`maturin develop`) |
-| `make dev` | Alias for `install` |
+| `make dev`     | Alias for `install`                                                 |
 
 ### Build
 
-| Target | Description |
-|--------|-------------|
-| `make build` | Debug build (Rust only, no Python module) |
-| `make build-release` | Release build with LTO |
-| `make wheel` | Build release wheel into `dist/` |
+| Target               | Description                               |
+| -------------------- | ----------------------------------------- |
+| `make build`         | Debug build (Rust only, no Python module) |
+| `make build-release` | Release build with LTO                    |
+| `make wheel`         | Build release wheel into `dist/`          |
 
 ### Test
 
-| Target | Description |
-|--------|-------------|
-| `make test` | All tests (Rust + Python) |
-| `make test-rust` | Rust unit tests only (`cargo test`) |
+| Target             | Description                            |
+| ------------------ | -------------------------------------- |
+| `make test`        | All tests (Rust + Python)              |
+| `make test-rust`   | Rust unit tests only (`cargo test`)    |
 | `make test-python` | Python test suite (`pytest tests/ -v`) |
 
 ### Format
 
-| Target | Description |
-|--------|-------------|
-| `make fmt` | Format everything (Rust + Python, modifies files) |
-| `make fmt-rust` | Format Rust code (`cargo fmt`) |
-| `make fmt-python` | Format Python code (`ruff format .`) |
-| `make fmt-check` | Check formatting without modifying (CI) |
-| `make fmt-check-rust` | Check Rust formatting (`cargo fmt --check --verbose`) |
-| `make fmt-check-python` | Check Python formatting (`ruff format --check .`) |
+| Target                  | Description                                           |
+| ----------------------- | ----------------------------------------------------- |
+| `make fmt`              | Format everything (Rust + Python, modifies files)     |
+| `make fmt-rust`         | Format Rust code (`cargo fmt`)                        |
+| `make fmt-python`       | Format Python code (`ruff format .`)                  |
+| `make fmt-check`        | Check formatting without modifying (CI)               |
+| `make fmt-check-rust`   | Check Rust formatting (`cargo fmt --check --verbose`) |
+| `make fmt-check-python` | Check Python formatting (`ruff format --check .`)     |
 
 ### Lint
 
-| Target | Description |
-|--------|-------------|
-| `make lint` | Lint everything (Rust + Python) |
-| `make lint-rust` | Rust clippy with `-D warnings` |
-| `make lint-python` | Python ruff check |
+| Target             | Description                     |
+| ------------------ | ------------------------------- |
+| `make lint`        | Lint everything (Rust + Python) |
+| `make lint-rust`   | Rust clippy with `-D warnings`  |
+| `make lint-python` | Python ruff check               |
 
 ### CI & Cleanup
 
-| Target | Description |
-|--------|-------------|
-| `make check` | Format check + lint + tests — what to run before committing |
-| `make ci` | Full CI pipeline: format check, clippy, rust tests, setup, python tests |
-| `make hooks` | Run all pre-commit hooks on all files |
-| `make hooks-install` | Install pre-commit hooks into `.git/hooks` |
-| `make clean` | Remove build artifacts (`cargo clean` + dist/build/cache dirs) |
+| Target               | Description                                                             |
+| -------------------- | ----------------------------------------------------------------------- |
+| `make check`         | Format check + lint + tests — what to run before committing             |
+| `make ci`            | Full CI pipeline: format check, clippy, rust tests, setup, python tests |
+| `make hooks`         | Run all pre-commit hooks on all files                                   |
+| `make hooks-install` | Install pre-commit hooks into `.git/hooks`                              |
+| `make clean`         | Remove build artifacts (`cargo clean` + dist/build/cache dirs)          |
 
 CI uses the same `make` targets as local development — there is no drift.
 
@@ -200,18 +201,18 @@ make hooks           # run all hooks on all files (useful for CI or bulk fixups)
 
 Hooks configured in `.pre-commit-config.yaml`:
 
-| Hook | What it does |
-|------|-------------|
-| `trailing-whitespace` | Strips trailing whitespace |
-| `end-of-file-fixer` | Ensures files end with a newline |
-| `check-yaml` / `check-ast` / `check-merge-conflict` | Syntax and conflict checks |
-| `mixed-line-ending` | Enforces consistent line endings |
-| `no-commit-to-branch` | Blocks commits directly to `main` |
-| `pretty-format-toml` | Formats TOML files (excludes `uv.lock`) |
-| `ruff-format` | Formats Python code |
-| `ruff-check --fix` | Lints and auto-fixes Python code |
-| `prettier` | Formats YAML, JSON, Markdown, etc. |
-| `uv-lock` | Regenerates `uv.lock` when `pyproject.toml` changes |
+| Hook                                                | What it does                                        |
+| --------------------------------------------------- | --------------------------------------------------- |
+| `trailing-whitespace`                               | Strips trailing whitespace                          |
+| `end-of-file-fixer`                                 | Ensures files end with a newline                    |
+| `check-yaml` / `check-ast` / `check-merge-conflict` | Syntax and conflict checks                          |
+| `mixed-line-ending`                                 | Enforces consistent line endings                    |
+| `no-commit-to-branch`                               | Blocks commits directly to `main`                   |
+| `pretty-format-toml`                                | Formats TOML files (excludes `uv.lock`)             |
+| `ruff-format`                                       | Formats Python code                                 |
+| `ruff-check --fix`                                  | Lints and auto-fixes Python code                    |
+| `prettier`                                          | Formats YAML, JSON, Markdown, etc.                  |
+| `uv-lock`                                           | Regenerates `uv.lock` when `pyproject.toml` changes |
 
 **Vendored tests** (`tests/vendored/`) are excluded from all modifying hooks.
 They are unmodified CPython snapshots — never format or lint them.
@@ -259,12 +260,12 @@ This is identical to what CI does — no drift between local and remote verifica
 
 ## Implementation Phases
 
-| Phase | Description | Status |
-|-------|-------------|--------|
-| Phase 1 | Pure Paths (no I/O) | Complete |
-| Phase 2 | Filesystem Properties (stat, exists, is_dir, etc.) | Complete |
-| Phase 3 | Filesystem Mutations & I/O (mkdir, unlink, read/write, copy, move, delete) | Next |
-| Phase 4 | Glob & Pattern Matching (glob, rglob) | Upcoming |
-| Phase 5 | Parity & Maintenance (benchmarks, skips.txt audit, upstream tracking) | Upcoming |
+| Phase   | Description                                                                | Status   |
+| ------- | -------------------------------------------------------------------------- | -------- |
+| Phase 1 | Pure Paths (no I/O)                                                        | Complete |
+| Phase 2 | Filesystem Properties (stat, exists, is_dir, etc.)                         | Complete |
+| Phase 3 | Filesystem Mutations & I/O (mkdir, unlink, read/write, copy, move, delete) | Next     |
+| Phase 4 | Glob & Pattern Matching (glob, rglob)                                      | Upcoming |
+| Phase 5 | Parity & Maintenance (benchmarks, skips.txt audit, upstream tracking)      | Upcoming |
 
 Full design doc: `DESIGN.md`. Refer to it for architecture decisions, error handling strategy, and resolved design questions.
