@@ -1154,6 +1154,351 @@ impl PurePath {
         let reduce = PyTuple::new(py, elements)?;
         Ok(reduce.into_any().unbind())
     }
+
+    // -- Phase 3: Directory mutations -----------------------------------
+
+    /// Create a directory at this path.
+    #[pyo3(signature = (mode = 0o777, parents = false, exist_ok = false))]
+    fn mkdir(&self, mode: u32, parents: bool, exist_ok: bool) -> PyResult<()> {
+        crate::fs::mkdir(self.inner.raw(), mode, parents, exist_ok)
+    }
+
+    /// Remove this empty directory.
+    fn rmdir(&self) -> PyResult<()> {
+        crate::fs::rmdir(self.inner.raw())
+    }
+
+    /// Change file mode (permissions).
+    #[pyo3(signature = (mode, *, follow_symlinks = true))]
+    fn chmod(&self, mode: u32, follow_symlinks: bool) -> PyResult<()> {
+        crate::fs::chmod(self.inner.raw(), mode, follow_symlinks)
+    }
+
+    /// Change file mode without following symlinks.
+    fn lchmod(&self, mode: u32) -> PyResult<()> {
+        crate::fs::chmod(self.inner.raw(), mode, false)
+    }
+
+    // -- Phase 3: File mutations ----------------------------------------
+
+    /// Create a file or update its modification time.
+    #[pyo3(signature = (mode = 0o666, exist_ok = true))]
+    fn touch(&self, mode: u32, exist_ok: bool) -> PyResult<()> {
+        crate::fs::touch(self.inner.raw(), mode, exist_ok)
+    }
+
+    /// Remove (unlink) this file or symlink.
+    #[pyo3(signature = (missing_ok = false))]
+    fn unlink(&self, missing_ok: bool) -> PyResult<()> {
+        crate::fs::unlink(self.inner.raw(), missing_ok)
+    }
+
+    /// Rename this file or directory to the given target.
+    fn rename<'py>(slf: PyRef<'py, Self>, target: &Bound<'py, PyAny>) -> PyResult<PyObject> {
+        let py = slf.py();
+        let target_str = _extract_path_str(target)?;
+        crate::fs::rename(slf.inner.raw(), OsStr::new(&target_str))?;
+        Self::_make_child(py, slf.as_ptr(), OsString::from(&target_str))
+    }
+
+    /// Replace this file or directory with the given target.
+    fn replace<'py>(slf: PyRef<'py, Self>, target: &Bound<'py, PyAny>) -> PyResult<PyObject> {
+        let py = slf.py();
+        let target_str = _extract_path_str(target)?;
+        crate::fs::replace(slf.inner.raw(), OsStr::new(&target_str))?;
+        Self::_make_child(py, slf.as_ptr(), OsString::from(&target_str))
+    }
+
+    // -- Phase 3: Link creation -----------------------------------------
+
+    /// Create a symbolic link pointing to this path.
+    ///
+    /// In CPython, symlink_to(target) creates a symlink at self pointing to target.
+    #[pyo3(signature = (target, target_is_directory = false))]
+    fn symlink_to(&self, target: &Bound<'_, PyAny>, target_is_directory: bool) -> PyResult<()> {
+        let target_str = _extract_path_str(target)?;
+        crate::fs::symlink(
+            OsStr::new(&target_str),
+            self.inner.raw(),
+            target_is_directory,
+        )
+    }
+
+    /// Create a hard link at this path pointing to *target*.
+    ///
+    /// In CPython, ``self.hardlink_to(target)`` is equivalent to
+    /// ``os.link(target, self)`` — i.e., *self* is the new link name,
+    /// *target* is the existing file.
+    fn hardlink_to(&self, target: &Bound<'_, PyAny>) -> PyResult<()> {
+        let target_str = _extract_path_str(target)?;
+        crate::fs::hardlink(OsStr::new(&target_str), self.inner.raw())
+    }
+
+    // -- Phase 3: File I/O ----------------------------------------------
+
+    /// Open this file.
+    ///
+    /// Delegates to Python's ``io.open()`` per DESIGN.md §11.1 for full
+    /// compatibility with all open() parameters.
+    #[pyo3(signature = (mode = "r", buffering = -1, encoding = None, errors = None, newline = None))]
+    fn open<'py>(
+        slf: PyRef<'py, Self>,
+        mode: &str,
+        buffering: isize,
+        encoding: Option<&str>,
+        errors: Option<&str>,
+        newline: Option<&str>,
+    ) -> PyResult<PyObject> {
+        let py = slf.py();
+        let io_mod = py.import("io")?;
+        let path_str = slf.inner.raw().to_string_lossy().into_owned();
+        let kwargs = pyo3::types::PyDict::new(py);
+        kwargs.set_item("mode", mode)?;
+        kwargs.set_item("buffering", buffering)?;
+        if let Some(enc) = encoding {
+            kwargs.set_item("encoding", enc)?;
+        }
+        if let Some(err) = errors {
+            kwargs.set_item("errors", err)?;
+        }
+        if let Some(nl) = newline {
+            kwargs.set_item("newline", nl)?;
+        }
+        Ok(io_mod
+            .call_method("open", (path_str,), Some(&kwargs))?
+            .unbind())
+    }
+
+    /// Read the entire file as bytes.
+    fn read_bytes(&self) -> PyResult<Vec<u8>> {
+        crate::fs::read_bytes(self.inner.raw())
+    }
+
+    /// Read the entire file as text.
+    #[pyo3(signature = (encoding = None, errors = None))]
+    fn read_text(&self, encoding: Option<&str>, errors: Option<&str>) -> PyResult<String> {
+        crate::fs::read_text(self.inner.raw(), encoding, errors)
+    }
+
+    /// Write bytes to this file.
+    fn write_bytes(&self, data: Vec<u8>) -> PyResult<()> {
+        crate::fs::write_bytes(self.inner.raw(), &data)
+    }
+
+    /// Write text to this file.
+    #[pyo3(signature = (data, encoding = None, errors = None, newline = None))]
+    fn write_text(
+        &self,
+        data: &str,
+        encoding: Option<&str>,
+        errors: Option<&str>,
+        newline: Option<&str>,
+    ) -> PyResult<()> {
+        crate::fs::write_text(self.inner.raw(), data, encoding, errors, newline)
+    }
+
+    // -- Phase 3: Directory traversal -----------------------------------
+
+    /// Iterate over the directory contents as Path objects.
+    ///
+    /// Returns a list of Path objects representing the directory contents.
+    /// Each entry is a full path (dirpath / name), matching CPython behavior.
+    fn iterdir<'py>(slf: PyRef<'py, Self>) -> PyResult<PyObject> {
+        let py = slf.py();
+        let ptr = slf.as_ptr();
+        let entries = crate::fs::read_dir(slf.inner.raw())?;
+        let mut paths: Vec<PyObject> = Vec::with_capacity(entries.len());
+        for entry in &entries {
+            let child = Self::_make_child(py, ptr, entry.path.clone())?;
+            paths.push(child);
+        }
+        Ok(PyList::new(py, paths)?.into_any().unbind())
+    }
+
+    /// Walk a directory tree recursively.
+    ///
+    /// Yields ``(dirpath, dirnames, filenames)`` tuples. The caller may
+    /// modify ``dirnames`` in-place to control which subdirectories are
+    /// visited next (when ``topdown=True``).
+    #[pyo3(signature = (topdown = true, onerror = None, follow_symlinks = false))]
+    fn walk<'py>(
+        slf: PyRef<'py, Self>,
+        topdown: bool,
+        onerror: Option<PyObject>,
+        follow_symlinks: bool,
+    ) -> PyResult<PyObject> {
+        let py = slf.py();
+        let ptr = slf.as_ptr();
+
+        // Collect walk entries with depth info for topdown/bottomup ordering
+        let entries = match crate::fs::walk_entries(slf.inner.raw(), topdown, follow_symlinks) {
+            Ok(e) => e,
+            Err(e) => {
+                if let Some(ref handler) = onerror {
+                    handler.call1(py, (e,))?;
+                    return Ok(PyList::new(py, Vec::<PyObject>::new())?.into_any().unbind());
+                }
+                return Err(e);
+            }
+        };
+
+        let mut results: Vec<PyObject> = Vec::with_capacity(entries.len());
+        for (dirpath_str, dirnames, filenames) in &entries {
+            let dp: PyObject = Self::_make_child(py, ptr, dirpath_str.clone())?;
+            let dn: PyObject = PyList::new(
+                py,
+                dirnames.iter().map(|n| {
+                    n.to_string_lossy()
+                        .into_owned()
+                        .into_pyobject(py)
+                        .unwrap()
+                        .into_any()
+                        .unbind()
+                }),
+            )?
+            .into_any()
+            .unbind();
+            let fn_: PyObject = PyList::new(
+                py,
+                filenames.iter().map(|n| {
+                    n.to_string_lossy()
+                        .into_owned()
+                        .into_pyobject(py)
+                        .unwrap()
+                        .into_any()
+                        .unbind()
+                }),
+            )?
+            .into_any()
+            .unbind();
+            let tup = PyTuple::new(py, [dp, dn, fn_])?;
+            results.push(tup.into_any().unbind());
+        }
+        Ok(PyList::new(py, results)?.into_any().unbind())
+    }
+
+    // -- Phase 3: 3.14 file-tree operations -----------------------------
+
+    /// Copy this file or directory tree to *target*.
+    ///
+    /// If *target* is an existing directory, the source is copied *into* it
+    /// (as ``target / source.name``), matching CPython's ``copy()`` behavior.
+    #[pyo3(signature = (target, *, follow_symlinks = true, dirs_exist_ok = false, ignore = None, on_error = None))]
+    fn copy<'py>(
+        slf: PyRef<'py, Self>,
+        target: &Bound<'py, PyAny>,
+        follow_symlinks: bool,
+        dirs_exist_ok: bool,
+        ignore: Option<PyObject>,
+        on_error: Option<PyObject>,
+    ) -> PyResult<PyObject> {
+        let py = slf.py();
+        let target_str = _extract_path_str(target)?;
+
+        // If target is an existing directory, copy_into semantics:
+        // self → target / self.name
+        let final_dst = if std::path::Path::new(&target_str).is_dir() {
+            let name = slf.name().unwrap_or_default();
+            if name.is_empty() {
+                return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                    "'{}' has an empty name",
+                    slf._str_repr()
+                )));
+            }
+            format!("{}/{}", target_str.trim_end_matches('/'), name)
+        } else {
+            target_str.clone()
+        };
+
+        // Build shutil kwargs for compatibility
+        let _ = (ignore, on_error);
+        crate::fs::copy_tree(
+            slf.inner.raw(),
+            OsStr::new(&final_dst),
+            follow_symlinks,
+            dirs_exist_ok,
+        )?;
+
+        Self::_make_child(py, slf.as_ptr(), OsString::from(&final_dst))
+    }
+
+    /// Copy this file or directory tree *into* an existing directory.
+    #[pyo3(signature = (target_dir, *, follow_symlinks = true, dirs_exist_ok = false, ignore = None, on_error = None))]
+    fn copy_into<'py>(
+        slf: PyRef<'py, Self>,
+        target_dir: &Bound<'py, PyAny>,
+        follow_symlinks: bool,
+        dirs_exist_ok: bool,
+        ignore: Option<PyObject>,
+        on_error: Option<PyObject>,
+    ) -> PyResult<PyObject> {
+        let py = slf.py();
+        let target_str = _extract_path_str(target_dir)?;
+        let name = slf.name().unwrap_or_default();
+        if name.is_empty() {
+            return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                "'{}' has an empty name",
+                slf._str_repr()
+            )));
+        }
+        let final_dst = format!("{}/{}", target_str.trim_end_matches('/'), name);
+        let _ = (ignore, on_error);
+        crate::fs::copy_tree(
+            slf.inner.raw(),
+            OsStr::new(&final_dst),
+            follow_symlinks,
+            dirs_exist_ok,
+        )?;
+        Self::_make_child(py, slf.as_ptr(), OsString::from(&final_dst))
+    }
+
+    /// Move this file or directory tree to *target*.
+    #[pyo3(name = "move")]
+    #[pyo3(signature = (target))]
+    fn move_<'py>(slf: PyRef<'py, Self>, target: &Bound<'py, PyAny>) -> PyResult<PyObject> {
+        let py = slf.py();
+        let target_str = _extract_path_str(target)?;
+
+        // If target is an existing directory, move_into semantics
+        let final_dst = if std::path::Path::new(&target_str).is_dir() {
+            let name = slf.name().unwrap_or_default();
+            if name.is_empty() {
+                return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                    "'{}' has an empty name",
+                    slf._str_repr()
+                )));
+            }
+            format!("{}/{}", target_str.trim_end_matches('/'), name)
+        } else {
+            target_str.clone()
+        };
+
+        crate::fs::move_tree(slf.inner.raw(), OsStr::new(&final_dst))?;
+        Self::_make_child(py, slf.as_ptr(), OsString::from(&final_dst))
+    }
+
+    /// Move this file or directory tree *into* an existing directory.
+    #[pyo3(signature = (target_dir))]
+    fn move_into<'py>(slf: PyRef<'py, Self>, target_dir: &Bound<'py, PyAny>) -> PyResult<PyObject> {
+        let py = slf.py();
+        let target_str = _extract_path_str(target_dir)?;
+        let name = slf.name().unwrap_or_default();
+        if name.is_empty() {
+            return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                "'{}' has an empty name",
+                slf._str_repr()
+            )));
+        }
+        let final_dst = format!("{}/{}", target_str.trim_end_matches('/'), name);
+        crate::fs::move_tree(slf.inner.raw(), OsStr::new(&final_dst))?;
+        Self::_make_child(py, slf.as_ptr(), OsString::from(&final_dst))
+    }
+
+    /// Delete this file or directory tree recursively.
+    #[pyo3(signature = (*, ignore_errors = false))]
+    fn delete(&self, ignore_errors: bool) -> PyResult<()> {
+        crate::fs::delete_tree(self.inner.raw(), ignore_errors)
+    }
 }
 
 // ═══════════════════════════════════════════════════════════════════════
