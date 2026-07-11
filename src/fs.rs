@@ -796,7 +796,25 @@ pub fn touch(path: &OsStr, mode: u32, exist_ok: bool) -> PyResult<()> {
 /// Remove (unlink) a file or symlink.
 pub fn unlink(path: &OsStr, missing_ok: bool) -> PyResult<()> {
     let path_buf = StdPath::new(path).to_path_buf();
-    let result = Python::with_gil(|py| py.allow_threads(|| std::fs::remove_file(&path_buf)));
+    let result = Python::with_gil(|py| {
+        py.allow_threads(|| -> Result<(), io::Error> {
+            match std::fs::remove_file(&path_buf) {
+                Ok(()) => Ok(()),
+                Err(e) => {
+                    // On Windows, remove_file fails for directory symlinks.
+                    // Fall back to remove_dir if the path is a directory.
+                    #[cfg(windows)]
+                    if std::fs::symlink_metadata(&path_buf)
+                        .map(|m| m.is_dir())
+                        .unwrap_or(false)
+                    {
+                        return std::fs::remove_dir(&path_buf);
+                    }
+                    Err(e)
+                }
+            }
+        })
+    });
     match result {
         Ok(()) => Ok(()),
         Err(e) => {
