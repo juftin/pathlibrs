@@ -194,8 +194,8 @@ impl PurePath {
         self._anchor_str()
     }
 
-    #[getter]
-    fn name(&self) -> Option<String> {
+    /// Internal: return the name, or `None` when there is no name.
+    fn _name_option(&self) -> Option<String> {
         let p = self.inner.parsed(self.flavour);
         if !p.has_name {
             return None;
@@ -204,8 +204,13 @@ impl PurePath {
     }
 
     #[getter]
+    fn name(&self) -> String {
+        self._name_option().unwrap_or_default()
+    }
+
+    #[getter]
     fn suffix(&self) -> String {
-        match self.name() {
+        match self._name_option() {
             Some(ref n) => suffix_from_name(OsStr::new(n))
                 .map(|s| s.to_string_lossy().into_owned())
                 .unwrap_or_default(),
@@ -215,7 +220,7 @@ impl PurePath {
 
     #[getter]
     fn suffixes(&self) -> Vec<String> {
-        match self.name() {
+        match self._name_option() {
             Some(ref n) => ops::suffixes_from_name(OsStr::new(n))
                 .iter()
                 .map(|s| s.to_string_lossy().into_owned())
@@ -226,7 +231,7 @@ impl PurePath {
 
     #[getter]
     fn stem(&self) -> String {
-        match self.name() {
+        match self._name_option() {
             Some(ref n) => stem_from_name(OsStr::new(n))
                 .map(|s| s.to_string_lossy().into_owned())
                 .unwrap_or_default(),
@@ -258,23 +263,27 @@ impl PurePath {
     #[getter]
     fn parts<'py>(slf: PyRef<'py, Self>, py: Python<'py>) -> PyResult<PyObject> {
         let p = slf.inner.parsed(slf.flavour);
-        let mut items: Vec<PyObject> = Vec::with_capacity(p.parts.len() + 2);
-        items.push(
-            p.drive
-                .as_ref()
-                .map(|s| s.to_string_lossy().into_owned())
-                .unwrap_or_default()
-                .into_pyobject(py)?
-                .into(),
-        );
-        items.push(
-            p.root
-                .as_ref()
-                .map(|s| s.to_string_lossy().into_owned())
-                .unwrap_or_default()
-                .into_pyobject(py)?
-                .into(),
-        );
+        // CPython PurePath.parts: (drive + root) as the first element
+        // when an anchor is present, then the normalized path parts.
+        let mut items: Vec<PyObject> = Vec::with_capacity(p.parts.len() + 1);
+        let drive = p
+            .drive
+            .as_ref()
+            .map(|s| s.as_encoded_bytes())
+            .unwrap_or(b"");
+        let root = p.root.as_ref().map(|s| s.as_encoded_bytes()).unwrap_or(b"");
+        if !drive.is_empty() || !root.is_empty() {
+            // Combine drive + root into a single anchor part.
+            let mut anchor = Vec::with_capacity(drive.len() + root.len());
+            anchor.extend_from_slice(drive);
+            anchor.extend_from_slice(root);
+            items.push(
+                crate::from_os_bytes(&anchor)
+                    .to_os_string()
+                    .into_pyobject(py)?
+                    .into(),
+            );
+        }
         for part in &p.parts {
             items.push(
                 part.to_string_lossy()
@@ -315,10 +324,16 @@ impl PurePath {
     }
 
     fn with_name<'py>(slf: PyRef<'py, Self>, name: &str) -> PyResult<PyObject> {
-        if slf.name().is_none() {
+        if slf._name_option().is_none() {
             return Err(pyo3::exceptions::PyValueError::new_err(format!(
                 "'{}' has an empty name",
                 slf._str_repr()
+            )));
+        }
+        // Reject empty and reserved names.
+        if name.is_empty() || name == "." || name == ".." {
+            return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                "Invalid name '{name}'"
             )));
         }
         // Reject invalid characters in the new name.
@@ -342,13 +357,13 @@ impl PurePath {
     }
 
     fn with_stem<'py>(slf: PyRef<'py, Self>, stem: &str) -> PyResult<PyObject> {
-        if slf.name().is_none() {
+        if slf._name_option().is_none() {
             return Err(pyo3::exceptions::PyValueError::new_err(format!(
                 "'{}' has an empty name",
                 slf._str_repr()
             )));
         }
-        let name = slf.name().unwrap_or_default();
+        let name = slf._name_option().unwrap_or_default();
         let old_suffix = suffix_from_name(OsStr::new(&name))
             .map(|s| s.to_string_lossy().into_owned())
             .unwrap_or_default();
@@ -357,7 +372,7 @@ impl PurePath {
     }
 
     fn with_suffix<'py>(slf: PyRef<'py, Self>, suffix: &str) -> PyResult<PyObject> {
-        let name = slf.name().unwrap_or_default();
+        let name = slf._name_option().unwrap_or_default();
         let old_stem = stem_from_name(OsStr::new(&name))
             .map(|s| s.to_string_lossy().into_owned())
             .unwrap_or_else(|| name.clone());
@@ -1126,6 +1141,10 @@ impl PurePath {
 
     fn __str__(&self) -> String {
         let raw = self.inner.raw().to_string_lossy().into_owned();
+        if raw.is_empty() {
+            // Empty path points to current directory, same as '.'.
+            return ".".to_string();
+        }
         if self._is_windows() {
             raw.replace('/', "\\")
         } else {
@@ -1138,7 +1157,9 @@ impl PurePath {
             PathFlavour::Posix => "PurePosixPath",
             PathFlavour::Windows => "PureWindowsPath",
         };
-        format!("{}('{}')", class_name, self._str_repr())
+        let inner = self._str_repr();
+        let inner = if inner.is_empty() { "." } else { &inner };
+        format!("{}('{}')", class_name, inner)
     }
 
     fn __fspath__(&self) -> String {
@@ -1546,7 +1567,7 @@ impl PurePath {
     ) -> PyResult<PyObject> {
         let py = slf.py();
         let target_str = _extract_path_str(target_dir)?;
-        let name = slf.name().unwrap_or_default();
+        let name = slf._name_option().unwrap_or_default();
         if name.is_empty() {
             return Err(pyo3::exceptions::PyValueError::new_err(format!(
                 "'{}' has an empty name",
@@ -1592,7 +1613,7 @@ impl PurePath {
     fn move_into<'py>(slf: PyRef<'py, Self>, target_dir: &Bound<'py, PyAny>) -> PyResult<PyObject> {
         let py = slf.py();
         let target_str = _extract_path_str(target_dir)?;
-        let name = slf.name().unwrap_or_default();
+        let name = slf._name_option().unwrap_or_default();
         if name.is_empty() {
             return Err(pyo3::exceptions::PyValueError::new_err(format!(
                 "'{}' has an empty name",

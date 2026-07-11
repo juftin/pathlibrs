@@ -8,11 +8,12 @@ class TestPurePosixPath:
 
     def test_empty(self) -> None:
         p = PurePosixPath("")
-        assert str(p) == ""
+        # CPython normalizes the empty path to '.' (current directory).
+        assert str(p) == "."
         assert p.drive == ""
         assert p.root == ""
         assert p.anchor == ""
-        assert p.name is None
+        assert p.name == ""
         assert p.stem == ""
         assert p.suffix == ""
 
@@ -39,12 +40,12 @@ class TestPurePosixPath:
         p = PurePosixPath("/")
         assert str(p) == "/"
         assert p.root == "/"
-        assert p.name is None
-        assert p.parts == ("", "/")
+        assert p.name == ""
+        assert p.parts == ("/",)
 
     def test_parts(self) -> None:
         p = PurePosixPath("/usr/local/bin")
-        assert p.parts == ("", "/", "usr", "local", "bin")
+        assert p.parts == ("/", "usr", "local", "bin")
 
     def test_parent(self) -> None:
         p = PurePosixPath("/foo/bar/baz")
@@ -190,7 +191,7 @@ class TestPureWindowsPath:
         assert p.root == "\\"
         assert p.anchor == "C:\\"
         assert p.name == "System32"
-        assert p.parts == ("C:", "\\", "Windows", "System32")
+        assert p.parts == ("C:\\", "Windows", "System32")
 
     def test_drive_relative(self) -> None:
         p = PureWindowsPath("C:Users")
@@ -334,7 +335,8 @@ class TestNewFeatures:
 
     def test_with_segments_empty(self) -> None:
         result = PurePosixPath.with_segments()
-        assert str(result) == ""
+        # Empty segments() returns the current directory ('.').
+        assert str(result) == "."
 
     def test_with_segments_windows(self) -> None:
         result = PureWindowsPath.with_segments("C:", "Users", "Name")

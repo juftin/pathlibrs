@@ -60,7 +60,6 @@ PathSubclassTest.test_delete_symlink
 PathSubclassTest.test_delete_unwritable
 PathSubclassTest.test_different_parsers_unequal
 PathSubclassTest.test_different_parsers_unordered
-PathSubclassTest.test_empty_path
 PathSubclassTest.test_eq_common
 PathSubclassTest.test_eq_posix
 PathSubclassTest.test_equivalences
@@ -119,7 +118,6 @@ PathSubclassTest.test_move_into
 PathSubclassTest.test_move_into_empty_name
 PathSubclassTest.test_move_into_empty_name_other_os
 PathSubclassTest.test_move_into_other_os
-PathSubclassTest.test_name_empty
 # REMOVED: PathSubclassTest.test_open_common
 # REMOVED: PathSubclassTest.test_open_mode
 # REMOVED: PathSubclassTest.test_open_unbuffered
@@ -135,18 +133,13 @@ PathSubclassTest.test_resolve_dot
 PathSubclassTest.test_resolve_loop
 PathSubclassTest.test_resolve_nonexist_relative_issue38671
 PathSubclassTest.test_rmdir
-PathSubclassTest.test_root_common
-PathSubclassTest.test_root_posix
-PathSubclassTest.test_stem_empty
 # REMOVED: PathSubclassTest.test_symlink_to
 # REMOVED: PathSubclassTest.test_touch_common
 # REMOVED: PathSubclassTest.test_touch_mode
 # REMOVED: PathSubclassTest.test_touch_nochange
 # REMOVED: PathSubclassTest.test_unlink
 # REMOVED: PathSubclassTest.test_unlink_missing_ok
-PathSubclassTest.test_with_name_empty
 PathSubclassTest.test_with_segments
-PathSubclassTest.test_with_stem_empty
 
 # -- PathTest — concrete I/O tests (Phase 2+)
 PathTest.test_as_bytes_common
@@ -189,7 +182,6 @@ PathTest.test_delete_symlink
 PathTest.test_delete_unwritable
 PathTest.test_different_parsers_unequal
 PathTest.test_different_parsers_unordered
-PathTest.test_empty_path
 PathTest.test_eq_common
 PathTest.test_eq_posix
 PathTest.test_equivalences
@@ -240,7 +232,6 @@ PathTest.test_move_into
 PathTest.test_move_into_empty_name
 PathTest.test_move_into_empty_name_other_os
 PathTest.test_move_into_other_os
-PathTest.test_name_empty
 # REMOVED: PathTest.test_open_common
 # REMOVED: PathTest.test_open_mode
 # REMOVED: PathTest.test_open_unbuffered
@@ -253,18 +244,13 @@ PathTest.test_replace
 PathTest.test_repr_common
 PathTest.test_repr_roundtrips
 PathTest.test_rmdir
-PathTest.test_root_common
-PathTest.test_root_posix
-PathTest.test_stem_empty
 # REMOVED: PathTest.test_symlink_to
 # REMOVED: PathTest.test_touch_common
 # REMOVED: PathTest.test_touch_mode
 # REMOVED: PathTest.test_touch_nochange
 # REMOVED: PathTest.test_unlink
 # REMOVED: PathTest.test_unlink_missing_ok
-PathTest.test_with_name_empty
 PathTest.test_with_segments
-PathTest.test_with_stem_empty
 
 # -- PathWalkTest — walk tests (Phase 2+)
 PathWalkTest.test_walk_above_recursion_limit
@@ -314,7 +300,6 @@ PosixPathTest.test_delete_symlink
 PosixPathTest.test_delete_unwritable
 PosixPathTest.test_different_parsers_unequal
 PosixPathTest.test_different_parsers_unordered
-PosixPathTest.test_empty_path
 PosixPathTest.test_eq_common
 PosixPathTest.test_equivalences
 PosixPathTest.test_from_uri_pathname2url_posix
@@ -363,7 +348,6 @@ PosixPathTest.test_move_into
 PosixPathTest.test_move_into_empty_name
 PosixPathTest.test_move_into_empty_name_other_os
 PosixPathTest.test_move_into_other_os
-PosixPathTest.test_name_empty
 # REMOVED: PosixPathTest.test_open_common
 # REMOVED: PosixPathTest.test_open_mode
 # REMOVED: PosixPathTest.test_open_unbuffered
@@ -376,16 +360,13 @@ PosixPathTest.test_replace
 PosixPathTest.test_repr_common
 PosixPathTest.test_repr_roundtrips
 PosixPathTest.test_rmdir
-PosixPathTest.test_stem_empty
 # REMOVED: PosixPathTest.test_symlink_to
 # REMOVED: PosixPathTest.test_touch_common
 # REMOVED: PosixPathTest.test_touch_mode
 # REMOVED: PosixPathTest.test_touch_nochange
 # REMOVED: PosixPathTest.test_unlink
 # REMOVED: PosixPathTest.test_unlink_missing_ok
-PosixPathTest.test_with_name_empty
 PosixPathTest.test_with_segments
-PosixPathTest.test_with_stem_empty
 
 # -- PurePathSubclassTest — subclass init chain differences
 PurePathSubclassTest.test_as_bytes_common
@@ -405,7 +386,6 @@ PurePathSubclassTest.test_different_parsers_unordered
 PurePathSubclassTest.test_div_nested
 PurePathSubclassTest.test_drive_common
 PurePathSubclassTest.test_drive_windows
-PurePathSubclassTest.test_empty_path
 PurePathSubclassTest.test_eq_common
 PurePathSubclassTest.test_eq_posix
 PurePathSubclassTest.test_eq_windows
@@ -423,7 +403,6 @@ PurePathSubclassTest.test_match_common
 PurePathSubclassTest.test_match_empty
 PurePathSubclassTest.test_match_posix
 PurePathSubclassTest.test_match_windows
-PurePathSubclassTest.test_name_empty
 PurePathSubclassTest.test_ordering_common
 PurePathSubclassTest.test_ordering_windows
 PurePathSubclassTest.test_parse_path_common
@@ -434,17 +413,12 @@ PurePathSubclassTest.test_pickling_common
 PurePathSubclassTest.test_relative_to_common
 PurePathSubclassTest.test_relative_to_windows
 PurePathSubclassTest.test_repr_common
-PurePathSubclassTest.test_root_common
-PurePathSubclassTest.test_root_posix
 PurePathSubclassTest.test_root_windows
-PurePathSubclassTest.test_stem_empty
 PurePathSubclassTest.test_str_common
 PurePathSubclassTest.test_str_subclass_common
 PurePathSubclassTest.test_str_subclass_windows
 PurePathSubclassTest.test_str_windows
-PurePathSubclassTest.test_with_name_empty
 PurePathSubclassTest.test_with_name_windows
-PurePathSubclassTest.test_with_stem_empty
 PurePathSubclassTest.test_with_stem_windows
 
 # -- PurePathTest — base pure path tests for unimplemented features
@@ -459,7 +433,6 @@ PurePathTest.test_concrete_parser
 PurePathTest.test_constructor_nested
 PurePathTest.test_different_parsers_unequal
 PurePathTest.test_different_parsers_unordered
-PurePathTest.test_empty_path
 PurePathTest.test_eq_common
 PurePathTest.test_equivalences
 PurePathTest.test_full_match_case_sensitive
@@ -469,16 +442,12 @@ PurePathTest.test_is_reserved_deprecated
 PurePathTest.test_join_nested
 PurePathTest.test_match_common
 PurePathTest.test_match_empty
-PurePathTest.test_name_empty
 PurePathTest.test_parse_path_common
 PurePathTest.test_parse_path_posix
 PurePathTest.test_parse_windows_path
 PurePathTest.test_relative_to_common
 PurePathTest.test_repr_common
 PurePathTest.test_repr_roundtrips
-PurePathTest.test_stem_empty
-PurePathTest.test_with_name_empty
-PurePathTest.test_with_stem_empty
 
 # -- PurePosixPathTest — POSIX pure path tests for unimplemented features
 PurePosixPathTest.test_as_bytes_common
@@ -490,7 +459,6 @@ PurePosixPathTest.test_bytes_exc_message
 PurePosixPathTest.test_constructor_nested
 PurePosixPathTest.test_different_parsers_unequal
 PurePosixPathTest.test_different_parsers_unordered
-PurePosixPathTest.test_empty_path
 PurePosixPathTest.test_eq_common
 PurePosixPathTest.test_equivalences
 PurePosixPathTest.test_full_match_case_sensitive
@@ -500,14 +468,10 @@ PurePosixPathTest.test_is_reserved_deprecated
 PurePosixPathTest.test_join_nested
 PurePosixPathTest.test_match_common
 PurePosixPathTest.test_match_empty
-PurePosixPathTest.test_name_empty
 PurePosixPathTest.test_parse_path_common
 PurePosixPathTest.test_parse_path_posix
 PurePosixPathTest.test_parse_windows_path
 PurePosixPathTest.test_relative_to_common
-PurePosixPathTest.test_stem_empty
-PurePosixPathTest.test_with_name_empty
-PurePosixPathTest.test_with_stem_empty
 
 # -- PureWindowsPathTest — Windows pure path tests for unimplemented features
 PureWindowsPathTest.test_as_bytes_common
@@ -520,7 +484,6 @@ PureWindowsPathTest.test_constructor_nested_foreign_flavour
 PureWindowsPathTest.test_different_parsers_unequal
 PureWindowsPathTest.test_different_parsers_unordered
 PureWindowsPathTest.test_drive_windows
-PureWindowsPathTest.test_empty_path
 PureWindowsPathTest.test_eq_common
 PureWindowsPathTest.test_eq_windows
 PureWindowsPathTest.test_equivalences
@@ -535,19 +498,15 @@ PureWindowsPathTest.test_join_nested
 PureWindowsPathTest.test_match_common
 PureWindowsPathTest.test_match_empty
 PureWindowsPathTest.test_match_windows
-PureWindowsPathTest.test_name_empty
 PureWindowsPathTest.test_ordering_windows
 PureWindowsPathTest.test_parse_path_common
 PureWindowsPathTest.test_parse_path_windows
 PureWindowsPathTest.test_relative_to_common
 PureWindowsPathTest.test_relative_to_windows
 PureWindowsPathTest.test_repr_common
-PureWindowsPathTest.test_stem_empty
 PureWindowsPathTest.test_str_common
 PureWindowsPathTest.test_str_windows
-PureWindowsPathTest.test_with_name_empty
 PureWindowsPathTest.test_with_name_windows
-PureWindowsPathTest.test_with_stem_empty
 PureWindowsPathTest.test_with_stem_windows
 
 # -- UnsupportedOperationTest — NotImplemented semantics
