@@ -256,6 +256,28 @@ fn path_exists(path: &OsStr) -> bool {
     false
 }
 
+/// Resolve the actual (case-correct) filename from a parent directory.
+///
+/// On case-insensitive filesystems (Windows, macOS default APFS),
+/// a case-insensitive path-existence check can match ``FILEa`` against
+/// a file named ``fileA``.  This function returns the filesystem’s
+/// real name so that glob results use the actual case.
+fn resolve_actual_filename(parent: &OsStr, literal: &str) -> OsString {
+    if let Ok(dir) = std::fs::read_dir(StdPath::new(parent)) {
+        for entry in dir.flatten() {
+            if entry
+                .file_name()
+                .as_encoded_bytes()
+                .eq_ignore_ascii_case(literal.as_bytes())
+            {
+                return entry.file_name();
+            }
+        }
+    }
+    // Fallback: return the literal as-is
+    OsString::from(literal)
+}
+
 /// A simplified directory entry for glob traversal.
 struct GlobEntry {
     path: OsString,
@@ -439,38 +461,29 @@ fn glob_walk_single(
             }
 
             PatternPart::Literal(s) => {
-                // Always use scandir + fnmatch for literal matching.
-                // CPython's glob always uses scandir at every level,
-                // which ensures returned paths use the filesystem's
-                // actual casing rather than the pattern's literal.
-                let has_trailing_slash = !is_last
-                    && matches!(&parts[part_idx + 1], PatternPart::Special(s_) if s_.is_empty());
-                let is_effectively_last = is_last || has_trailing_slash;
-
-                if let Ok(entries) = scandir(&current) {
-                    for entry in entries {
-                        if !fnmatch_bytes(
-                            s.as_bytes(),
-                            entry.name.as_encoded_bytes(),
-                            opts.case_sensitive,
-                        ) {
-                            continue;
-                        }
-                        let child = join_path(&current, &entry.name.to_string_lossy());
-                        if is_effectively_last {
-                            if has_trailing_slash && !entry.followed_is_dir {
-                                continue;
-                            }
-                            if has_trailing_slash {
-                                let mut child_bytes = child.as_encoded_bytes().to_vec();
-                                child_bytes.push(b'/');
-                                results.push(crate::from_os_bytes(&child_bytes).to_os_string());
-                            } else {
-                                results.push(child);
-                            }
-                        } else if entry.followed_is_dir {
-                            stack.push((child, part_idx + 1, true));
-                        }
+                // Fast path: join the literal to the path and check existence.
+                // This inherits the filesystem's own case sensitivity.
+                // On case-insensitive filesystems (macOS APFS, Windows),
+                // path_exists("FILEa") will match file "fileA".
+                // On case-sensitive filesystems (Linux), only exact case matches.
+                // After confirming existence, resolve the actual filesystem name
+                // so returned paths use the real case, not the pattern literal.
+                let child = join_path(&current, s);
+                if is_last {
+                    if path_exists(&child) {
+                        let actual = resolve_actual_filename(&current, s);
+                        let child = join_path(&current, &actual.to_string_lossy());
+                        results.push(child);
+                    }
+                } else {
+                    let next_is_trailing_empty = part_idx + 1 < parts.len()
+                        && matches!(&parts[part_idx + 1], PatternPart::Special(s_) if s_.is_empty());
+                    if path_exists(&child)
+                        && (next_is_trailing_empty || StdPath::new(&child).is_dir())
+                    {
+                        let actual = resolve_actual_filename(&current, s);
+                        let child = join_path(&current, &actual.to_string_lossy());
+                        stack.push((child, part_idx + 1, true));
                     }
                 }
             }
