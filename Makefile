@@ -87,6 +87,14 @@ check: fmt-check lint test ## Run format check + lint + tests — what to run be
 ci: fmt-check-rust lint-rust test-rust setup test-python ## Full CI pipeline (same as what runs in GitHub Actions).
 	@echo "All CI checks passed."
 
+.PHONY: hooks
+hooks: ## Run all pre-commit hooks on all files.
+	pre-commit run --all-files
+
+.PHONY: hooks-install
+hooks-install: ## Install pre-commit hooks into .git/hooks.
+	pre-commit install
+
 .PHONY: clean
 clean: ## Remove build artifacts (target/, dist/, caches).
 	cargo clean

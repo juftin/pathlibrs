@@ -130,6 +130,8 @@ the current target listing — the Makefile is self-documenting.
 |--------|-------------|
 | `make check` | Format check + lint + tests — what to run before committing |
 | `make ci` | Full CI pipeline: format check, clippy, rust tests, setup, python tests |
+| `make hooks` | Run all pre-commit hooks on all files |
+| `make hooks-install` | Install pre-commit hooks into `.git/hooks` |
 | `make clean` | Remove build artifacts (`cargo clean` + dist/build/cache dirs) |
 
 CI uses the same `make` targets as local development — there is no drift.
@@ -186,6 +188,33 @@ The test runner (`tests/conftest.py`) handles import redirection and skip logic.
 - **New methods**: implement in the Rust core first (e.g., `ops.rs` or `fs.rs`), then expose through a thin `#[pymethod]` on the PyO3 class.
 - **Commits**: gitmoji conventional commits (`✨`, `🐛`, `♻️`, etc.). See recent git log for style.
 - **PRs**: conventional commit titles, summary/context/changes/test-plan body format.
+
+## Pre-Commit Hooks
+
+Pre-commit runs on every `git commit` to catch issues before they hit CI.
+
+```bash
+make hooks-install   # one-time: install hooks into .git/hooks
+make hooks           # run all hooks on all files (useful for CI or bulk fixups)
+```
+
+Hooks configured in `.pre-commit-config.yaml`:
+
+| Hook | What it does |
+|------|-------------|
+| `trailing-whitespace` | Strips trailing whitespace |
+| `end-of-file-fixer` | Ensures files end with a newline |
+| `check-yaml` / `check-ast` / `check-merge-conflict` | Syntax and conflict checks |
+| `mixed-line-ending` | Enforces consistent line endings |
+| `no-commit-to-branch` | Blocks commits directly to `main` |
+| `pretty-format-toml` | Formats TOML files (excludes `uv.lock`) |
+| `ruff-format` | Formats Python code |
+| `ruff-check --fix` | Lints and auto-fixes Python code |
+| `prettier` | Formats YAML, JSON, Markdown, etc. |
+| `uv-lock` | Regenerates `uv.lock` when `pyproject.toml` changes |
+
+**Vendored tests** (`tests/vendored/`) are excluded from all modifying hooks.
+They are unmodified CPython snapshots — never format or lint them.
 
 ## CI/CD
 
