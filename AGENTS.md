@@ -209,6 +209,8 @@ Hooks configured in `.pre-commit-config.yaml`:
 | `mixed-line-ending`                                 | Enforces consistent line endings                    |
 | `no-commit-to-branch`                               | Blocks commits directly to `main`                   |
 | `pretty-format-toml`                                | Formats TOML files (excludes `uv.lock`)             |
+| `cargo-fmt`                                         | Formats Rust code (`cargo fmt`)                     |
+| `cargo-clippy`                                      | Lints Rust code (`cargo clippy -- -D warnings`)     |
 | `ruff-format`                                       | Formats Python code                                 |
 | `ruff-check --fix`                                  | Lints and auto-fixes Python code                    |
 | `prettier`                                          | Formats YAML, JSON, Markdown, etc.                  |
