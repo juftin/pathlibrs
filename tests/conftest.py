@@ -48,7 +48,38 @@ if not hasattr(unittest.TestCase, "assertEndsWith"):
 
     unittest.TestCase.assertEndsWith = _assert_ends_with
 
+# ── Python < 3.11 compat: assertIsSubclass ─────────────────────────────────
+# Added in Python 3.11's unittest.TestCase. The vendored CPython 3.14 tests
+# use this method, so backport it for older Python versions.
+if not hasattr(unittest.TestCase, "assertIsSubclass"):
+
+    def _assert_is_subclass(self, cls, class_or_tuple, msg=None):  # noqa: N802
+        """Fail if cls is not a subclass of class_or_tuple."""
+        if not issubclass(cls, class_or_tuple):
+            standard_msg = f"{cls!r} is not a subclass of {class_or_tuple!r}"  # noqa: N806
+            self.fail(self._formatMessage(msg, standard_msg))
+
+    unittest.TestCase.assertIsSubclass = _assert_is_subclass
+
 sys.modules["pathlib"] = pathlibrs
+
+# ── Python < 3.11 compat: pathname2url add_scheme kwarg ────────────────────
+# urllib.request.pathname2url gained the ``add_scheme`` keyword-only arg in
+# Python 3.11. The vendored CPython 3.14 test_from_uri_pathname2url_posix
+# uses it unconditionally; backport the kwarg for older Python versions.
+import urllib.request  # noqa: E402
+
+if "add_scheme" not in urllib.request.pathname2url.__code__.co_varnames:
+    _original_pathname2url = urllib.request.pathname2url
+
+    def _pathname2url(pathname, *, add_scheme=False):  # noqa: N802
+        """Wrap pathname2url to accept add_scheme on Python < 3.11."""
+        url = _original_pathname2url(pathname)
+        if add_scheme:
+            url = "file:" + url
+        return url
+
+    urllib.request.pathname2url = _pathname2url
 
 # ── Register pathlib._local for Python 3.13 pickle compatibility ───────────
 # CPython's Lib/pathlib/_local.py exists so pathlib objects pickled under
