@@ -38,8 +38,8 @@ test-rust: ## Run Rust unit tests only (fast, no Python).
 	cargo test
 
 .PHONY: test-python
-test-python: ## Run Python test suite (smoke tests + vendored CPython tests).
-	uv run pytest tests/ -v
+test-python: install ## Run Python test suite (smoke tests + vendored CPython tests).
+	uv run --no-sync pytest tests/ -v
 
 .PHONY: test-windows
 test-windows: ## Run Windows-flavour tests on any host OS (for Linux/Mac before pushing).
