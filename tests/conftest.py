@@ -75,6 +75,10 @@ if "add_scheme" not in urllib.request.pathname2url.__code__.co_varnames:
     def _pathname2url(pathname, *, add_scheme=False):  # noqa: N802
         """Wrap pathname2url to accept add_scheme on Python < 3.11."""
         url = _original_pathname2url(pathname)
+        # Python < 3.11 uses ///foo for absolute paths; 3.11+ uses //foo.
+        # Normalize to the 3.11+ convention (matches vendored test expectations).
+        if url.startswith("///") and not url.startswith("////"):
+            url = url[1:]
         if add_scheme:
             url = "file:" + url
         return url
