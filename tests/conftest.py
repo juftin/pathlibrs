@@ -63,27 +63,6 @@ if not hasattr(unittest.TestCase, "assertIsSubclass"):
 
 sys.modules["pathlib"] = pathlibrs
 
-# ── Python < 3.11 compat: pathname2url add_scheme kwarg ────────────────────
-# urllib.request.pathname2url gained the ``add_scheme`` keyword-only arg in
-# Python 3.11. The vendored CPython 3.14 test_from_uri_pathname2url_posix
-# uses it unconditionally; backport the kwarg for older Python versions.
-import urllib.request  # noqa: E402
-
-if "add_scheme" not in urllib.request.pathname2url.__code__.co_varnames:
-    _original_pathname2url = urllib.request.pathname2url
-
-    def _pathname2url(pathname, *, add_scheme=False):  # noqa: N802
-        """Wrap pathname2url to accept add_scheme on Python < 3.11."""
-        url = _original_pathname2url(pathname)
-        # On Python < 3.11, absolute paths produce '//foo' (2 slashes).
-        # 3.11+ produces '///foo' (3 slashes). Normalize to 3.11+.
-        if url.startswith("//") and not url.startswith("///"):
-            url = "/" + url
-        if add_scheme:
-            url = "file:" + url
-        return url
-
-    urllib.request.pathname2url = _pathname2url
 
 # ── Register pathlib._local for Python 3.13 pickle compatibility ───────────
 # CPython's Lib/pathlib/_local.py exists so pathlib objects pickled under

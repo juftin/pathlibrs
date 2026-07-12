@@ -118,10 +118,13 @@ PathWalkTest.test_walk_many_open_files
 PathWalkTest.test_walk_symlink_location
 
 # ── from_uri / pathname2url POSIX (8 entries) ─────────────────────────
+PathSubclassTest.test_from_uri_pathname2url_posix
 PathSubclassTest.test_from_uri_posix
+PathTest.test_from_uri_pathname2url_posix
 PathTest.test_from_uri_posix
 PathTest.test_from_uri_pathname2url_windows
 PathTest.test_from_uri_windows
+PosixPathTest.test_from_uri_pathname2url_posix
 PosixPathTest.test_from_uri_posix
 
 # ── CompatiblePathTest — RESOLVED (0 entries) ─────────────────────────
