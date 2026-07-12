@@ -1,5 +1,6 @@
 """Basic smoke tests for pathlibrs Phase 1."""
 
+import pytest
 from pathlibrs import PurePath, PurePosixPath, PureWindowsPath
 
 
@@ -8,11 +9,12 @@ class TestPurePosixPath:
 
     def test_empty(self) -> None:
         p = PurePosixPath("")
-        assert str(p) == ""
+        # CPython normalizes the empty path to '.' (current directory).
+        assert str(p) == "."
         assert p.drive == ""
         assert p.root == ""
         assert p.anchor == ""
-        assert p.name is None
+        assert p.name == ""
         assert p.stem == ""
         assert p.suffix == ""
 
@@ -39,12 +41,12 @@ class TestPurePosixPath:
         p = PurePosixPath("/")
         assert str(p) == "/"
         assert p.root == "/"
-        assert p.name is None
-        assert p.parts == ("", "/")
+        assert p.name == ""
+        assert p.parts == ("/",)
 
     def test_parts(self) -> None:
         p = PurePosixPath("/usr/local/bin")
-        assert p.parts == ("", "/", "usr", "local", "bin")
+        assert p.parts == ("/", "usr", "local", "bin")
 
     def test_parent(self) -> None:
         p = PurePosixPath("/foo/bar/baz")
@@ -126,7 +128,9 @@ class TestPurePosixPath:
     def test_eq(self) -> None:
         assert PurePosixPath("/foo") == PurePosixPath("/foo")
         assert PurePosixPath("/foo") != PurePosixPath("/bar")
-        assert PurePosixPath("/foo") == "/foo"
+        # CPython 3.14+: PurePath equality with strings returns NotImplemented
+        # (not handled by PurePath.__eq__), so path != str is always True.
+        assert PurePosixPath("/foo") != "/foo"
 
     def test_hash(self) -> None:
         s = {PurePosixPath("/foo"), PurePosixPath("/bar"), PurePosixPath("/foo")}
@@ -171,10 +175,10 @@ class TestPurePosixPath:
         assert p.as_uri() == "file:///home/user/file.txt"
 
     def test_relative_uri(self) -> None:
+        """Non-absolute paths cannot be expressed as file URIs (RFC 8089)."""
         p = PurePosixPath("relative/path")
-        uri = p.as_uri()
-        assert uri.startswith("file:")
-        assert "relative/path" in uri
+        with pytest.raises(ValueError, match="relative path"):
+            p.as_uri()
 
     def test_str(self) -> None:
         p = PurePosixPath("/foo/bar")
@@ -190,7 +194,7 @@ class TestPureWindowsPath:
         assert p.root == "\\"
         assert p.anchor == "C:\\"
         assert p.name == "System32"
-        assert p.parts == ("C:", "\\", "Windows", "System32")
+        assert p.parts == ("C:\\", "Windows", "System32")
 
     def test_drive_relative(self) -> None:
         p = PureWindowsPath("C:Users")
@@ -334,7 +338,8 @@ class TestNewFeatures:
 
     def test_with_segments_empty(self) -> None:
         result = PurePosixPath.with_segments()
-        assert str(result) == ""
+        # Empty segments() returns the current directory ('.').
+        assert str(result) == "."
 
     def test_with_segments_windows(self) -> None:
         result = PureWindowsPath.with_segments("C:", "Users", "Name")

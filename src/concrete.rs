@@ -23,6 +23,12 @@ pub struct PosixPath;
 /// via lossy conversion (replacing invalid UTF-8 with replacement chars).
 fn _extract_os_str(obj: &Bound<'_, pyo3::PyAny>) -> PyResult<OsString> {
     use pyo3::types::PyBytes;
+    // Reject bytes arguments (CPython pathlib raises TypeError for bytes).
+    if obj.is_instance_of::<PyBytes>() {
+        return Err(pyo3::exceptions::PyTypeError::new_err(
+            "argument should be a str or an os.PathLike object where __fspath__ returns a str, not 'bytes'",
+        ));
+    }
     // Try extracting as String first (valid UTF-8 path)
     if let Ok(s) = obj.extract::<String>() {
         return Ok(OsString::from(s));
@@ -34,10 +40,7 @@ fn _extract_os_str(obj: &Bound<'_, pyo3::PyAny>) -> PyResult<OsString> {
         let bytes = encoded.downcast::<PyBytes>()?.as_bytes();
         return Ok(crate::from_os_bytes(bytes).to_os_string());
     }
-    // Other path-like objects (bytes, os.PathLike)
-    if let Ok(bytes) = obj.downcast::<PyBytes>() {
-        return Ok(crate::from_os_bytes(bytes.as_bytes()).to_os_string());
-    }
+    // Other path-like objects
     Err(pyo3::exceptions::PyTypeError::new_err(format!(
         "expected str, bytes or os.PathLike object, not '{}'",
         obj.get_type().name()?

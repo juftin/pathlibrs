@@ -83,19 +83,14 @@ impl GlobPattern {
             return path_parts.is_empty();
         }
 
-        // All except last must match exactly
-        for i in 0..pattern_parts.len().saturating_sub(1) {
-            if !bytes_equal(pattern_parts[i], path_parts[i], self.case_sensitive) {
+        // Match each segment with fnmatch — patterns like "*" must match
+        // any single segment, not just literal bytes.
+        for i in 0..pattern_parts.len() {
+            if !fnmatch_bytes(pattern_parts[i], path_parts[i], self.case_sensitive) {
                 return false;
             }
         }
-
-        // Last uses fnmatch
-        if let (Some(pat), Some(path_seg)) = (pattern_parts.last(), path_parts.last()) {
-            fnmatch_bytes(pat, path_seg, self.case_sensitive)
-        } else {
-            false
-        }
+        true
     }
 
     /// Match an absolute pattern against a path.
@@ -146,20 +141,6 @@ impl GlobPattern {
             }
         }
         true
-    }
-}
-
-/// Compare two byte slices, optionally case-insensitive (ASCII only).
-fn bytes_equal(a: &[u8], b: &[u8], case_sensitive: bool) -> bool {
-    if a.len() != b.len() {
-        return false;
-    }
-    if case_sensitive {
-        a == b
-    } else {
-        a.iter()
-            .zip(b.iter())
-            .all(|(a, b)| a.eq_ignore_ascii_case(b))
     }
 }
 

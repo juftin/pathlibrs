@@ -1189,18 +1189,9 @@ pub fn copy_tree(
                         std::fs::copy(&resolved, dst_path)?;
                     }
                 } else {
-                    // Copy just the symlink
+                    // Copy just the symlink — let the OS raise an error if
+                    // the target already exists (matching CPython behaviour).
                     let target = std::fs::read_link(src_path)?;
-                    if dst_path.exists() {
-                        if dst_path.is_symlink() || dst_path.is_file() {
-                            std::fs::remove_file(dst_path)?;
-                        } else {
-                            return Err(io::Error::new(
-                                io::ErrorKind::AlreadyExists,
-                                format!("'{}' already exists", dst_path.display()),
-                            ));
-                        }
-                    }
                     #[cfg(unix)]
                     std::os::unix::fs::symlink(&target, dst_path)?;
                     #[cfg(windows)]
@@ -1485,14 +1476,25 @@ fn delete_recursive(path: &StdPath, ignore_errors: bool) -> Result<(), io::Error
 /// Move a file or directory tree from ``src`` to ``dst``.
 ///
 /// Tries to rename first (same-filesystem fast path). Falls back to
-/// copy + delete for cross-filesystem moves.
+/// copy + delete only for cross-filesystem (EXDEV) errors.
+/// All other errors are propagated immediately, matching CPython's
+/// ``os.replace()`` → ``EXDEV`` guard.
 pub fn move_tree(src: &OsStr, dst: &OsStr) -> PyResult<()> {
     let src_path = StdPath::new(src);
     let dst_path = StdPath::new(dst);
 
     // Try rename first (fast path for same filesystem)
-    if Python::with_gil(|py| py.allow_threads(|| std::fs::rename(src_path, dst_path))).is_ok() {
-        return Ok(());
+    match Python::with_gil(|py| py.allow_threads(|| std::fs::rename(src_path, dst_path))) {
+        Ok(()) => return Ok(()),
+        Err(e) => {
+            // Only fall back to copy+delete on EXDEV (cross-device).
+            // Use raw_os_error for exact errno matching.
+            if e.raw_os_error() != Some(18_i32) {
+                // EXDEV = 18. All other errors (EINVAL, ENAMETOOLONG,
+                // EACCES, etc.) propagate directly — no partial copy.
+                return Err(io_err_to_pyerr(e));
+            }
+        }
     }
 
     // Fall back to copy + delete (cross-filesystem)

@@ -38,11 +38,12 @@ fn parse_posix(path: &OsStr) -> ParsedPath {
 
     let (root, anchor_len) = parse_posix_root(bytes);
 
-    // Split the remainder into parts
+    // Split the remainder into parts, filtering out empty strings
+    // and "." components (which are no-op current-directory references).
     let rest = &bytes[anchor_len..];
     let parts: Vec<OsString> = rest
         .split(|&b| b == POSIX_SEP)
-        .filter(|s| !s.is_empty())
+        .filter(|s| !s.is_empty() && s != b".")
         .map(|s| crate::from_os_bytes(s).to_os_string())
         .collect();
 
@@ -414,14 +415,22 @@ fn split_windows_parts(bytes: &[u8]) -> Vec<OsString> {
     for (i, &b) in bytes.iter().enumerate() {
         if is_win_sep(b) {
             if i > start {
-                parts.push(crate::from_os_bytes(&bytes[start..i]).to_os_string());
+                let part = &bytes[start..i];
+                // Filter out "." components (no-op current-directory references).
+                if part != b"." {
+                    parts.push(crate::from_os_bytes(part).to_os_string());
+                }
             }
             start = i + 1;
         }
     }
 
     if start < bytes.len() {
-        parts.push(crate::from_os_bytes(&bytes[start..]).to_os_string());
+        let part = &bytes[start..];
+        // Filter out "." components.
+        if part != b"." {
+            parts.push(crate::from_os_bytes(part).to_os_string());
+        }
     }
 
     parts
@@ -491,8 +500,10 @@ mod tests {
 
     #[test]
     fn test_posix_dot_components() {
+        // "." components are filtered out (no-op current-directory references),
+        // but ".." components are preserved.
         let p = parse_path(OsStr::new("/foo/./bar/../baz"), PathFlavour::Posix);
-        assert_eq!(p.parts, &["foo", ".", "bar", "..", "baz"]);
+        assert_eq!(p.parts, &["foo", "bar", "..", "baz"]);
     }
 
     // -- Windows --------------------------------------------------------

@@ -157,6 +157,12 @@ impl PurePath {
         #[cfg(not(windows))]
         let join_flavour = PathFlavour::Posix;
         let raw = join_path_segments(args, join_flavour)?;
+        // Normalize empty path to "." matching CPython (affects __eq__ comparisons).
+        let raw = if raw.as_encoded_bytes().is_empty() {
+            OsString::from(".")
+        } else {
+            raw
+        };
         Ok(Self {
             inner: PathRepr::new(raw),
             #[cfg(windows)]
@@ -194,8 +200,8 @@ impl PurePath {
         self._anchor_str()
     }
 
-    #[getter]
-    fn name(&self) -> Option<String> {
+    /// Internal: return the name, or `None` when there is no name.
+    fn _name_option(&self) -> Option<String> {
         let p = self.inner.parsed(self.flavour);
         if !p.has_name {
             return None;
@@ -204,8 +210,13 @@ impl PurePath {
     }
 
     #[getter]
+    fn name(&self) -> String {
+        self._name_option().unwrap_or_default()
+    }
+
+    #[getter]
     fn suffix(&self) -> String {
-        match self.name() {
+        match self._name_option() {
             Some(ref n) => suffix_from_name(OsStr::new(n))
                 .map(|s| s.to_string_lossy().into_owned())
                 .unwrap_or_default(),
@@ -215,7 +226,7 @@ impl PurePath {
 
     #[getter]
     fn suffixes(&self) -> Vec<String> {
-        match self.name() {
+        match self._name_option() {
             Some(ref n) => ops::suffixes_from_name(OsStr::new(n))
                 .iter()
                 .map(|s| s.to_string_lossy().into_owned())
@@ -226,7 +237,7 @@ impl PurePath {
 
     #[getter]
     fn stem(&self) -> String {
-        match self.name() {
+        match self._name_option() {
             Some(ref n) => stem_from_name(OsStr::new(n))
                 .map(|s| s.to_string_lossy().into_owned())
                 .unwrap_or_default(),
@@ -258,23 +269,27 @@ impl PurePath {
     #[getter]
     fn parts<'py>(slf: PyRef<'py, Self>, py: Python<'py>) -> PyResult<PyObject> {
         let p = slf.inner.parsed(slf.flavour);
-        let mut items: Vec<PyObject> = Vec::with_capacity(p.parts.len() + 2);
-        items.push(
-            p.drive
-                .as_ref()
-                .map(|s| s.to_string_lossy().into_owned())
-                .unwrap_or_default()
-                .into_pyobject(py)?
-                .into(),
-        );
-        items.push(
-            p.root
-                .as_ref()
-                .map(|s| s.to_string_lossy().into_owned())
-                .unwrap_or_default()
-                .into_pyobject(py)?
-                .into(),
-        );
+        // CPython PurePath.parts: (drive + root) as the first element
+        // when an anchor is present, then the normalized path parts.
+        let mut items: Vec<PyObject> = Vec::with_capacity(p.parts.len() + 1);
+        let drive = p
+            .drive
+            .as_ref()
+            .map(|s| s.as_encoded_bytes())
+            .unwrap_or(b"");
+        let root = p.root.as_ref().map(|s| s.as_encoded_bytes()).unwrap_or(b"");
+        if !drive.is_empty() || !root.is_empty() {
+            // Combine drive + root into a single anchor part.
+            let mut anchor = Vec::with_capacity(drive.len() + root.len());
+            anchor.extend_from_slice(drive);
+            anchor.extend_from_slice(root);
+            items.push(
+                crate::from_os_bytes(&anchor)
+                    .to_os_string()
+                    .into_pyobject(py)?
+                    .into(),
+            );
+        }
         for part in &p.parts {
             items.push(
                 part.to_string_lossy()
@@ -315,10 +330,16 @@ impl PurePath {
     }
 
     fn with_name<'py>(slf: PyRef<'py, Self>, name: &str) -> PyResult<PyObject> {
-        if slf.name().is_none() {
+        if slf._name_option().is_none() {
             return Err(pyo3::exceptions::PyValueError::new_err(format!(
                 "'{}' has an empty name",
                 slf._str_repr()
+            )));
+        }
+        // Reject empty and reserved names.
+        if name.is_empty() || name == "." || name == ".." {
+            return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                "Invalid name '{name}'"
             )));
         }
         // Reject invalid characters in the new name.
@@ -342,13 +363,13 @@ impl PurePath {
     }
 
     fn with_stem<'py>(slf: PyRef<'py, Self>, stem: &str) -> PyResult<PyObject> {
-        if slf.name().is_none() {
+        if slf._name_option().is_none() {
             return Err(pyo3::exceptions::PyValueError::new_err(format!(
                 "'{}' has an empty name",
                 slf._str_repr()
             )));
         }
-        let name = slf.name().unwrap_or_default();
+        let name = slf._name_option().unwrap_or_default();
         let old_suffix = suffix_from_name(OsStr::new(&name))
             .map(|s| s.to_string_lossy().into_owned())
             .unwrap_or_default();
@@ -357,7 +378,7 @@ impl PurePath {
     }
 
     fn with_suffix<'py>(slf: PyRef<'py, Self>, suffix: &str) -> PyResult<PyObject> {
-        let name = slf.name().unwrap_or_default();
+        let name = slf._name_option().unwrap_or_default();
         let old_stem = stem_from_name(OsStr::new(&name))
             .map(|s| s.to_string_lossy().into_owned())
             .unwrap_or_else(|| name.clone());
@@ -598,22 +619,13 @@ impl PurePath {
             );
             Ok::<_, PyErr>(())
         })?;
-        let p = self.inner.parsed(self.flavour);
-        // Non-absolute paths on Windows cannot produce a file: URI
-        if self.flavour == PathFlavour::Windows {
-            if p.drive.is_none() {
-                return Err(pyo3::exceptions::PyValueError::new_err(format!(
-                    "path '{path}' is not absolute on Windows",
-                    path = self._str_repr()
-                )));
-            }
-            if p.root.is_none() {
-                return Err(pyo3::exceptions::PyValueError::new_err(format!(
-                    "path '{path}' is not absolute on Windows",
-                    path = self._str_repr()
-                )));
-            }
+        // Non-absolute paths cannot be expressed as file URIs (RFC 8089).
+        if !self.is_absolute() {
+            return Err(pyo3::exceptions::PyValueError::new_err(
+                "relative path can't be expressed as a file URI",
+            ));
         }
+        let p = self.inner.parsed(self.flavour);
         // Percent-encode the path portion via Python, preserving the drive
         // letter colon (which must not be encoded in file: URIs).
         Python::with_gil(|py| {
@@ -621,36 +633,31 @@ impl PurePath {
             match self.flavour {
                 PathFlavour::Posix => {
                     let encoded: String = quote.call1((self.as_posix(),))?.extract()?;
-                    if p.root.is_some() {
-                        Ok(format!("file://{encoded}"))
-                    } else {
-                        Ok(format!("file:{encoded}"))
-                    }
+                    Ok(format!("file://{encoded}"))
                 }
                 PathFlavour::Windows => {
-                    if let Some(ref drive) = p.drive {
-                        let drive_str = drive.to_string_lossy();
-                        if drive_str.starts_with("\\\\") {
-                            let trimmed = drive_str
-                                .replace('\\', "/")
-                                .trim_start_matches('/')
-                                .to_string();
-                            let rest = self.as_posix()[p.anchor_length..]
-                                .trim_start_matches('/')
-                                .to_string();
-                            let encoded: String = quote.call1((&rest,))?.extract()?;
-                            Ok(format!("file://{trimmed}/{encoded}"))
-                        } else {
-                            let drive_letter = drive_str.trim_end_matches(':');
-                            let rest = self.as_posix()[p.anchor_length..]
-                                .trim_start_matches('/')
-                                .to_string();
-                            let encoded: String = quote.call1((&rest,))?.extract()?;
-                            Ok(format!("file:///{drive_letter}:/{encoded}"))
-                        }
+                    let drive = p
+                        .drive
+                        .as_ref()
+                        .expect("absolute Windows path must have a drive");
+                    let drive_str = drive.to_string_lossy();
+                    if drive_str.starts_with("\\\\") {
+                        let trimmed = drive_str
+                            .replace('\\', "/")
+                            .trim_start_matches('/')
+                            .to_string();
+                        let rest = self.as_posix()[p.anchor_length..]
+                            .trim_start_matches('/')
+                            .to_string();
+                        let encoded: String = quote.call1((&rest,))?.extract()?;
+                        Ok(format!("file://{trimmed}/{encoded}"))
                     } else {
-                        let encoded: String = quote.call1((self.as_posix(),))?.extract()?;
-                        Ok(format!("file:{encoded}"))
+                        let drive_letter = drive_str.trim_end_matches(':');
+                        let rest = self.as_posix()[p.anchor_length..]
+                            .trim_start_matches('/')
+                            .to_string();
+                        let encoded: String = quote.call1((&rest,))?.extract()?;
+                        Ok(format!("file:///{drive_letter}:/{encoded}"))
                     }
                 }
             }
@@ -659,7 +666,15 @@ impl PurePath {
 
     #[pyo3(name = "match")]
     #[pyo3(signature = (pattern, *, case_sensitive = None))]
-    fn match_(&self, pattern: &str, case_sensitive: Option<bool>) -> bool {
+    fn match_(&self, pattern: &str, case_sensitive: Option<bool>) -> PyResult<bool> {
+        // Reject empty patterns (CPython pathlib raises ValueError).
+        if pattern.is_empty() || pattern == "." {
+            return Err(pyo3::exceptions::PyValueError::new_err("empty pattern"));
+        }
+        // Empty / root-only path never matches anything (CPython pathlib behaviour).
+        if self._name_option().is_none() {
+            return Ok(false);
+        }
         let cs = case_sensitive.unwrap_or(!self._is_windows());
         let is_windows = self._is_windows();
         // On Windows, patterns like "*:" or "c:" prefix a drive component.
@@ -673,22 +688,27 @@ impl PurePath {
                 {
                     // Root presence must match
                     if pat_root != path_root {
-                        return false;
+                        return Ok(false);
                     }
                     // Match drive with fnmatch, then match the rest
                     if !pattern::fnmatch_bytes(pat_drive.as_bytes(), path_drive.as_bytes(), cs) {
-                        return false;
+                        return Ok(false);
                     }
-                    return pattern::match_path(
+                    return Ok(pattern::match_path(
                         OsStr::new(pat_rest),
                         OsStr::new(path_rest),
                         cs,
                         is_windows,
-                    );
+                    ));
                 }
             }
         }
-        pattern::match_path(OsStr::new(pattern), self.inner.raw(), cs, is_windows)
+        Ok(pattern::match_path(
+            OsStr::new(pattern),
+            self.inner.raw(),
+            cs,
+            is_windows,
+        ))
     }
 
     /// ``full_match(pattern, *, case_sensitive=None)``
@@ -697,14 +717,18 @@ impl PurePath {
     /// A relative pattern like ``"*.py"`` will NOT match ``"/a/b/foo.py"``.
     #[pyo3(name = "full_match")]
     #[pyo3(signature = (pattern, *, case_sensitive = None))]
-    fn full_match_(&self, pattern: &str, case_sensitive: Option<bool>) -> bool {
+    fn full_match_(&self, pattern: &str, case_sensitive: Option<bool>) -> PyResult<bool> {
+        // Reject empty patterns (CPython pathlib raises ValueError).
+        if pattern.is_empty() || pattern == "." {
+            return Err(pyo3::exceptions::PyValueError::new_err("empty pattern"));
+        }
         let cs = case_sensitive.unwrap_or(!self._is_windows());
-        pattern::full_match_path(
+        Ok(pattern::full_match_path(
             OsStr::new(pattern),
             self.inner.raw(),
             cs,
             self._is_windows(),
-        )
+        ))
     }
 
     // -- filesystem properties (Phase 2) -----------------------------
@@ -1033,6 +1057,13 @@ impl PurePath {
     }
 
     fn __eq__(&self, other: &Bound<'_, PyAny>) -> PyResult<bool> {
+        // CPython 3.14+: Only PurePath instances can be compared for equality.
+        // For non-PurePath types, __eq__ returns NotImplemented, which causes
+        // Python to try the reflected operation and eventually fall back to
+        // identity comparison (always False for different types).
+        if !other.is_instance_of::<Self>() {
+            return Ok(false);
+        }
         let other_str = _extract_path_str(other)?;
         let other_parsed = crate::parsing::parse_path(OsStr::new(&other_str), self.flavour);
         let self_parsed = self.inner.parsed(self.flavour);
@@ -1126,6 +1157,10 @@ impl PurePath {
 
     fn __str__(&self) -> String {
         let raw = self.inner.raw().to_string_lossy().into_owned();
+        if raw.is_empty() {
+            // Empty path points to current directory, same as '.'.
+            return ".".to_string();
+        }
         if self._is_windows() {
             raw.replace('/', "\\")
         } else {
@@ -1133,16 +1168,26 @@ impl PurePath {
         }
     }
 
-    fn __repr__(&self) -> String {
-        let class_name = match self.flavour {
-            PathFlavour::Posix => "PurePosixPath",
-            PathFlavour::Windows => "PureWindowsPath",
-        };
-        format!("{}('{}')", class_name, self._str_repr())
+    fn __repr__<'py>(slf: PyRef<'py, Self>) -> PyResult<String> {
+        let py = slf.py();
+        let bound = unsafe { pyo3::Bound::<'_, pyo3::PyAny>::from_borrowed_ptr(py, slf.as_ptr()) };
+        let cls = bound.getattr("__class__")?;
+        let class_name: String = cls.getattr("__name__")?.extract()?;
+        // Use as_posix() for the inner repr string (CPython behaviour).
+        let inner = slf.as_posix();
+        let inner = if inner.is_empty() { "." } else { &inner };
+        Ok(format!("{}('{}')", class_name, inner))
     }
 
     fn __fspath__(&self) -> String {
         self.__str__()
+    }
+
+    fn __bytes__(&self) -> PyResult<PyObject> {
+        // Use os.fsencode(str(self)) — CPython behaviour.
+        // __str__ normalises separators to OS-native form (\ on Windows).
+        let raw = self.__str__();
+        Python::with_gil(|py| Ok(pyo3::types::PyBytes::new(py, raw.as_bytes()).into()))
     }
 
     fn __reduce__<'py>(slf: PyRef<'py, Self>, py: Python<'py>) -> PyResult<PyObject> {
@@ -1481,12 +1526,14 @@ impl PurePath {
     /// If *target* is an existing directory, the source is copied *into* it
     /// (as ``target / source.name``).  CPython copies to the *exact* target
     /// path — only ``copy_into`` appends ``source.name``.
-    #[pyo3(signature = (target, *, follow_symlinks = true, dirs_exist_ok = false, ignore = None, on_error = None))]
+    #[pyo3(signature = (target, *, follow_symlinks = true, dirs_exist_ok = false,
+        preserve_metadata = false, ignore = None, on_error = None))]
     fn copy<'py>(
         slf: PyRef<'py, Self>,
         target: &Bound<'py, PyAny>,
         follow_symlinks: bool,
         dirs_exist_ok: bool,
+        preserve_metadata: bool,
         ignore: Option<PyObject>,
         on_error: Option<PyObject>,
     ) -> PyResult<PyObject> {
@@ -1523,7 +1570,7 @@ impl PurePath {
             }
         }
 
-        let _ = (ignore, on_error);
+        let _ = (preserve_metadata, ignore, on_error);
         crate::fs::copy_tree(
             slf.inner.raw(),
             OsStr::new(&target_str),
@@ -1535,18 +1582,20 @@ impl PurePath {
     }
 
     /// Copy this file or directory tree *into* an existing directory.
-    #[pyo3(signature = (target_dir, *, follow_symlinks = true, dirs_exist_ok = false, ignore = None, on_error = None))]
+    #[pyo3(signature = (target_dir, *, follow_symlinks = true, dirs_exist_ok = false,
+        preserve_metadata = false, ignore = None, on_error = None))]
     fn copy_into<'py>(
         slf: PyRef<'py, Self>,
         target_dir: &Bound<'py, PyAny>,
         follow_symlinks: bool,
         dirs_exist_ok: bool,
+        preserve_metadata: bool,
         ignore: Option<PyObject>,
         on_error: Option<PyObject>,
     ) -> PyResult<PyObject> {
         let py = slf.py();
         let target_str = _extract_path_str(target_dir)?;
-        let name = slf.name().unwrap_or_default();
+        let name = slf._name_option().unwrap_or_default();
         if name.is_empty() {
             return Err(pyo3::exceptions::PyValueError::new_err(format!(
                 "'{}' has an empty name",
@@ -1554,7 +1603,7 @@ impl PurePath {
             )));
         }
         let final_dst = format!("{}/{}", target_str.trim_end_matches('/'), name);
-        let _ = (ignore, on_error);
+        let _ = (preserve_metadata, ignore, on_error);
         crate::fs::copy_tree(
             slf.inner.raw(),
             OsStr::new(&final_dst),
@@ -1592,7 +1641,7 @@ impl PurePath {
     fn move_into<'py>(slf: PyRef<'py, Self>, target_dir: &Bound<'py, PyAny>) -> PyResult<PyObject> {
         let py = slf.py();
         let target_str = _extract_path_str(target_dir)?;
-        let name = slf.name().unwrap_or_default();
+        let name = slf._name_option().unwrap_or_default();
         if name.is_empty() {
             return Err(pyo3::exceptions::PyValueError::new_err(format!(
                 "'{}' has an empty name",
@@ -1843,13 +1892,28 @@ fn _drives_equal(a: &Option<OsString>, b: &Option<OsString>, windows: bool) -> b
 
 /// Extract a string from a Python object.
 fn _extract_path_str(obj: &Bound<'_, PyAny>) -> PyResult<String> {
+    // Reject bytes arguments (CPython pathlib raises TypeError for bytes).
+    use pyo3::types::PyBytes;
+    if obj.is_instance_of::<PyBytes>() {
+        return Err(pyo3::exceptions::PyTypeError::new_err(
+            "argument should be a str or an os.PathLike object where __fspath__ returns a str, not 'bytes'",
+        ));
+    }
     // First try str extraction (only works for str and str subclasses)
     if let Ok(s) = obj.extract::<String>() {
         return Ok(s);
     }
     // PathLike (has __fspath__)
     if let Ok(fspath) = obj.call_method0("__fspath__") {
-        return fspath.extract::<String>();
+        let s: String = fspath.extract()?;
+        // Also reject PathLike objects returning bytes from __fspath__.
+        use pyo3::types::PyBytes;
+        if fspath.is_instance_of::<PyBytes>() {
+            return Err(pyo3::exceptions::PyTypeError::new_err(
+                "argument should be a str or an os.PathLike object where __fspath__ returns a str, not 'bytes'",
+            ));
+        }
+        return Ok(s);
     }
     // Fallback to str() conversion for compatibility
     Ok(obj.str()?.to_string())

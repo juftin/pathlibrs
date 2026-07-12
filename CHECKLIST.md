@@ -94,19 +94,41 @@
 - [x] `glob.rs` module extracted from `iter.rs` / `pattern.rs`
 - [x] Verify: all vendored CPython glob tests pass across platform matrix (51/51 non-Windows tests, Windows tests run on Windows CI)
 
-## Phase 5: Parity & Maintenance — Upcoming
+## Phase 5: Parity & Maintenance — In Progress
+
+594 passed, 610 skipped (up from 352 passed, 852 skipped baseline).
+239 active skip entries (down from 650 baseline).
 
 ### Feature Parity
 
-- [ ] `Path.home()`, `Path.cwd()` class methods
+- [x] `Path.home()`, `Path.cwd()` class methods — verified passing for PathSubclassTest
+- [x] Pure path edge cases: name/stem/parts for empty/`.` paths — fixed
+- [x] `__repr__` uses dynamic class name — fixed
+- [x] `__bytes__` and bytes type validation — fixed
+- [x] `with_name()`/`with_stem()` reject empty/reserved names — fixed
+- [x] `as_uri()` percent-encoding via `urllib.parse.quote` — fixed (absolute check + encode)
+- [x] `__eq__` matches CPython 3.14: returns NotImplemented for non-PurePath types
+- [x] Added `preserve_metadata` kwarg to `copy()` and `copy_into()` (no-op; signature accepted)
+- [x] Fixed symlink copy: no longer overwrites existing target with `follow_symlinks=False`
+- [x] Fixed `full_match`: `*` in non-last segments now uses fnmatch (was exact-match-only)
+- [x] Fixed `match()`: raises ValueError for empty/`.` patterns; empty path returns False
+- [x] Fixed `move_tree()`: only falls back to copy+delete on EXDEV (cross-device), not all errors
 - [ ] Windows UNC/device/extended-path edge cases (DESIGN.md §4.8)
 - [ ] Symlink edge cases on Linux/macOS
 - [ ] Full pickle / `__reduce__` / `__fspath__` / `copy` coverage
-- [ ] `as_uri()` percent-encoding via `urllib.parse.quote`
 
 ### Skip Audit
 
-- [ ] Audit every entry in `tests/skips.txt` (656 entries)
+- [x] Batch 1: PathSubclassTest-only entries audited and removed (35 entries)
+- [x] Batch 2: Pure path edge cases fixed and unskipped (41 entries)
+- [x] Batch 3: repr + bytes handling fixed and unskipped (30 entries)
+- [x] Batch 4: as_uri() fixed — 20 tests unskipped, 22 entries removed from skips.txt
+- [x] Batch 5: Equality + parse audit — 25 tests unskipped, 25 entries removed
+- [x] Batch 6: Delete audit — all 26 entries are private `_delete()` API, kept skipped
+- [x] Batch 7: Copy audit — 21 entries unskipped (9 self-copy + 12 existing-symlink), bugs fixed
+- [x] Batch 8: Match audit — 27 entries unskipped (match_common, match_empty, full_match_case_sensitive), bugs fixed
+- [x] Batch 9: Move audit — 43 entries unskipped, `move_tree` fixed to only fall back on EXDEV
+- [ ] Remaining audit: 239 entries across windows(30), parse_windows(6), relative_to(7), equivalences(13), symlinks(14), resolve(12), copy(12 remaining), delete(26 kept), move remaining(2)
 - [ ] Classify each skip as private API, fixable, or platform-specific
 - [ ] Goal: `skips.txt` contains _only_ private-API entries
 - [ ] Goal: zero public-API `NotImplemented` entries
