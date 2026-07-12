@@ -43,21 +43,17 @@ PathTest.test_delete_outer_junction
 
 # ── Private API: Unpickling 3.13 (1 entry, permanent) ─────────────────
 # CPython 3.13 pickle format references pathlib._local.PurePosixPath
-PurePathTest.test_unpicking_3_13
 PurePathTest.test_concrete_class
 
 # ── NotImplemented / UnsupportedOperation (1 entry) ───────────────────
 UnsupportedOperationTest.test_is_notimplemented
 
-# ── copy(): preserve_metadata not implemented (6 entries) ─────────────
+# ── copy(): preserve_metadata not implemented (8 entries) ─────────────
 PathSubclassTest.test_copy_dir_preserve_metadata
-PathSubclassTest.test_copy_file_preserve_metadata
 PathSubclassTest.test_copy_link_preserve_metadata
 PathTest.test_copy_dir_preserve_metadata
-PathTest.test_copy_file_preserve_metadata
 PathTest.test_copy_link_preserve_metadata
 PosixPathTest.test_copy_dir_preserve_metadata
-PosixPathTest.test_copy_file_preserve_metadata
 PosixPathTest.test_copy_link_preserve_metadata
 
 # ── copy(): permission / error handling (6 entries) ───────────────────
@@ -69,15 +65,6 @@ PosixPathTest.test_copy_dir_no_read_permission
 PosixPathTest.test_copy_error_handling
 
 # ── symlinks: complex (relative / dot-dot, 9 entries) ────────────────
-PathSubclassTest.test_complex_symlinks_absolute
-PathSubclassTest.test_complex_symlinks_relative
-PathSubclassTest.test_complex_symlinks_relative_dot_dot
-PathTest.test_complex_symlinks_absolute
-PathTest.test_complex_symlinks_relative
-PathTest.test_complex_symlinks_relative_dot_dot
-PosixPathTest.test_complex_symlinks_absolute
-PosixPathTest.test_complex_symlinks_relative
-PosixPathTest.test_complex_symlinks_relative_dot_dot
 
 # ── resolve() edge cases (9 entries) ──────────────────────────────────
 PathSubclassTest.test_resolve_common
@@ -91,31 +78,14 @@ PosixPathTest.test_resolve_dot
 PosixPathTest.test_resolve_loop
 
 # ── cross-flavour: equivalences (7 entries) ───────────────────────────
-PathSubclassTest.test_equivalences
-PathTest.test_equivalences
 PathTest.test_equivalences_windows
-PosixPathTest.test_equivalences
 PurePathSubclassTest.test_equivalences_windows
 PurePathTest.test_equivalences_windows
-PureWindowsPathTest.test_equivalences_windows
 
 # ── cross-flavour: different parsers unordered (6 entries) ────────────
-PathTest.test_different_parsers_unordered
-PosixPathTest.test_different_parsers_unordered
-PurePathSubclassTest.test_different_parsers_unordered
-PurePathTest.test_different_parsers_unordered
-PurePosixPathTest.test_different_parsers_unordered
-PureWindowsPathTest.test_different_parsers_unordered
 
 # ── ordering: cross-flavour TypeError (8 entries) ─────────────────────
-PathSubclassTest.test_ordering_common
-PathTest.test_ordering_common
 PathTest.test_ordering_windows
-PosixPathTest.test_ordering_common
-PurePathSubclassTest.test_ordering_common
-PurePathTest.test_ordering_common
-PurePosixPathTest.test_ordering_common
-PureWindowsPathTest.test_ordering_windows
 
 # ── expanduser_windows — EnvironmentVarGuard.unset() API change, fails on Py3.10 (1 entry)
 PathTest.test_expanduser_windows
@@ -125,12 +95,6 @@ PathTest.test_group_windows
 PathTest.test_owner_windows
 
 # ── is_reserved() DeprecationWarning (6 entries) ──────────────────────
-PathTest.test_is_reserved_deprecated
-PosixPathTest.test_is_reserved_deprecated
-PurePathSubclassTest.test_is_reserved_deprecated
-PurePathTest.test_is_reserved_deprecated
-PurePosixPathTest.test_is_reserved_deprecated
-PureWindowsPathTest.test_is_reserved_deprecated
 
 # ── is_junction_true — posixpath.isjunction only in Python 3.12+ (4 entries) ─
 PathTest.test_is_junction_true
@@ -138,10 +102,6 @@ PosixPathTest.test_is_junction_true
 PathSubclassTest.test_is_junction_true
 
 # ── relative_to / is_relative_to (4 entries) ──────────────────────────
-PurePathSubclassTest.test_relative_to_common
-PurePathTest.test_relative_to_common
-PurePosixPathTest.test_relative_to_common
-PureWindowsPathTest.test_relative_to_common
 
 # ── mkdir(parents=True) edge case (3 entries) ─────────────────────────
 PathSubclassTest.test_mkdir_parents
@@ -149,7 +109,6 @@ PathTest.test_mkdir_parents
 PosixPathTest.test_mkdir_parents
 
 # ── rmdir (2 entries; Windows handle leak, passes on POSIX) ───────────
-PathTest.test_rmdir
 WindowsPathTest.test_rmdir
 
 # ── walk() edge cases (5 entries) ─────────────────────────────────────
@@ -160,13 +119,10 @@ PathWalkTest.test_walk_many_open_files
 PathWalkTest.test_walk_symlink_location
 
 # ── from_uri / pathname2url POSIX (8 entries) ─────────────────────────
-PathSubclassTest.test_from_uri_pathname2url_posix
 PathSubclassTest.test_from_uri_posix
-PathTest.test_from_uri_pathname2url_posix
 PathTest.test_from_uri_posix
 PathTest.test_from_uri_pathname2url_windows
 PathTest.test_from_uri_windows
-PosixPathTest.test_from_uri_pathname2url_posix
 PosixPathTest.test_from_uri_posix
 
 # ── CompatiblePathTest (2 entries) ────────────────────────────────────
@@ -174,8 +130,6 @@ CompatiblePathTest.test_rtruediv
 CompatiblePathTest.test_truediv
 
 # ── Concrete class move edge cases (2 entries) ────────────────────────
-PathTest.test_move_dir_into_itself
-PathTest.test_move_dir_into_itself_other_fs
 
 # ── Windows-specific: parser / drive / naming (29 entries) ────────────
 # Windows path features not fully implemented or testable on POSIX hosts
@@ -196,10 +150,6 @@ PurePathSubclassTest.test_with_stem_windows
 PurePathTest.test_drive_windows
 PurePathTest.test_with_name_windows
 PurePathTest.test_with_stem_windows
-PureWindowsPathTest.test_drive_windows
-PureWindowsPathTest.test_is_absolute_windows
-PureWindowsPathTest.test_with_name_windows
-PureWindowsPathTest.test_with_stem_windows
 WindowsPathTest.test_eq_windows
 
 # Windows: parse_windows_path on pure paths (6 entries)
@@ -208,7 +158,6 @@ PathTest.test_parse_windows_path
 PosixPathTest.test_parse_windows_path
 PurePathTest.test_parse_windows_path
 PurePosixPathTest.test_parse_windows_path
-PureWindowsPathTest.test_parse_path_windows
 
 # ── Constructor / nesting / subclassing (7 entries) ──────────────────
 PathSubclassTest.test_with_segments
@@ -216,20 +165,12 @@ PathTest.test_constructor_nested_foreign_flavour
 PathTest.test_with_segments
 PosixPathTest.test_with_segments
 PurePathSubclassTest.test_constructor_nested_foreign_flavour
-PureWindowsPathTest.test_constructor_nested_foreign_flavour
 
 # ── fspath / is_absolute pure path (4 entries) ────────────────────────
-PurePathSubclassTest.test_is_absolute_posix
-PurePathTest.test_is_absolute_posix
-PurePosixPathTest.test_is_absolute_posix
-PureWindowsPathTest.test_fspath_common
 
 # ── Misc: descriptor / junction / docstrings (6 entries) ─────────────
-PathSubclassTest.test_handling_bad_descriptor
 PathSubclassTest.test_matches_writablepath_docstrings
-PathTest.test_handling_bad_descriptor
 PathTest.test_matches_writablepath_docstrings
-PosixPathTest.test_handling_bad_descriptor
 PosixPathTest.test_matches_writablepath_docstrings
 
 # ── Compat: truediv/rtruediv on concrete paths (2 entries) ────────────
