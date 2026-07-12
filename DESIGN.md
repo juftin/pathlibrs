@@ -209,48 +209,40 @@ fn parts_iter(os_str: &OsStr) -> impl Iterator<Item = &OsStr> {
 }
 ```
 
-### 4.6 Glob with Iterative DFS
+### 4.6 Glob with WalkDir, Not Recursive listdir
 
-The glob engine uses an iterative stack-based depth-first walk to avoid
-recursion depth issues with deeply nested directory trees. Key design
-decisions:
+CPython's `glob()` uses recursive `os.listdir` + `re` matching. Python `rglob("**/*.py")` materializes the entire tree in a list before yielding. Rust implementation uses `walkdir` to stream results:
 
-- **Lazy streaming**: The Rust glob iterator yields results via a PyO3
-  `#[pyclass]` implementing Python's iterator protocol (`__iter__` /
-  `__next__`), so Python callers see a lazy generator — not a list.
-- **`..` handling**: The `..` segment is treated literally (not
-  resolved) during traversal. Existence checks are deferred to the
-  final path rather than propagated across `..` boundaries (matching
-  CPython's semantics where `fileA/..` on POSIX is rejected because
-  `fileA` is a regular file).
-- **Case sensitivity** uses a three-tier approach matching CPython:
-  _Implicit_ case-sensitive default inherits filesystem sensitivity
-  (`path_exists` fast path). _Explicit_ `case_sensitive=True/False`
-  is honoured via `scandir` + `fnmatch` regardless of filesystem.
-- **Symlink loop detection** uses a path-based visited set, recording
-  the symlink's own path before resolution so the same symlink accessed
-  via different parents is treated independently.
+```rust
+// Rust core — returns a lazy Rust iterator
+fn glob(&self, pattern: &OsStr, recursive: bool) -> impl Iterator<Item = PathBuf> {
+    let compiled = GlobPattern::new(pattern);
+    WalkDir::new(self.as_os_str())
+        .max_depth(if recursive { usize::MAX } else { 1 })
+        .into_iter()
+        .filter_entry(|e| compiled.matches(e.path()))
+        .filter_map(|e| e.ok())
+        .map(|e| e.into_path())
+}
+```
 
-**Ordering**: CPython's `glob()` uses `os.scandir()`, which returns
-entries in filesystem order (arbitrary, not sorted). Neither CPython
-nor this implementation guarantees any specific ordering. Users who
-need sorted results should call `sorted()` themselves. The iterative
-DFS produces results in reverse-DFS order which are then reversed to
-match CPython's shallowest-first order.
+The Rust iterator is wrapped in a PyO3 `#[pyclass]` that implements the Python iterator protocol (`__iter__` / `__next__`), so Python callers see a lazy generator — not a list.
+
+**Ordering**: CPython's `glob()` uses `os.scandir()`, which returns entries in filesystem order (arbitrary, not sorted). Neither CPython nor this implementation guarantees any specific ordering. Users who need sorted results should call `sorted()` themselves. This matches CPython semantics.
 
 ### 4.7 Error Handling Strategy
 
 PyO3 automatically maps common Rust error types to Python exceptions. Our strategy is to leverage this rather than building a parallel error system:
 
-| Rust Error                              | Python Exception                         |
-| --------------------------------------- | ---------------------------------------- |
-| `std::io::Error`                        | `OSError` (via PyO3 built-in conversion) |
-| `std::io::ErrorKind::NotFound`          | `FileNotFoundError`                      |
-| `std::io::ErrorKind::PermissionDenied`  | `PermissionError`                        |
-| `std::io::ErrorKind::AlreadyExists`     | `FileExistsError`                        |
-| `std::io::ErrorKind::InvalidInput`      | `ValueError` (for path construction)     |
-| `std::str::Utf8Error`                   | `UnicodeDecodeError`                     |
-| `StripPrefixError` (from `relative_to`) | `ValueError`                             |
+| Rust Error | Python Exception |
+|---|---|
+| `std::io::Error` | `OSError` (via PyO3 built-in conversion) |
+| `std::io::ErrorKind::NotFound` | `FileNotFoundError` |
+| `std::io::ErrorKind::PermissionDenied` | `PermissionError` |
+| `std::io::ErrorKind::AlreadyExists` | `FileExistsError` |
+| `std::io::ErrorKind::InvalidInput` | `ValueError` (for path construction) |
+| `std::str::Utf8Error` | `UnicodeDecodeError` |
+| `StripPrefixError` (from `relative_to`) | `ValueError` |
 
 Custom error types in the Rust core use `thiserror` and are converted to `PyErr` at the PyO3 boundary:
 
@@ -282,17 +274,16 @@ Windows path parsing is implemented in pure Rust following PEP 428 and the NT ke
 
 Path forms recognized:
 
-| Form                 | Example                    | Parsed As                                                         |
-| -------------------- | -------------------------- | ----------------------------------------------------------------- |
-| Local drive rooted   | `C:\foo\bar`               | `drive="C:"`, `root="\"`, parts: `["foo", "bar"]`                 |
-| Local drive relative | `C:foo\bar`                | `drive="C:"`, `root=None`, parts: `["foo", "bar"]`                |
-| UNC                  | `\\server\share\foo`       | `drive="\\\\server\\share"`, `root="\"`, parts: `["foo"]`         |
-| Device               | `\\.\C:\foo`               | `drive="\\\\.\\C:"`, `root="\"`, parts: `["foo"]`                 |
-| Extended-length      | `\\?\C:\foo`               | `drive="\\\\?\\C:"`, `root="\"`, parts: `["foo"]`                 |
-| Extended UNC         | `\\?\UNC\server\share\foo` | `drive="\\\\?\\UNC\\server\\share"`, `root="\"`, parts: `["foo"]` |
+| Form | Example | Parsed As |
+|---|---|---|
+| Local drive rooted | `C:\foo\bar` | `drive="C:"`, `root="\"`, parts: `["foo", "bar"]` |
+| Local drive relative | `C:foo\bar` | `drive="C:"`, `root=None`, parts: `["foo", "bar"]` |
+| UNC | `\\server\share\foo` | `drive="\\\\server\\share"`, `root="\"`, parts: `["foo"]` |
+| Device | `\\.\C:\foo` | `drive="\\\\.\\C:"`, `root="\"`, parts: `["foo"]` |
+| Extended-length | `\\?\C:\foo` | `drive="\\\\?\\C:"`, `root="\"`, parts: `["foo"]` |
+| Extended UNC | `\\?\UNC\server\share\foo` | `drive="\\\\?\\UNC\\server\\share"`, `root="\"`, parts: `["foo"]` |
 
 Key parsing rules:
-
 - **Drive letter**: single ASCII letter followed by `:` at the start of the path
 - **Root**: leading `\` (or `/`, normalized) after an optional drive
 - **UNC**: exactly two leading backslashes followed by `server\share`
@@ -308,15 +299,15 @@ The Rust core is thread-safe by design:
 - `PathRepr` is `Send + Sync` — it contains only owned data (`OsString`) and a `OnceCell` (which is `Send + Sync` when the inner type is). No mutable shared state after construction.
 - All operations on `&self` are read-only and can be called concurrently from multiple Python threads.
 - IO operations (`stat`, `mkdir`, `unlink`, etc.) release the GIL before making OS calls, allowing other Python threads to run:
-    ```rust
-    fn stat(&self) -> PyResult<StatResult> {
-        let path = self.inner.buf.clone();
-        Python::with_gil(|py| {
-            py.allow_threads(|| std::fs::metadata(&path))
-        })
-        .map_err(|e| PyErr::from(e))
-    }
-    ```
+  ```rust
+  fn stat(&self) -> PyResult<StatResult> {
+      let path = self.inner.buf.clone();
+      Python::with_gil(|py| {
+          py.allow_threads(|| std::fs::metadata(&path))
+      })
+      .map_err(|e| PyErr::from(e))
+  }
+  ```
 - The `OnceCell` for lazy parsing uses internal synchronization — concurrent first-time access from multiple threads is safe and only one parse occurs.
 - Python-level: `PurePath` objects are immutable after construction and inherently thread-safe. `Path` objects are immutable handles to filesystem paths (filesystem state can change, but the `Path` object itself is immutable).
 
@@ -345,7 +336,6 @@ impl PurePath {
 ```
 
 This means:
-
 - `pickle.dumps(PurePosixPath("/a/b"))` works identically to CPython
 - `copy.copy` and `copy.deepcopy` work via `__reduce__`
 - `os.fspath()` returns the string representation
@@ -357,14 +347,14 @@ This means:
 
 ## 5. Memory Comparison
 
-| Operation / Object              | CPython                      | `pathlibrs`             | Ratio       |
-| ------------------------------- | ---------------------------- | ----------------------- | ----------- |
-| `PurePosixPath("/a/b/c/d.py")`  | ~160 bytes                   | ~64 bytes               | **2.5×**    |
-| Access `.parent` (first call)   | allocates new str + PurePath | returns slice, no alloc | **instant** |
-| Access `.suffix`                | allocates str                | returns slice, no alloc | **instant** |
-| `p / "child"`                   | str concat + new PurePath    | OsString reserve + push | **~2×**     |
-| `.stat()`                       | GIL + str-to-OsStr + syscall | direct syscall          | comparable  |
-| `rglob("**/*.py")` on 10k files | huge list accumulation       | bounded iterator        | **depends** |
+| Operation / Object | CPython | `pathlibrs` | Ratio |
+|---|---|---|---|
+| `PurePosixPath("/a/b/c/d.py")` | ~160 bytes | ~64 bytes | **2.5×** |
+| Access `.parent` (first call) | allocates new str + PurePath | returns slice, no alloc | **instant** |
+| Access `.suffix` | allocates str | returns slice, no alloc | **instant** |
+| `p / "child"` | str concat + new PurePath | OsString reserve + push | **~2×** |
+| `.stat()` | GIL + str-to-OsStr + syscall | direct syscall | comparable |
+| `rglob("**/*.py")` on 10k files | huge list accumulation | bounded iterator | **depends** |
 
 ---
 
@@ -377,37 +367,35 @@ The litmus test: **pass CPython's own `test_pathlib.py` from Python 3.14, unchan
 1. **Vendored test suite**: Vendor an unmodified snapshot of CPython's `Lib/test/test_pathlib.py` (and supporting modules like `test_support.py`) from the Python 3.14 release tag. These live in `tests/vendored/` and are **never modified**.
 
 2. **Run against our module**: The tests import `pathlib` directly. We provide a test runner that redirects the import:
+   ```python
+   import sys
+   sys.modules['pathlib'] = __import__('pathlibrs')
 
-    ```python
-    import sys
-    sys.modules['pathlib'] = __import__('pathlibrs')
-
-    # Now run vendored test_pathlib.py as-is
-    ```
+   # Now run vendored test_pathlib.py as-is
+   ```
 
 3. **CI gating**: Every CI run executes the full vendored test suite across the full Python version matrix. A regression in a test that previously passed is a blocker.
 
 4. **Private API tests — skipped, not patched**: Some tests in `test_pathlib.py` probe CPython internals that are not part of the public API contract:
-    - `pathlib._flavour` — the private POSIX/Windows flavour objects
-    - `pathlib._NormalAccessor` — internal accessor class
-    - Any other module, class, function, or attribute prefixed with `_` in the `pathlib` module
-
-    These tests are **skipped** via a `tests/skips.txt` file — not patched or modified:
-
-    ```
-    # tests/skips.txt
-    # Format: <TestClass>.<test_method>  # reason
-    TestPurePath.test_flavour_property  # accesses _flavour (private API)
-    ```
-
-    Tests are skipped via a pytest marker applied by the test runner. A test skipped because it touches private API is **not** a regression. A test skipped for any other reason **is** a regression and must be fixed.
+   - `pathlib._flavour` — the private POSIX/Windows flavour objects
+   - `pathlib._NormalAccessor` — internal accessor class
+   - Any other module, class, function, or attribute prefixed with `_` in the `pathlib` module
+   
+   These tests are **skipped** via a `tests/skips.txt` file — not patched or modified:
+   ```
+   # tests/skips.txt
+   # Format: <TestClass>.<test_method>  # reason
+   TestPurePath.test_flavour_property  # accesses _flavour (private API)
+   ```
+   
+   Tests are skipped via a pytest marker applied by the test runner. A test skipped because it touches private API is **not** a regression. A test skipped for any other reason **is** a regression and must be fixed.
 
 5. **Coverage matrix** — tests run on all supported Python versions:
-    - **Linux**: 3.10, 3.11, 3.12, 3.13, 3.14 (POSIX paths)
-    - **macOS**: 3.10, 3.11, 3.12, 3.13, 3.14 (POSIX paths, case-insensitive FS)
-    - **Windows**: 3.10, 3.11, 3.12, 3.13, 3.14 (Windows paths)
-    - PureWindowsPath tests on Linux (ensuring Windows parsing works everywhere)
-    - PurePosixPath tests on Windows (ensuring POSIX parsing works everywhere)
+   - **Linux**: 3.10, 3.11, 3.12, 3.13, 3.14 (POSIX paths)
+   - **macOS**: 3.10, 3.11, 3.12, 3.13, 3.14 (POSIX paths, case-insensitive FS)
+   - **Windows**: 3.10, 3.11, 3.12, 3.13, 3.14 (Windows paths)
+   - PureWindowsPath tests on Linux (ensuring Windows parsing works everywhere)
+   - PurePosixPath tests on Windows (ensuring POSIX parsing works everywhere)
 
 ### 6.2 Acceptance Criteria
 
@@ -432,6 +420,28 @@ The litmus test: **pass CPython's own `test_pathlib.py` from Python 3.14, unchan
 - `/` operator (`__truediv__`, `__rtruediv__`)
 - **Verify:** Own smoke tests + 30 vendored CPython pure-path tests pass
 
+### Phase 1 Checklist
+
+- [x] `PathRepr` struct with lazy parsing
+- [x] `PurePath`, `PurePosixPath`, `PureWindowsPath` as PyO3 classes
+- [x] Properties: `parts`, `drive`, `root`, `anchor`, `parent`, `parents`, `name`, `suffix`, `suffixes`, `stem`
+- [x] Methods: `joinpath()`, `with_name()`, `with_stem()`, `with_suffix()`, `with_segments()`
+- [x] `relative_to()` with `walk_up` kwarg (3.12+)
+- [x] `is_relative_to()`
+- [x] `as_posix()`, `as_uri()`, `from_uri()`
+- [x] `match()` and `full_match()` with `case_sensitive` kwarg (3.13+)
+- [x] Dunder: `__str__`, `__repr__`, `__fspath__`, `__eq__`, `__hash__`, `__lt__`
+- [x] `/` operator (`__truediv__`, `__rtruediv__`)
+- [x] Pickle / `__reduce__` support
+- [x] Parsing: POSIX and Windows in pure Rust
+- [x] Glob pattern matching (fnmatch-style)
+- [x] Vendored CPython 3.14 test suite runner (conftest.py + skips.txt)
+- [x] `parser` class attribute (posixpath / ntpath)
+- [x] Smoke test suite passes (65 tests)
+- [x] 30 vendored CPython pure-path tests pass
+- [x] All path classes support Python subclassing via `#[pyclass(subclass)]`
+- [x] Rust unit tests pass (36 tests)
+
 ### Phase 2: Filesystem Properties — ~1 week
 
 - `stat()`, `lstat()`, `exists()`, `is_dir()`, `is_file()`, `is_mount()`, `is_symlink()`, `is_junction()`
@@ -449,14 +459,14 @@ The litmus test: **pass CPython's own `test_pathlib.py` from Python 3.14, unchan
 - **3.14 methods:** `copy()`, `copy_into()`, `move()`, `move_into()`, `delete()`
 - **Verify:** All mutation, I/O, and 3.14 file-tree tests pass
 
-### Phase 4: Glob & Pattern Matching ✅ Complete
+### Phase 4: Glob & Pattern Matching — ~1 week
 
 - `glob()`, `rglob()` with full pattern syntax: `**`, `*`, `?`, `[abc]`, `[!abc]`, brace expansion
 - `glob()` / `rglob()` with `case_sensitive` and `recurse_symlinks` kwargs (3.12+/3.13+)
 - Symlink loop detection for recursive globs
 - Glob iterator bridging (Rust → Python via PyO3 iterator protocol)
-- `glob.rs` module with iterative DFS engine (798 lines)
-- **Verify:** All vendored CPython glob tests pass on Linux, macOS, Windows (3.10 + 3.14)
+- `glob.rs` module extracted from `iter.rs` / `pattern.rs` for standalone glob engine
+- **Verify:** All vendored CPython glob tests pass across platform matrix
 
 ### Phase 5: Parity & Maintenance — ~1 week
 
@@ -467,37 +477,33 @@ The litmus test: **pass CPython's own `test_pathlib.py` from Python 3.14, unchan
 - Benchmark suite against CPython pathlib
 
 **Skip audit — drive `skips.txt` to zero (private API only):**
-
 - Audit every entry in `tests/skips.txt`
 - Each skip must be either:
-    - **Private API** — the test touches `_flavour`, `_NormalAccessor`, or other `_`-prefixed internals → stays skipped permanently
-    - **Fixable** — a real behavioral gap → fix the implementation and remove the skip
-- Goal: `skips.txt` contains _only_ private-API entries; zero skips for public API behavior
+  - **Private API** — the test touches `_flavour`, `_NormalAccessor`, or other `_`-prefixed internals → stays skipped permanently
+  - **Fixable** — a real behavioral gap → fix the implementation and remove the skip
+- Goal: `skips.txt` contains *only* private-API entries; zero skips for public API behavior
 
 **Automated vendored test tracking:**
-
 - CI workflow that periodically fetches the latest CPython `test_pathlib.py` from `main` (or the latest stable release tag)
 - Compares against the vendored snapshot; if the upstream test file has changed:
-    - Opens an automated issue/PR with the diff for review
-    - Runs the new test suite against `pathlibrs` to surface new failures from added tests
+  - Opens an automated issue/PR with the diff for review
+  - Runs the new test suite against `pathlibrs` to surface new failures from added tests
 - Keeps the vendored test snapshot from drifting as CPython evolves
 
 **Performance testing & automated benchmarking:**
-
 - Comprehensive benchmark suite exercising every API surface against built-in `pathlib`:
-    - **Pure operations:** `.parent`, `.stem`, `.suffix`, `.name`, `.with_name()`, `.relative_to()`, `/` operator
-    - **Stat operations:** `.exists()`, `.is_file()`, `.is_dir()`, `.stat()` on hot/cold caches
-    - **I/O operations:** `.read_text()`, `.write_text()`, `.read_bytes()`, `.write_bytes()`
-    - **Directory ops:** `.iterdir()`, `.walk()` on trees of varying depth/width
-    - **Glob ops:** `.glob()`, `.rglob()` on small, medium, and deep trees
-    - **Mutation ops:** `.mkdir()`, `.unlink()`, `.rename()`, `.symlink_to()`, `.copy()`, `.move()`, `.delete()`
-    - **Memory:** Object size, allocation count for 100k paths, memory peak during glob/walk
+  - **Pure operations:** `.parent`, `.stem`, `.suffix`, `.name`, `.with_name()`, `.relative_to()`, `/` operator
+  - **Stat operations:** `.exists()`, `.is_file()`, `.is_dir()`, `.stat()` on hot/cold caches
+  - **I/O operations:** `.read_text()`, `.write_text()`, `.read_bytes()`, `.write_bytes()`
+  - **Directory ops:** `.iterdir()`, `.walk()` on trees of varying depth/width
+  - **Glob ops:** `.glob()`, `.rglob()` on small, medium, and deep trees
+  - **Mutation ops:** `.mkdir()`, `.unlink()`, `.rename()`, `.symlink_to()`, `.copy()`, `.move()`, `.delete()`
+  - **Memory:** Object size, allocation count for 100k paths, memory peak during glob/walk
 - CI workflow runs benchmarks on every push to main and produces a comparison report
 - Results published as part of the docs (Markdown table + JSON for tracking over time)
 - Regression alerting: if any benchmark regresses >10% vs the last stable run, CI flags it
 
 **Acceptance criteria:**
-
 - Full vendored CPython 3.14 test suite passes on all platforms (3.10–3.14)
 - `skips.txt` contains only private-API entries (no public-API skips)
 - Automated upstream test tracking is in place and passing CI
@@ -513,37 +519,31 @@ Benchmarks run head-to-head against built-in `pathlib` on every push to main. Re
 ### Categories
 
 **Pure operations** (no filesystem I/O):
-
 - `.parent`, `.stem`, `.suffix`, `.name` — property access on 100k paths
 - `.with_name()`, `.with_suffix()`, `.relative_to()` — path mutation
 - `/` operator — path joining
 - `__str__`, `__fspath__` — string conversion
 
 **Stat & metadata:**
-
 - `.exists()`, `.is_file()`, `.is_dir()`, `.is_symlink()` — type checks
 - `.stat()`, `.lstat()` — metadata (hot cache and cold cache)
 - `.samefile()` — inode comparison
 
 **I/O operations:**
-
 - `.read_text()`, `.read_bytes()` — reading small, medium, large files
 - `.write_text()`, `.write_bytes()` — writing new and overwriting existing
 - `.open()` — raw file handle with various modes
 
 **Directory traversal:**
-
 - `.iterdir()` — shallow listing of 1k, 10k, 100k entry directories
 - `.walk()` — recursive traversal on trees of varying depth (3, 10, 20) and width (10, 100, 1000)
 
 **Glob (Phase 4):**
-
 - `.glob("*.py")` — shallow glob on 10k files
 - `.rglob("**/*.py")` — recursive glob on a 100k-file tree
 - `.rglob()` with `case_sensitive` and `recurse_symlinks` kwargs
 
 **Mutations:**
-
 - `.mkdir()` — single dir, deep tree (parents=True)
 - `.unlink()`, `.rmdir()` — file and directory removal
 - `.rename()`, `.replace()` — atomic move
@@ -551,22 +551,21 @@ Benchmarks run head-to-head against built-in `pathlib` on every push to main. Re
 - `.copy()`, `.move()`, `.delete()` — 3.14 file-tree operations
 
 **Memory:**
-
 - Object size per path (100k instances)
 - Allocations per operation (via `tracemalloc`)
 - Peak RSS during `.rglob("**/*")` on a large tree
 
 ### Target Ratios
 
-| Operation                        | Target vs pathlib               |
-| -------------------------------- | ------------------------------- |
-| `PurePath(...).parent`           | 10× faster                      |
-| `PurePath(...).stem`             | 10× faster                      |
-| `p / "child"`                    | 3× faster                       |
-| `.stat()`                        | comparable (syscall-bound)      |
-| `.read_text()`                   | comparable (I/O-bound)          |
-| `.rglob("**/*.py")` on 10k files | 2–5× less memory                |
-| `.copy()` directory tree         | comparable to `shutil.copytree` |
+| Operation | Target vs pathlib |
+|---|---|
+| `PurePath(...).parent` | 10× faster |
+| `PurePath(...).stem` | 10× faster |
+| `p / "child"` | 3× faster |
+| `.stat()` | comparable (syscall-bound) |
+| `.read_text()` | comparable (I/O-bound) |
+| `.rglob("**/*.py")` on 10k files | 2–5× less memory |
+| `.copy()` directory tree | comparable to `shutil.copytree` |
 
 ### Regression Detection
 
@@ -578,16 +577,16 @@ Benchmarks run head-to-head against built-in `pathlib` on every push to main. Re
 
 ## 9. Risks & Mitigations
 
-| Risk                                                 | Mitigation                                                                                                            |
-| ---------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| CPython 3.14 test suite uses private API             | Skip file (`tests/skips.txt`). Private API is not part of the public contract. Reviewed on each CPython version bump. |
-| Windows path parsing on non-Windows hosts            | Implement full Windows path parser in pure Rust using the spec from PEP 428 (section 4.8)                             |
-| PyO3 subclassing complexity for 4-level hierarchy    | Use `#[pyclass(subclass)]` and composition; avoid `extends` chain if possible                                         |
-| GIL contention on IO-heavy workloads                 | Release GIL during blocking IO calls (`stat`, `mkdir`, `walkdir`) — see section 4.9                                   |
-| `pathlib.Path.open()` differing from `io.open()`     | Delegate to Python's `io.open()` for full compatibility with all parameters (section 11.1)                            |
-| CPython pathlib adds new features in future versions | Track CPython changelog; bump vendored test snapshot on minor releases                                                |
-| Pickle/copy incompatibility                          | Implement `__reduce__` returning `(cls, (str(path),))` — same as CPython (section 4.10)                               |
-| Supporting Python 3.10 ABI alongside newer versions  | Use PyO3 `abi3-py310` feature — single binary wheel works on 3.10 through 3.14 (section 11.4)                         |
+| Risk | Mitigation |
+|---|---|
+| CPython 3.14 test suite uses private API | Skip file (`tests/skips.txt`). Private API is not part of the public contract. Reviewed on each CPython version bump. |
+| Windows path parsing on non-Windows hosts | Implement full Windows path parser in pure Rust using the spec from PEP 428 (section 4.8) |
+| PyO3 subclassing complexity for 4-level hierarchy | Use `#[pyclass(subclass)]` and composition; avoid `extends` chain if possible |
+| GIL contention on IO-heavy workloads | Release GIL during blocking IO calls (`stat`, `mkdir`, `walkdir`) — see section 4.9 |
+| `pathlib.Path.open()` differing from `io.open()` | Delegate to Python's `io.open()` for full compatibility with all parameters (section 11.1) |
+| CPython pathlib adds new features in future versions | Track CPython changelog; bump vendored test snapshot on minor releases |
+| Pickle/copy incompatibility | Implement `__reduce__` returning `(cls, (str(path),))` — same as CPython (section 4.10) |
+| Supporting Python 3.10 ABI alongside newer versions | Use PyO3 `abi3-py310` feature — single binary wheel works on 3.10 through 3.14 (section 11.4) |
 
 ---
 
@@ -639,7 +638,6 @@ pathlibrs/
 **Decision**: Delegate to Python's `io.open()` via PyO3, not a native Rust file handle.
 
 **Rationale**:
-
 - `open()` has complex semantics: encoding negotiation, `newline` translation, `errors` handling, `buffering` modes, `opener` callbacks. Reimplementing these in Rust would be bug-prone and duplicative.
 - Python callers often pass file objects to other Python code that expects `io.IOBase` subclasses (`TextIOWrapper`, `BufferedReader`). A Rust-backed file object wouldn't satisfy `isinstance(f, io.TextIOWrapper)` checks.
 - CPython's own pathlib calls `io.open()` internally — we're matching the reference implementation.
@@ -667,7 +665,6 @@ impl Path {
 **Decision**: Ship as `pathlibrs`, an independent PyPI package.
 
 **Rationale**:
-
 - `pathlibrs` is descriptively clear ("pathlib in Rust") and doesn't collide with any existing package.
 - `_pathlib` implies it's a private CPython implementation detail — it would conflict with the actual stdlib module and create confusion about who owns it.
 - If CPython ever adopts this as the stdlib backend, the renaming to `_pathlib` is a trivial migration (the public API surface doesn't reference the module name).
@@ -678,7 +675,6 @@ impl Path {
 **Decision**: Return results in filesystem order, matching CPython semantics.
 
 **Rationale**:
-
 - CPython's `pathlib.glob()` uses `os.scandir()`, which returns entries in filesystem-dependent order (typically inode order on Unix, alphabetical on NTFS). **Neither implementation guarantees any specific ordering.**
 - The `walkdir` crate produces the same semantics.
 - Users who need deterministic ordering should call `sorted()` on the result — this is already the documented recommendation for CPython.
@@ -689,7 +685,6 @@ impl Path {
 **Decision**: Target Python 3.10 through 3.14.
 
 **Rationale**:
-
 - Many projects maintain support for Python 3.10+ and can't adopt newer `pathlib` features without a backport. Providing a single package that works across the full range eliminates version-gating in user code.
 - PyO3's `abi3` feature for Python 3.10+ produces a **single binary wheel** that works across 3.10, 3.11, 3.12, 3.13, and 3.14 — simpler CI and distribution. No per-version builds needed.
 - Python 3.14 introduces `copy()`, `move()`, `delete()`, `copy_into()`, and `move_into()`. We implement the full 3.14 API surface regardless of the runtime Python version. On 3.14 itself, users can use either `pathlib` or `pathlibrs` — ours is faster, theirs is standard.
@@ -701,7 +696,6 @@ impl Path {
 **Decision**: We do not touch, wrap, subclass, or depend on any private API in the `pathlib` module.
 
 Specifically, we never reference:
-
 - `pathlib._flavour`, `_PosixFlavour`, `_WindowsFlavour`
 - `pathlib._NormalAccessor`
 - Any other module, class, function, or attribute prefixed with `_`
