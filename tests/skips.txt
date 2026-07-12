@@ -7,8 +7,8 @@
 # Remove entries as features are fixed in pathlibrs.
 # Only private-API tests should remain as permanent skips.
 #
-# Stats: 186 active entries | 646 passed | 558 skipped | 0 failures
-#        (53 entries resolved from 239 baseline, +52 new passes)
+# Stats: 160 active entries | 646 passed | 558 skipped | 0 failures
+#        (79 entries resolved from 239 baseline, +26 new passes)
 #
 # ═══════════════════════════════════════════════════════════════════════
 
@@ -78,19 +78,16 @@ PosixPathTest.test_complex_symlinks_absolute
 PosixPathTest.test_complex_symlinks_relative
 PosixPathTest.test_complex_symlinks_relative_dot_dot
 
-# ── resolve() edge cases (12 entries) ─────────────────────────────────
+# ── resolve() edge cases (9 entries) ──────────────────────────────────
 PathSubclassTest.test_resolve_common
 PathSubclassTest.test_resolve_dot
 PathSubclassTest.test_resolve_loop
-PathSubclassTest.test_resolve_nonexist_relative_issue38671
 PathTest.test_resolve_common
 PathTest.test_resolve_dot
 PathTest.test_resolve_loop
-PathTest.test_resolve_nonexist_relative_issue38671
 PosixPathTest.test_resolve_common
 PosixPathTest.test_resolve_dot
 PosixPathTest.test_resolve_loop
-PosixPathTest.test_resolve_nonexist_relative_issue38671
 
 # ── cross-flavour: equivalences (7 entries) ───────────────────────────
 PathSubclassTest.test_equivalences
@@ -101,20 +98,12 @@ PurePathSubclassTest.test_equivalences_windows
 PurePathTest.test_equivalences_windows
 PureWindowsPathTest.test_equivalences_windows
 
-# ── cross-flavour: different parsers unequal/unordered (14 entries) ───
-PathSubclassTest.test_different_parsers_unequal
-PathSubclassTest.test_different_parsers_unordered
-PathTest.test_different_parsers_unequal
+# ── cross-flavour: different parsers unordered (6 entries) ────────────
 PathTest.test_different_parsers_unordered
-PosixPathTest.test_different_parsers_unequal
 PosixPathTest.test_different_parsers_unordered
-PurePathSubclassTest.test_different_parsers_unequal
 PurePathSubclassTest.test_different_parsers_unordered
-PurePathTest.test_different_parsers_unequal
 PurePathTest.test_different_parsers_unordered
-PurePosixPathTest.test_different_parsers_unequal
 PurePosixPathTest.test_different_parsers_unordered
-PureWindowsPathTest.test_different_parsers_unequal
 PureWindowsPathTest.test_different_parsers_unordered
 
 # ── ordering: cross-flavour TypeError (8 entries) ─────────────────────
@@ -127,8 +116,7 @@ PurePathTest.test_ordering_common
 PurePosixPathTest.test_ordering_common
 PureWindowsPathTest.test_ordering_windows
 
-# ── is_reserved() DeprecationWarning (7 entries) ──────────────────────
-PathSubclassTest.test_is_reserved_deprecated
+# ── is_reserved() DeprecationWarning (6 entries) ──────────────────────
 PathTest.test_is_reserved_deprecated
 PosixPathTest.test_is_reserved_deprecated
 PurePathSubclassTest.test_is_reserved_deprecated
@@ -136,10 +124,7 @@ PurePathTest.test_is_reserved_deprecated
 PurePosixPathTest.test_is_reserved_deprecated
 PureWindowsPathTest.test_is_reserved_deprecated
 
-# ── relative_to / is_relative_to (7 entries) ──────────────────────────
-PathSubclassTest.test_relative_to_common
-PathTest.test_relative_to_common
-PosixPathTest.test_relative_to_common
+# ── relative_to / is_relative_to (4 entries) ──────────────────────────
 PurePathSubclassTest.test_relative_to_common
 PurePathTest.test_relative_to_common
 PurePosixPathTest.test_relative_to_common
@@ -150,8 +135,7 @@ PathSubclassTest.test_mkdir_parents
 PathTest.test_mkdir_parents
 PosixPathTest.test_mkdir_parents
 
-# ── rmdir (3 entries; Windows handle leak, passes on POSIX) ───────────
-PathSubclassTest.test_rmdir
+# ── rmdir (2 entries; Windows handle leak, passes on POSIX) ───────────
 PathTest.test_rmdir
 WindowsPathTest.test_rmdir
 
@@ -180,16 +164,13 @@ CompatiblePathTest.test_truediv
 PathTest.test_move_dir_into_itself
 PathTest.test_move_dir_into_itself_other_fs
 
-# ── Windows-specific: parser / drive / naming (32 entries) ────────────
+# ── Windows-specific: parser / drive / naming (29 entries) ────────────
 # Windows path features not fully implemented or testable on POSIX hosts
 PathSubclassTest.test_eq_windows
 PathTest.test_absolute_windows
 PathTest.test_drive_windows
 PathTest.test_eq_windows
-PathTest.test_expanduser_windows
-PathTest.test_group_windows
 PathTest.test_is_absolute_windows
-PathTest.test_owner_windows
 PathTest.test_parse_path_windows
 PathTest.test_root_windows
 PathTest.test_str_windows
@@ -216,18 +197,12 @@ PurePathTest.test_parse_windows_path
 PurePosixPathTest.test_parse_windows_path
 PureWindowsPathTest.test_parse_path_windows
 
-# Windows: ordering_windows (included in ordering section above)
-
-# ── Constructor / nesting / subclassing (10 entries) ──────────────────
-PathSubclassTest.test_constructor_nested
+# ── Constructor / nesting / subclassing (7 entries) ──────────────────
 PathSubclassTest.test_with_segments
-PathTest.test_constructor_nested
 PathTest.test_constructor_nested_foreign_flavour
 PathTest.test_with_segments
-PosixPathTest.test_constructor_nested
 PosixPathTest.test_with_segments
 PurePathSubclassTest.test_constructor_nested_foreign_flavour
-PurePathTest.test_concrete_class
 PureWindowsPathTest.test_constructor_nested_foreign_flavour
 
 # ── fspath / is_absolute pure path (4 entries) ────────────────────────
@@ -238,13 +213,10 @@ PureWindowsPathTest.test_fspath_common
 
 # ── Misc: descriptor / junction / docstrings (6 entries) ─────────────
 PathSubclassTest.test_handling_bad_descriptor
-PathSubclassTest.test_is_junction_true
 PathSubclassTest.test_matches_writablepath_docstrings
 PathTest.test_handling_bad_descriptor
-PathTest.test_is_junction_true
 PathTest.test_matches_writablepath_docstrings
 PosixPathTest.test_handling_bad_descriptor
-PosixPathTest.test_is_junction_true
 PosixPathTest.test_matches_writablepath_docstrings
 
 # ── Compat: truediv/rtruediv on concrete paths (2 entries) ────────────
