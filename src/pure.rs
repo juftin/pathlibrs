@@ -1860,6 +1860,24 @@ pub(crate) fn join_path_segments(
         result.extend_from_slice(part.as_encoded_bytes());
     }
 
+    // On Windows, a relative path whose first part contains a colon (e.g.
+    // "c:a") looks like a drive-relative reference.  Insert a leading ".\"
+    // to prevent the reconstructed path from being reparsed as drive-relative.
+    // This preserves the intent of inputs like "./c:a" and results of
+    // with_name("d:") / with_stem("d:").
+    if flavour == PathFlavour::Windows
+        && drive.is_none()
+        && root.is_none()
+        && !result.is_empty()
+        && !parts.is_empty()
+        && parts[0].as_encoded_bytes().contains(&b':')
+    {
+        let mut prefixed = Vec::with_capacity(2 + result.len());
+        prefixed.extend_from_slice(b".\\");
+        prefixed.extend_from_slice(&result);
+        return Ok(crate::from_os_bytes(&prefixed).to_os_string());
+    }
+
     if result.is_empty() {
         Ok(OsString::from("."))
     } else {
