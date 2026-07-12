@@ -239,12 +239,12 @@ PosixPathTest.test_rmdir
 PosixPathTest.test_with_segments
 
 # -- PurePathSubclassTest — subclass init chain differences
-PurePathSubclassTest.test_as_posix_common
+# REMOVED: PurePathSubclassTest.test_as_posix_common
 PurePathSubclassTest.test_concrete_class
 PurePathSubclassTest.test_concrete_parser
 PurePathSubclassTest.test_constructor_nested_foreign_flavour
-PurePathSubclassTest.test_drive_common
-PurePathSubclassTest.test_drive_windows
+# REMOVED: PurePathSubclassTest.test_drive_common
+# REMOVED: PurePathSubclassTest.test_drive_windows
 PurePathSubclassTest.test_equivalences_windows
 PurePathSubclassTest.test_fspath_common
 # REMOVED: PurePathSubclassTest.test_full_match_case_sensitive
@@ -258,18 +258,18 @@ PurePathSubclassTest.test_is_relative_to_windows
 # REMOVED: PurePathSubclassTest.test_match_windows
 PurePathSubclassTest.test_ordering_common
 PurePathSubclassTest.test_ordering_windows
-PurePathSubclassTest.test_parse_path_windows
-PurePathSubclassTest.test_parse_windows_path
+# REMOVED: PurePathSubclassTest.test_parse_path_windows
+# REMOVED: PurePathSubclassTest.test_parse_windows_path
 PurePathSubclassTest.test_pickling_common
 PurePathSubclassTest.test_relative_to_common
 PurePathSubclassTest.test_relative_to_windows
-PurePathSubclassTest.test_root_windows
-PurePathSubclassTest.test_str_common
-PurePathSubclassTest.test_str_subclass_common
-PurePathSubclassTest.test_str_subclass_windows
-PurePathSubclassTest.test_str_windows
-PurePathSubclassTest.test_with_name_windows
-PurePathSubclassTest.test_with_stem_windows
+# REMOVED: PurePathSubclassTest.test_root_windows
+# REMOVED: PurePathSubclassTest.test_str_common
+# REMOVED: PurePathSubclassTest.test_str_subclass_common
+# REMOVED: PurePathSubclassTest.test_str_subclass_windows
+# REMOVED: PurePathSubclassTest.test_str_windows
+# REMOVED: PurePathSubclassTest.test_with_name_windows
+# REMOVED: PurePathSubclassTest.test_with_stem_windows
 
 # -- PurePathTest — base pure path tests for unimplemented features
 PurePathTest.test_concrete_class
