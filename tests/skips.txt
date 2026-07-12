@@ -117,6 +117,10 @@ PurePathTest.test_ordering_common
 PurePosixPathTest.test_ordering_common
 PureWindowsPathTest.test_ordering_windows
 
+# ── owner/group windows — raises UnsupportedOperation, pathlibrs lacks it (2 entries) ─
+PathTest.test_group_windows
+PathTest.test_owner_windows
+
 # ── is_reserved() DeprecationWarning (6 entries) ──────────────────────
 PathTest.test_is_reserved_deprecated
 PosixPathTest.test_is_reserved_deprecated
