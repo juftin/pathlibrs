@@ -25,7 +25,6 @@ CompatiblePathTest.test_truediv
 PathSubclassTest.test_complex_symlinks_absolute
 PathSubclassTest.test_complex_symlinks_relative
 PathSubclassTest.test_complex_symlinks_relative_dot_dot
-PathSubclassTest.test_constructor_nested
 # REMOVED: PathSubclassTest.test_copy_dangling_symlink
 # -- copy: remaining — needs preserve_metadata impl or incompatible (error_handling mocks CPython internals)
 PathSubclassTest.test_copy_dir_no_read_permission
@@ -54,9 +53,6 @@ PathSubclassTest.test_delete_missing
 PathSubclassTest.test_delete_on_named_pipe
 PathSubclassTest.test_delete_symlink
 PathSubclassTest.test_delete_unwritable
-PathSubclassTest.test_different_parsers_unequal
-PathSubclassTest.test_different_parsers_unordered
-PathSubclassTest.test_equivalences
 # REMOVED: PathSubclassTest.test_expanduser_common
 # REMOVED: PathSubclassTest.test_expanduser_posix
 PathSubclassTest.test_from_uri_pathname2url_posix
@@ -71,7 +67,6 @@ PathSubclassTest.test_info_is_symlink_caching
 PathSubclassTest.test_is_junction_true
 PathSubclassTest.test_is_relative_to_common
 # REMOVED: PathSubclassTest.test_iterdir_symlink
-PathSubclassTest.test_join_nested
 # REMOVED: PathSubclassTest.test_match_common
 # REMOVED: PathSubclassTest.test_match_empty
 # REMOVED: PathSubclassTest.test_match_posix
@@ -109,7 +104,6 @@ PathSubclassTest.test_with_segments
 PathTest.test_complex_symlinks_absolute
 PathTest.test_complex_symlinks_relative
 PathTest.test_complex_symlinks_relative_dot_dot
-PathTest.test_constructor_nested
 # REMOVED: PathTest.test_copy_dangling_symlink
 # -- copy: needs preserve_metadata or incompatible (error_handling)
 PathTest.test_copy_dir_no_read_permission
@@ -138,9 +132,6 @@ PathTest.test_delete_missing
 PathTest.test_delete_on_named_pipe
 PathTest.test_delete_symlink
 PathTest.test_delete_unwritable
-PathTest.test_different_parsers_unequal
-PathTest.test_different_parsers_unordered
-PathTest.test_equivalences
 PathTest.test_from_uri_pathname2url_posix
 PathTest.test_from_uri_posix
 # REMOVED: PathTest.test_full_match_case_sensitive
@@ -148,7 +139,6 @@ PathTest.test_handling_bad_descriptor
 # REMOVED: PathTest.test_hardlink_to
 PathTest.test_is_relative_to_common
 # REMOVED: PathTest.test_iterdir_symlink
-PathTest.test_join_nested
 # REMOVED: PathTest.test_match_common
 # REMOVED: PathTest.test_match_empty
 # REMOVED: PathTest.test_match_posix
@@ -188,7 +178,6 @@ PathWalkTest.test_walk_symlink_location
 PosixPathTest.test_complex_symlinks_absolute
 PosixPathTest.test_complex_symlinks_relative
 PosixPathTest.test_complex_symlinks_relative_dot_dot
-PosixPathTest.test_constructor_nested
 # REMOVED: PosixPathTest.test_copy_dangling_symlink
 # -- copy: needs preserve_metadata or incompatible (error_handling)
 PosixPathTest.test_copy_dir_no_read_permission
@@ -217,9 +206,6 @@ PosixPathTest.test_delete_missing
 PosixPathTest.test_delete_on_named_pipe
 PosixPathTest.test_delete_symlink
 PosixPathTest.test_delete_unwritable
-PosixPathTest.test_different_parsers_unequal
-PosixPathTest.test_different_parsers_unordered
-PosixPathTest.test_equivalences
 PosixPathTest.test_from_uri_pathname2url_posix
 PosixPathTest.test_from_uri_posix
 # REMOVED: PosixPathTest.test_full_match_case_sensitive
@@ -227,7 +213,6 @@ PosixPathTest.test_handling_bad_descriptor
 # REMOVED: PosixPathTest.test_hardlink_to
 PosixPathTest.test_is_relative_to_common
 # REMOVED: PosixPathTest.test_iterdir_symlink
-PosixPathTest.test_join_nested
 # REMOVED: PosixPathTest.test_match_common
 # REMOVED: PosixPathTest.test_match_empty
 # REMOVED: PosixPathTest.test_mkdir
@@ -257,14 +242,9 @@ PosixPathTest.test_with_segments
 PurePathSubclassTest.test_as_posix_common
 PurePathSubclassTest.test_concrete_class
 PurePathSubclassTest.test_concrete_parser
-PurePathSubclassTest.test_constructor_nested
 PurePathSubclassTest.test_constructor_nested_foreign_flavour
-PurePathSubclassTest.test_different_parsers_unequal
-PurePathSubclassTest.test_different_parsers_unordered
-PurePathSubclassTest.test_div_nested
 PurePathSubclassTest.test_drive_common
 PurePathSubclassTest.test_drive_windows
-PurePathSubclassTest.test_equivalences
 PurePathSubclassTest.test_equivalences_windows
 PurePathSubclassTest.test_fspath_common
 # REMOVED: PurePathSubclassTest.test_full_match_case_sensitive
@@ -272,8 +252,6 @@ PurePathSubclassTest.test_is_absolute_posix
 PurePathSubclassTest.test_is_absolute_windows
 PurePathSubclassTest.test_is_relative_to_common
 PurePathSubclassTest.test_is_relative_to_windows
-PurePathSubclassTest.test_is_reserved_deprecated
-PurePathSubclassTest.test_join_nested
 # REMOVED: PurePathSubclassTest.test_match_common
 # REMOVED: PurePathSubclassTest.test_match_empty
 # REMOVED: PurePathSubclassTest.test_match_posix
@@ -296,50 +274,32 @@ PurePathSubclassTest.test_with_stem_windows
 # -- PurePathTest — base pure path tests for unimplemented features
 PurePathTest.test_concrete_class
 PurePathTest.test_concrete_parser
-PurePathTest.test_constructor_nested
-PurePathTest.test_different_parsers_unequal
-PurePathTest.test_different_parsers_unordered
-PurePathTest.test_equivalences
 # REMOVED: PurePathTest.test_full_match_case_sensitive
 PurePathTest.test_is_absolute_posix
 PurePathTest.test_is_relative_to_common
-PurePathTest.test_is_reserved_deprecated
-PurePathTest.test_join_nested
 # REMOVED: PurePathTest.test_match_common
 # REMOVED: PurePathTest.test_match_empty
 PurePathTest.test_parse_windows_path
 PurePathTest.test_relative_to_common
 
 # -- PurePosixPathTest — POSIX pure path tests for unimplemented features
-PurePosixPathTest.test_constructor_nested
-PurePosixPathTest.test_different_parsers_unequal
-PurePosixPathTest.test_different_parsers_unordered
-PurePosixPathTest.test_equivalences
 # REMOVED: PurePosixPathTest.test_full_match_case_sensitive
 PurePosixPathTest.test_is_absolute_posix
 PurePosixPathTest.test_is_relative_to_common
-PurePosixPathTest.test_is_reserved_deprecated
-PurePosixPathTest.test_join_nested
 # REMOVED: PurePosixPathTest.test_match_common
 # REMOVED: PurePosixPathTest.test_match_empty
 PurePosixPathTest.test_parse_windows_path
 PurePosixPathTest.test_relative_to_common
 
 # -- PureWindowsPathTest — Windows pure path tests for unimplemented features
-PureWindowsPathTest.test_constructor_nested
 PureWindowsPathTest.test_constructor_nested_foreign_flavour
-PureWindowsPathTest.test_different_parsers_unequal
-PureWindowsPathTest.test_different_parsers_unordered
 PureWindowsPathTest.test_drive_windows
-PureWindowsPathTest.test_equivalences
 PureWindowsPathTest.test_equivalences_windows
 PureWindowsPathTest.test_fspath_common
 # REMOVED: PureWindowsPathTest.test_full_match_case_sensitive
 PureWindowsPathTest.test_is_absolute_windows
 PureWindowsPathTest.test_is_relative_to_common
 PureWindowsPathTest.test_is_relative_to_windows
-PureWindowsPathTest.test_is_reserved_deprecated
-PureWindowsPathTest.test_join_nested
 # REMOVED: PureWindowsPathTest.test_match_common
 # REMOVED: PureWindowsPathTest.test_match_empty
 # REMOVED: PureWindowsPathTest.test_match_windows

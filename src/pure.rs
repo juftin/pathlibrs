@@ -996,6 +996,58 @@ impl PurePath {
         }
     }
 
+    /// Check whether the path is a reserved name (Windows only).
+    ///
+    /// This method is deprecated as of Python 3.13. It always returns ``False``
+    /// on POSIX. On Windows it checks for reserved names (CON, PRN, AUX, NUL,
+    /// COM1-COM9, LPT1-LPT9).
+    #[pyo3(name = "is_reserved")]
+    fn is_reserved_impl(&self) -> PyResult<bool> {
+        Python::with_gil(|py| {
+            let _ = py.import("warnings")?.call_method1(
+                "warn",
+                (
+                    concat!(
+                        "pathlib.PurePath.is_reserved() is deprecated and scheduled for ",
+                        "removal in a future Python version. If you use this method, ",
+                        "please open a discussion on the CPython issue tracker.",
+                    ),
+                    py.get_type::<pyo3::exceptions::PyDeprecationWarning>(),
+                ),
+            );
+            Ok::<_, PyErr>(())
+        })?;
+        if !self._is_windows() {
+            return Ok(false);
+        }
+        // Check Windows reserved names in the last component.
+        let name = self._name_option().unwrap_or_default();
+        let upper = name.to_uppercase();
+        // Check exact reserved names
+        let reserved = ["CON", "PRN", "AUX", "NUL", "CONIN$", "CONOUT$"];
+        if reserved.contains(&upper.as_str()) {
+            return Ok(true);
+        }
+        // Check COM1-COM9 and LPT1-LPT9
+        if upper.len() >= 3 {
+            if let Some(suffix) = upper.strip_prefix("COM") {
+                if let Ok(n) = suffix.parse::<u32>() {
+                    if (1..=9).contains(&n) || suffix == "¹" || suffix == "²" || suffix == "³" {
+                        return Ok(true);
+                    }
+                }
+            }
+            if let Some(suffix) = upper.strip_prefix("LPT") {
+                if let Ok(n) = suffix.parse::<u32>() {
+                    if (1..=9).contains(&n) || suffix == "¹" || suffix == "²" || suffix == "³" {
+                        return Ok(true);
+                    }
+                }
+            }
+        }
+        Ok(false)
+    }
+
     /// Return a cached ``PathInfo`` object for this path (CPython 3.12+).
     ///
     /// ``PathInfo`` caches stat results so repeated calls to
@@ -1064,6 +1116,10 @@ impl PurePath {
         if !other.is_instance_of::<Self>() {
             return Ok(false);
         }
+        // Paths with different parsers/flavours are never equal.
+        if !_same_flavour(other, self.flavour) {
+            return Ok(false);
+        }
         let other_str = _extract_path_str(other)?;
         let other_parsed = crate::parsing::parse_path(OsStr::new(&other_str), self.flavour);
         let self_parsed = self.inner.parsed(self.flavour);
@@ -1124,6 +1180,11 @@ impl PurePath {
     }
 
     fn __lt__(&self, other: &Bound<'_, PyAny>) -> PyResult<bool> {
+        if !_same_flavour(other, self.flavour) {
+            return Err(pyo3::exceptions::PyTypeError::new_err(
+                "'<' not supported between instances of 'PurePosixPath' and 'PureWindowsPath'",
+            ));
+        }
         let other_str = _extract_path_str(other)?;
         let other_parsed = crate::parsing::parse_path(OsStr::new(&other_str), self.flavour);
         let self_key = _cmp_key(self.inner.parsed(self.flavour), self._is_windows());
@@ -1132,6 +1193,11 @@ impl PurePath {
     }
 
     fn __le__(&self, other: &Bound<'_, PyAny>) -> PyResult<bool> {
+        if !_same_flavour(other, self.flavour) {
+            return Err(pyo3::exceptions::PyTypeError::new_err(
+                "'<=' not supported between instances of 'PurePosixPath' and 'PureWindowsPath'",
+            ));
+        }
         let other_str = _extract_path_str(other)?;
         let other_parsed = crate::parsing::parse_path(OsStr::new(&other_str), self.flavour);
         let self_key = _cmp_key(self.inner.parsed(self.flavour), self._is_windows());
@@ -1140,6 +1206,11 @@ impl PurePath {
     }
 
     fn __gt__(&self, other: &Bound<'_, PyAny>) -> PyResult<bool> {
+        if !_same_flavour(other, self.flavour) {
+            return Err(pyo3::exceptions::PyTypeError::new_err(
+                "'>' not supported between instances of 'PurePosixPath' and 'PureWindowsPath'",
+            ));
+        }
         let other_str = _extract_path_str(other)?;
         let other_parsed = crate::parsing::parse_path(OsStr::new(&other_str), self.flavour);
         let self_key = _cmp_key(self.inner.parsed(self.flavour), self._is_windows());
@@ -1148,6 +1219,11 @@ impl PurePath {
     }
 
     fn __ge__(&self, other: &Bound<'_, PyAny>) -> PyResult<bool> {
+        if !_same_flavour(other, self.flavour) {
+            return Err(pyo3::exceptions::PyTypeError::new_err(
+                "'>=' not supported between instances of 'PurePosixPath' and 'PureWindowsPath'",
+            ));
+        }
         let other_str = _extract_path_str(other)?;
         let other_parsed = crate::parsing::parse_path(OsStr::new(&other_str), self.flavour);
         let self_key = _cmp_key(self.inner.parsed(self.flavour), self._is_windows());
@@ -1703,7 +1779,10 @@ impl PureWindowsPath {
 /// Follows CPython's behaviour: when a segment is anchored (has a drive or root),
 /// all previously accumulated segments are discarded and the path restarts from
 /// that anchored segment.
-fn join_path_segments(args: &Bound<'_, PyTuple>, flavour: PathFlavour) -> PyResult<OsString> {
+pub(crate) fn join_path_segments(
+    args: &Bound<'_, PyTuple>,
+    flavour: PathFlavour,
+) -> PyResult<OsString> {
     // A single empty arg ("") produces an empty path, matching CPython.
     if args.len() == 1 {
         if let Ok(first) = args.get_item(0) {
@@ -1891,6 +1970,25 @@ fn _drives_equal(a: &Option<OsString>, b: &Option<OsString>, windows: bool) -> b
 }
 
 /// Extract a string from a Python object.
+/// Check whether `other` has the same parser/flavour as `expected_flavour`.
+///
+/// PurePosixPath and PureWindowsPath have different parsers (posixpath vs ntpath).
+/// Paths with different parsers are never equal and cannot be ordered.
+fn _same_flavour(other: &Bound<'_, PyAny>, expected_flavour: PathFlavour) -> bool {
+    if let Ok(parser) = other.getattr("parser") {
+        if let Ok(sep) = parser.getattr("sep") {
+            if let Ok(sep_str) = sep.extract::<String>() {
+                match expected_flavour {
+                    PathFlavour::Posix => return sep_str == "/",
+                    PathFlavour::Windows => return sep_str == "\\",
+                }
+            }
+        }
+    }
+    // If we can't determine the flavour, conservatively treat as same.
+    true
+}
+
 fn _extract_path_str(obj: &Bound<'_, PyAny>) -> PyResult<String> {
     // Reject bytes arguments (CPython pathlib raises TypeError for bytes).
     use pyo3::types::PyBytes;
