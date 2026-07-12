@@ -96,8 +96,8 @@
 
 ## Phase 5: Parity & Maintenance — In Progress
 
-594 passed, 610 skipped (up from 552 passed, 652 skipped).
-239 active skip entries (down from 305).
+594 passed, 610 skipped (up from 352 passed, 852 skipped baseline).
+239 active skip entries (down from 650 baseline).
 
 ### Feature Parity
 
