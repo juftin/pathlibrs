@@ -61,7 +61,7 @@ PathSubclassTest.test_equivalences
 # REMOVED: PathSubclassTest.test_expanduser_posix
 PathSubclassTest.test_from_uri_pathname2url_posix
 PathSubclassTest.test_from_uri_posix
-PathSubclassTest.test_full_match_case_sensitive
+# REMOVED: PathSubclassTest.test_full_match_case_sensitive
 PathSubclassTest.test_handling_bad_descriptor
 # REMOVED: PathSubclassTest.test_hardlink_to
 PathSubclassTest.test_info_exists_caching
@@ -72,9 +72,9 @@ PathSubclassTest.test_is_junction_true
 PathSubclassTest.test_is_relative_to_common
 # REMOVED: PathSubclassTest.test_iterdir_symlink
 PathSubclassTest.test_join_nested
-PathSubclassTest.test_match_common
-PathSubclassTest.test_match_empty
-PathSubclassTest.test_match_posix
+# REMOVED: PathSubclassTest.test_match_common
+# REMOVED: PathSubclassTest.test_match_empty
+# REMOVED: PathSubclassTest.test_match_posix
 PathSubclassTest.test_matches_writablepath_docstrings
 # REMOVED: PathSubclassTest.test_mkdir
 # REMOVED: PathSubclassTest.test_mkdir_concurrent_parent_creation
@@ -172,15 +172,15 @@ PathTest.test_different_parsers_unordered
 PathTest.test_equivalences
 PathTest.test_from_uri_pathname2url_posix
 PathTest.test_from_uri_posix
-PathTest.test_full_match_case_sensitive
+# REMOVED: PathTest.test_full_match_case_sensitive
 PathTest.test_handling_bad_descriptor
 # REMOVED: PathTest.test_hardlink_to
 PathTest.test_is_relative_to_common
 # REMOVED: PathTest.test_iterdir_symlink
 PathTest.test_join_nested
-PathTest.test_match_common
-PathTest.test_match_empty
-PathTest.test_match_posix
+# REMOVED: PathTest.test_match_common
+# REMOVED: PathTest.test_match_empty
+# REMOVED: PathTest.test_match_posix
 # REMOVED: PathTest.test_mkdir
 # REMOVED: PathTest.test_mkdir_concurrent_parent_creation
 # REMOVED: PathTest.test_mkdir_exist_ok
@@ -280,14 +280,14 @@ PosixPathTest.test_different_parsers_unordered
 PosixPathTest.test_equivalences
 PosixPathTest.test_from_uri_pathname2url_posix
 PosixPathTest.test_from_uri_posix
-PosixPathTest.test_full_match_case_sensitive
+# REMOVED: PosixPathTest.test_full_match_case_sensitive
 PosixPathTest.test_handling_bad_descriptor
 # REMOVED: PosixPathTest.test_hardlink_to
 PosixPathTest.test_is_relative_to_common
 # REMOVED: PosixPathTest.test_iterdir_symlink
 PosixPathTest.test_join_nested
-PosixPathTest.test_match_common
-PosixPathTest.test_match_empty
+# REMOVED: PosixPathTest.test_match_common
+# REMOVED: PosixPathTest.test_match_empty
 # REMOVED: PosixPathTest.test_mkdir
 # REMOVED: PosixPathTest.test_mkdir_concurrent_parent_creation
 # REMOVED: PosixPathTest.test_mkdir_exist_ok
@@ -354,17 +354,17 @@ PurePathSubclassTest.test_drive_windows
 PurePathSubclassTest.test_equivalences
 PurePathSubclassTest.test_equivalences_windows
 PurePathSubclassTest.test_fspath_common
-PurePathSubclassTest.test_full_match_case_sensitive
+# REMOVED: PurePathSubclassTest.test_full_match_case_sensitive
 PurePathSubclassTest.test_is_absolute_posix
 PurePathSubclassTest.test_is_absolute_windows
 PurePathSubclassTest.test_is_relative_to_common
 PurePathSubclassTest.test_is_relative_to_windows
 PurePathSubclassTest.test_is_reserved_deprecated
 PurePathSubclassTest.test_join_nested
-PurePathSubclassTest.test_match_common
-PurePathSubclassTest.test_match_empty
-PurePathSubclassTest.test_match_posix
-PurePathSubclassTest.test_match_windows
+# REMOVED: PurePathSubclassTest.test_match_common
+# REMOVED: PurePathSubclassTest.test_match_empty
+# REMOVED: PurePathSubclassTest.test_match_posix
+# REMOVED: PurePathSubclassTest.test_match_windows
 PurePathSubclassTest.test_ordering_common
 PurePathSubclassTest.test_ordering_windows
 PurePathSubclassTest.test_parse_path_windows
@@ -387,13 +387,13 @@ PurePathTest.test_constructor_nested
 PurePathTest.test_different_parsers_unequal
 PurePathTest.test_different_parsers_unordered
 PurePathTest.test_equivalences
-PurePathTest.test_full_match_case_sensitive
+# REMOVED: PurePathTest.test_full_match_case_sensitive
 PurePathTest.test_is_absolute_posix
 PurePathTest.test_is_relative_to_common
 PurePathTest.test_is_reserved_deprecated
 PurePathTest.test_join_nested
-PurePathTest.test_match_common
-PurePathTest.test_match_empty
+# REMOVED: PurePathTest.test_match_common
+# REMOVED: PurePathTest.test_match_empty
 PurePathTest.test_parse_windows_path
 PurePathTest.test_relative_to_common
 
@@ -402,13 +402,13 @@ PurePosixPathTest.test_constructor_nested
 PurePosixPathTest.test_different_parsers_unequal
 PurePosixPathTest.test_different_parsers_unordered
 PurePosixPathTest.test_equivalences
-PurePosixPathTest.test_full_match_case_sensitive
+# REMOVED: PurePosixPathTest.test_full_match_case_sensitive
 PurePosixPathTest.test_is_absolute_posix
 PurePosixPathTest.test_is_relative_to_common
 PurePosixPathTest.test_is_reserved_deprecated
 PurePosixPathTest.test_join_nested
-PurePosixPathTest.test_match_common
-PurePosixPathTest.test_match_empty
+# REMOVED: PurePosixPathTest.test_match_common
+# REMOVED: PurePosixPathTest.test_match_empty
 PurePosixPathTest.test_parse_windows_path
 PurePosixPathTest.test_relative_to_common
 
@@ -421,15 +421,15 @@ PureWindowsPathTest.test_drive_windows
 PureWindowsPathTest.test_equivalences
 PureWindowsPathTest.test_equivalences_windows
 PureWindowsPathTest.test_fspath_common
-PureWindowsPathTest.test_full_match_case_sensitive
+# REMOVED: PureWindowsPathTest.test_full_match_case_sensitive
 PureWindowsPathTest.test_is_absolute_windows
 PureWindowsPathTest.test_is_relative_to_common
 PureWindowsPathTest.test_is_relative_to_windows
 PureWindowsPathTest.test_is_reserved_deprecated
 PureWindowsPathTest.test_join_nested
-PureWindowsPathTest.test_match_common
-PureWindowsPathTest.test_match_empty
-PureWindowsPathTest.test_match_windows
+# REMOVED: PureWindowsPathTest.test_match_common
+# REMOVED: PureWindowsPathTest.test_match_empty
+# REMOVED: PureWindowsPathTest.test_match_windows
 PureWindowsPathTest.test_ordering_windows
 PureWindowsPathTest.test_parse_path_windows
 PureWindowsPathTest.test_relative_to_common
@@ -491,7 +491,7 @@ PathTest.test_from_uri_windows
 PathTest.test_group_windows
 PathTest.test_is_absolute_windows
 PathTest.test_is_relative_to_windows
-PathTest.test_match_windows
+# REMOVED: PathTest.test_match_windows
 PathTest.test_ordering_windows
 PathTest.test_owner_windows
 PathTest.test_parse_path_windows

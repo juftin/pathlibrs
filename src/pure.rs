@@ -666,7 +666,15 @@ impl PurePath {
 
     #[pyo3(name = "match")]
     #[pyo3(signature = (pattern, *, case_sensitive = None))]
-    fn match_(&self, pattern: &str, case_sensitive: Option<bool>) -> bool {
+    fn match_(&self, pattern: &str, case_sensitive: Option<bool>) -> PyResult<bool> {
+        // Reject empty patterns (CPython pathlib raises ValueError).
+        if pattern.is_empty() || pattern == "." {
+            return Err(pyo3::exceptions::PyValueError::new_err("empty pattern"));
+        }
+        // Empty / root-only path never matches anything (CPython pathlib behaviour).
+        if self._name_option().is_none() {
+            return Ok(false);
+        }
         let cs = case_sensitive.unwrap_or(!self._is_windows());
         let is_windows = self._is_windows();
         // On Windows, patterns like "*:" or "c:" prefix a drive component.
@@ -680,22 +688,27 @@ impl PurePath {
                 {
                     // Root presence must match
                     if pat_root != path_root {
-                        return false;
+                        return Ok(false);
                     }
                     // Match drive with fnmatch, then match the rest
                     if !pattern::fnmatch_bytes(pat_drive.as_bytes(), path_drive.as_bytes(), cs) {
-                        return false;
+                        return Ok(false);
                     }
-                    return pattern::match_path(
+                    return Ok(pattern::match_path(
                         OsStr::new(pat_rest),
                         OsStr::new(path_rest),
                         cs,
                         is_windows,
-                    );
+                    ));
                 }
             }
         }
-        pattern::match_path(OsStr::new(pattern), self.inner.raw(), cs, is_windows)
+        Ok(pattern::match_path(
+            OsStr::new(pattern),
+            self.inner.raw(),
+            cs,
+            is_windows,
+        ))
     }
 
     /// ``full_match(pattern, *, case_sensitive=None)``
@@ -704,14 +717,18 @@ impl PurePath {
     /// A relative pattern like ``"*.py"`` will NOT match ``"/a/b/foo.py"``.
     #[pyo3(name = "full_match")]
     #[pyo3(signature = (pattern, *, case_sensitive = None))]
-    fn full_match_(&self, pattern: &str, case_sensitive: Option<bool>) -> bool {
+    fn full_match_(&self, pattern: &str, case_sensitive: Option<bool>) -> PyResult<bool> {
+        // Reject empty patterns (CPython pathlib raises ValueError).
+        if pattern.is_empty() || pattern == "." {
+            return Err(pyo3::exceptions::PyValueError::new_err("empty pattern"));
+        }
         let cs = case_sensitive.unwrap_or(!self._is_windows());
-        pattern::full_match_path(
+        Ok(pattern::full_match_path(
             OsStr::new(pattern),
             self.inner.raw(),
             cs,
             self._is_windows(),
-        )
+        ))
     }
 
     // -- filesystem properties (Phase 2) -----------------------------
