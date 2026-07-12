@@ -260,7 +260,7 @@ PurePathSubclassTest.test_is_absolute_windows
 # REMOVED: PurePathSubclassTest.test_ordering_windows
 # REMOVED: PurePathSubclassTest.test_parse_path_windows
 # REMOVED: PurePathSubclassTest.test_parse_windows_path
-PurePathSubclassTest.test_pickling_common
+# REMOVED: PurePathSubclassTest.test_pickling_common
 # REMOVED: PurePathSubclassTest.test_relative_to_common
 # REMOVED: PurePathSubclassTest.test_relative_to_windows
 # REMOVED: PurePathSubclassTest.test_root_windows
