@@ -124,11 +124,9 @@ PathTest.test_from_uri_pathname2url_windows
 PathTest.test_from_uri_windows
 PosixPathTest.test_from_uri_posix
 
-# ── CompatiblePathTest (2 entries) ────────────────────────────────────
-CompatiblePathTest.test_rtruediv
-CompatiblePathTest.test_truediv
+# ── CompatiblePathTest — RESOLVED (0 entries) ─────────────────────────
 
-# ── Concrete class move edge cases (2 entries) ────────────────────────
+# ── Concrete class move edge cases — RESOLVED (0 entries) ────────────
 
 # ── Windows-specific: parser / drive / naming (29 entries) ────────────
 # Windows path features not fully implemented or testable on POSIX hosts
