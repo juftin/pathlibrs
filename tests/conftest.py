@@ -137,7 +137,7 @@ def _load_skips():
     if not os.path.exists(skips_file):
         return method_skips, class_skips
 
-    with open(skips_file) as f:
+    with open(skips_file, encoding="utf-8") as f:
         for line in f:
             line = line.strip()
             if not line or line.startswith("#"):
