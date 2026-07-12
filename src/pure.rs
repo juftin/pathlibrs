@@ -1180,6 +1180,11 @@ impl PurePath {
     }
 
     fn __lt__(&self, other: &Bound<'_, PyAny>) -> PyResult<bool> {
+        if !_is_path_instance(other) {
+            return Err(pyo3::exceptions::PyTypeError::new_err(
+                "'<' not supported between instances of 'pathlibrs.PurePath' and '...'",
+            ));
+        }
         if !_same_flavour(other, self.flavour) {
             return Err(pyo3::exceptions::PyTypeError::new_err(
                 "'<' not supported between instances of 'PurePosixPath' and 'PureWindowsPath'",
@@ -1193,6 +1198,11 @@ impl PurePath {
     }
 
     fn __le__(&self, other: &Bound<'_, PyAny>) -> PyResult<bool> {
+        if !_is_path_instance(other) {
+            return Err(pyo3::exceptions::PyTypeError::new_err(
+                "'<=' not supported between instances of 'pathlibrs.PurePath' and '...'",
+            ));
+        }
         if !_same_flavour(other, self.flavour) {
             return Err(pyo3::exceptions::PyTypeError::new_err(
                 "'<=' not supported between instances of 'PurePosixPath' and 'PureWindowsPath'",
@@ -1206,6 +1216,11 @@ impl PurePath {
     }
 
     fn __gt__(&self, other: &Bound<'_, PyAny>) -> PyResult<bool> {
+        if !_is_path_instance(other) {
+            return Err(pyo3::exceptions::PyTypeError::new_err(
+                "'>' not supported between instances of 'pathlibrs.PurePath' and '...'",
+            ));
+        }
         if !_same_flavour(other, self.flavour) {
             return Err(pyo3::exceptions::PyTypeError::new_err(
                 "'>' not supported between instances of 'PurePosixPath' and 'PureWindowsPath'",
@@ -1219,6 +1234,11 @@ impl PurePath {
     }
 
     fn __ge__(&self, other: &Bound<'_, PyAny>) -> PyResult<bool> {
+        if !_is_path_instance(other) {
+            return Err(pyo3::exceptions::PyTypeError::new_err(
+                "'>=' not supported between instances of 'pathlibrs.PurePath' and '...'",
+            ));
+        }
         if !_same_flavour(other, self.flavour) {
             return Err(pyo3::exceptions::PyTypeError::new_err(
                 "'>=' not supported between instances of 'PurePosixPath' and 'PureWindowsPath'",
@@ -1969,7 +1989,18 @@ fn _drives_equal(a: &Option<OsString>, b: &Option<OsString>, windows: bool) -> b
     }
 }
 
-/// Extract a string from a Python object.
+/// Check whether `other` is a PurePath instance (or subclass thereof).
+///
+/// Returns ``true`` for PurePath, PurePosixPath, PureWindowsPath,
+/// PosixPath, WindowsPath, and any user-defined subclasses.
+/// Uses duck-type check: must have a ``parser`` attribute with a ``sep``.
+fn _is_path_instance(other: &Bound<'_, PyAny>) -> bool {
+    other
+        .getattr("parser")
+        .and_then(|p| p.getattr("sep"))
+        .is_ok()
+}
+
 /// Check whether `other` has the same parser/flavour as `expected_flavour`.
 ///
 /// PurePosixPath and PureWindowsPath have different parsers (posixpath vs ntpath).
@@ -1989,6 +2020,7 @@ fn _same_flavour(other: &Bound<'_, PyAny>, expected_flavour: PathFlavour) -> boo
     true
 }
 
+/// Extract a string from a Python object that is either a str or a PathLike.
 fn _extract_path_str(obj: &Bound<'_, PyAny>) -> PyResult<String> {
     // Reject bytes arguments (CPython pathlib raises TypeError for bytes).
     use pyo3::types::PyBytes;

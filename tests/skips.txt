@@ -240,13 +240,13 @@ PosixPathTest.test_with_segments
 
 # -- PurePathSubclassTest — subclass init chain differences
 # REMOVED: PurePathSubclassTest.test_as_posix_common
-PurePathSubclassTest.test_concrete_class
-PurePathSubclassTest.test_concrete_parser
+# REMOVED: PurePathSubclassTest.test_concrete_class
+# REMOVED: PurePathSubclassTest.test_concrete_parser
 PurePathSubclassTest.test_constructor_nested_foreign_flavour
 # REMOVED: PurePathSubclassTest.test_drive_common
 # REMOVED: PurePathSubclassTest.test_drive_windows
 PurePathSubclassTest.test_equivalences_windows
-PurePathSubclassTest.test_fspath_common
+# REMOVED: PurePathSubclassTest.test_fspath_common
 # REMOVED: PurePathSubclassTest.test_full_match_case_sensitive
 PurePathSubclassTest.test_is_absolute_posix
 PurePathSubclassTest.test_is_absolute_windows
@@ -256,8 +256,8 @@ PurePathSubclassTest.test_is_relative_to_windows
 # REMOVED: PurePathSubclassTest.test_match_empty
 # REMOVED: PurePathSubclassTest.test_match_posix
 # REMOVED: PurePathSubclassTest.test_match_windows
-PurePathSubclassTest.test_ordering_common
-PurePathSubclassTest.test_ordering_windows
+# REMOVED: PurePathSubclassTest.test_ordering_common
+# REMOVED: PurePathSubclassTest.test_ordering_windows
 # REMOVED: PurePathSubclassTest.test_parse_path_windows
 # REMOVED: PurePathSubclassTest.test_parse_windows_path
 PurePathSubclassTest.test_pickling_common
@@ -272,8 +272,9 @@ PurePathSubclassTest.test_relative_to_windows
 # REMOVED: PurePathSubclassTest.test_with_stem_windows
 
 # -- PurePathTest — base pure path tests for unimplemented features
+# PurePath.__new__ returns PurePath (not PurePosixPath) — design difference from CPython
 PurePathTest.test_concrete_class
-PurePathTest.test_concrete_parser
+# REMOVED: PurePathTest.test_concrete_parser
 # REMOVED: PurePathTest.test_full_match_case_sensitive
 PurePathTest.test_is_absolute_posix
 PurePathTest.test_is_relative_to_common
@@ -325,7 +326,7 @@ PathTest.test_from_uri_windows
 # -- WindowsPathTest inherited test methods that need own entries (truediv/rtruediv) --
 PathTest.test_rtruediv
 PathTest.test_truediv
-PurePathTest.test_ordering_common
+# REMOVED: PurePathTest.test_ordering_common
 
 # Phase 2 — PathInfo is implemented but tests need Phase 3 (write_text, mkdir, symlink_to)
 PathTest.test_info_exists_caching
