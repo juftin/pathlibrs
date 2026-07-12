@@ -47,15 +47,20 @@ impl PurePath {
     }
 
     /// Construct a new path object of the same Python type as `slf_ptr`.
+    ///
+    /// Uses ``with_segments`` so that subclasses that override it to carry extra
+    /// state (e.g., ``session_id``) get their state preserved. This matches
+    /// CPython's ``_make_child`` which delegates to ``self.with_segments``.
     fn _make_child(
         py: Python<'_>,
         slf_ptr: *mut pyo3::ffi::PyObject,
         new_raw: OsString,
     ) -> PyResult<PyObject> {
         let slf_bound = unsafe { pyo3::Bound::<'_, pyo3::PyAny>::from_borrowed_ptr(py, slf_ptr) };
-        let cls = slf_bound.getattr("__class__")?;
-        let args = PyTuple::new(py, &[PyString::new(py, &new_raw.to_string_lossy())])?;
-        Ok(cls.call1(args)?.unbind())
+        // Call slf.with_segments(new_raw) rather than cls(new_raw) so that
+        // subclasses that override with_segments preserve extra state.
+        let raw_str = new_raw.to_string_lossy().into_owned();
+        Ok(slf_bound.call_method1("with_segments", (raw_str,))?.unbind())
     }
 
     #[inline]
