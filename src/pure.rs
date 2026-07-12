@@ -1509,12 +1509,14 @@ impl PurePath {
     /// If *target* is an existing directory, the source is copied *into* it
     /// (as ``target / source.name``).  CPython copies to the *exact* target
     /// path — only ``copy_into`` appends ``source.name``.
-    #[pyo3(signature = (target, *, follow_symlinks = true, dirs_exist_ok = false, ignore = None, on_error = None))]
+    #[pyo3(signature = (target, *, follow_symlinks = true, dirs_exist_ok = false,
+        preserve_metadata = false, ignore = None, on_error = None))]
     fn copy<'py>(
         slf: PyRef<'py, Self>,
         target: &Bound<'py, PyAny>,
         follow_symlinks: bool,
         dirs_exist_ok: bool,
+        preserve_metadata: bool,
         ignore: Option<PyObject>,
         on_error: Option<PyObject>,
     ) -> PyResult<PyObject> {
@@ -1551,7 +1553,7 @@ impl PurePath {
             }
         }
 
-        let _ = (ignore, on_error);
+        let _ = (preserve_metadata, ignore, on_error);
         crate::fs::copy_tree(
             slf.inner.raw(),
             OsStr::new(&target_str),
@@ -1563,12 +1565,14 @@ impl PurePath {
     }
 
     /// Copy this file or directory tree *into* an existing directory.
-    #[pyo3(signature = (target_dir, *, follow_symlinks = true, dirs_exist_ok = false, ignore = None, on_error = None))]
+    #[pyo3(signature = (target_dir, *, follow_symlinks = true, dirs_exist_ok = false,
+        preserve_metadata = false, ignore = None, on_error = None))]
     fn copy_into<'py>(
         slf: PyRef<'py, Self>,
         target_dir: &Bound<'py, PyAny>,
         follow_symlinks: bool,
         dirs_exist_ok: bool,
+        preserve_metadata: bool,
         ignore: Option<PyObject>,
         on_error: Option<PyObject>,
     ) -> PyResult<PyObject> {
@@ -1582,7 +1586,7 @@ impl PurePath {
             )));
         }
         let final_dst = format!("{}/{}", target_str.trim_end_matches('/'), name);
-        let _ = (ignore, on_error);
+        let _ = (preserve_metadata, ignore, on_error);
         crate::fs::copy_tree(
             slf.inner.raw(),
             OsStr::new(&final_dst),

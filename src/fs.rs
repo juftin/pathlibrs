@@ -1189,18 +1189,9 @@ pub fn copy_tree(
                         std::fs::copy(&resolved, dst_path)?;
                     }
                 } else {
-                    // Copy just the symlink
+                    // Copy just the symlink — let the OS raise an error if
+                    // the target already exists (matching CPython behaviour).
                     let target = std::fs::read_link(src_path)?;
-                    if dst_path.exists() {
-                        if dst_path.is_symlink() || dst_path.is_file() {
-                            std::fs::remove_file(dst_path)?;
-                        } else {
-                            return Err(io::Error::new(
-                                io::ErrorKind::AlreadyExists,
-                                format!("'{}' already exists", dst_path.display()),
-                            ));
-                        }
-                    }
                     #[cfg(unix)]
                     std::os::unix::fs::symlink(&target, dst_path)?;
                     #[cfg(windows)]

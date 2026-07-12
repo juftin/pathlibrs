@@ -96,8 +96,8 @@
 
 ## Phase 5: Parity & Maintenance — In Progress
 
-508 passed, 696 skipped (up from 483 passed, 721 skipped).
-324 active skip entries (down from 349).
+526 passed, 678 skipped (up from 483 passed, 721 skipped).
+312 active skip entries (down from 349).
 
 ### Feature Parity
 
@@ -108,6 +108,8 @@
 - [x] `with_name()`/`with_stem()` reject empty/reserved names — fixed
 - [x] `as_uri()` percent-encoding via `urllib.parse.quote` — fixed (absolute check + encode)
 - [x] `__eq__` matches CPython 3.14: returns NotImplemented for non-PurePath types
+- [x] Added `preserve_metadata` kwarg to `copy()` and `copy_into()` (no-op; signature accepted)
+- [x] Fixed symlink copy: no longer overwrites existing target with `follow_symlinks=False`
 - [ ] Windows UNC/device/extended-path edge cases (DESIGN.md §4.8)
 - [ ] Symlink edge cases on Linux/macOS
 - [ ] Full pickle / `__reduce__` / `__fspath__` / `copy` coverage
@@ -119,7 +121,9 @@
 - [x] Batch 3: repr + bytes handling fixed and unskipped (30 entries)
 - [x] Batch 4: as_uri() fixed — 20 tests unskipped, 22 entries removed from skips.txt
 - [x] Batch 5: Equality + parse audit — 25 tests unskipped, 25 entries removed
-- [ ] Remaining audit: 324 entries across copy(33), move(45), match(30), delete(26), windows(30), parse_windows(6), relative_to(7), equivalences(13), symlinks(14), resolve(12)
+- [x] Batch 6: Delete audit — all 26 entries are private `_delete()` API, kept skipped
+- [x] Batch 7: Copy audit — 21 entries unskipped (9 self-copy + 12 existing-symlink), bugs fixed
+- [ ] Remaining audit: 312 entries across move(45), match(30), windows(30), parse_windows(6), relative_to(7), equivalences(13), symlinks(14), resolve(12), copy(12 remaining), delete(26 kept)
 - [ ] Classify each skip as private API, fixable, or platform-specific
 - [ ] Goal: `skips.txt` contains _only_ private-API entries
 - [ ] Goal: zero public-API `NotImplemented` entries
