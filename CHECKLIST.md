@@ -115,12 +115,18 @@
 - [x] Fixed `move_tree()`: only falls back to copy+delete on EXDEV (cross-device), not all errors
 - [x] Cross-flavour equality: `PurePosixPath('a') != PureWindowsPath('a')` — different parsers never equal
 - [x] Cross-flavour ordering: `PurePosixPath('a') < PureWindowsPath('a')` raises TypeError
-- [x] `is_reserved()` method with DeprecationWarning (fixes `test_is_reserved_deprecated`)
+- [x] `is_reserved()` method with DeprecationWarning added (tests still skipped — needs cross-flavour dispatch)
 - [x] Path/PosixPath constructors accept `os.PathLike` objects (e.g., `FakePath`)
 - [x] Path multi-arg constructor normalizes separators (e.g., `Path('a/', 'b')` → `Path('a/b')`)
+- [x] Windows drive-relative paths preserve `.\` prefix (e.g., `PureWindowsPath('c:.')`)
+- [x] `relative_to()` rejects `..` segments in other path
+- [x] `is_relative_to()` cross-flavour comparisons
+- [x] Subclass pickle/protocol (`PurePathSubclassTest.test_pickling_common`)
+- [x] PurePathSubclass `__str__`, `__fspath__`, `parser`, `concrete_class` attribute parity
+- [x] PureWindowsPath `__str__`, `__fspath__` attribute parity
 - [ ] Windows UNC/device/extended-path edge cases (DESIGN.md §4.8)
-- [ ] Symlink edge cases on Linux/macOS
-- [ ] Full pickle / `__reduce__` / `__fspath__` / `copy` coverage
+- [ ] Symlink edge cases on Linux/macOS (complex_symlinks skipped, basic pass)
+- [ ] Full pickle / `__reduce__` / `__fspath__` / `copy` coverage (pickling_common resolved; rest TBD)
 
 ### Skip Audit
 
@@ -133,9 +139,12 @@
 - [x] Batch 7: Copy audit — 21 entries unskipped (9 self-copy + 12 existing-symlink), bugs fixed
 - [x] Batch 8: Match audit — 27 entries unskipped (match_common, match_empty, full_match_case_sensitive), bugs fixed
 - [x] Batch 9: Move audit — 43 entries unskipped, `move_tree` fixed to only fall back on EXDEV
-- [x] Batch 10: Cross-flavour + nesting + constructors — 40 entries removed (constructor_nested, join_nested, equivalences, different_parsers, is_reserved)
-- [ ] Remaining audit: 199 entries across parse_windows(6), relative_to(7), with_segments(3), rmdir(3), mkdir_parents(3), resolve(12), info_caching(12), symlinks(9), copy_preserve_metadata(9), walk(5), from_uri(8), windows(30+), delete(26 kept), misc
-- [ ] Classify each skip as private API, fixable, or platform-specific
+- [x] Batch 10: Cross-flavour equality, is_reserved(), Path constructors — unskip 4 entries
+- [x] Batch 11: PurePathSubclass str/parse + ordering TypeError — unskip 12 entries
+- [x] Batch 12: is_relative_to, relative_to walk_up, drive-relative paths, rmdir, info caching, resolve_nonexist, pickling — unskip 47 entries
+- [x] Batch 13: Skips.txt cleanup — reorganized by category, removed stale comments, verified 186 entries
+- [ ] Remaining: 186 entries (26 private API + 160 fixable across equivalences, parsers, ordering, is_reserved, relative_to, resolve, symlinks, copy, walk, from_uri, windows, mkdir_parents, rmdir windows, misc)
+- [x] Classify each skip as private API, fixable, or platform-specific
 - [ ] Goal: `skips.txt` contains _only_ private-API entries
 - [ ] Goal: zero public-API `NotImplemented` entries
 
