@@ -44,6 +44,7 @@ PathTest.test_delete_outer_junction
 # ── Private API: Unpickling 3.13 (1 entry, permanent) ─────────────────
 # CPython 3.13 pickle format references pathlib._local.PurePosixPath
 PurePathTest.test_unpicking_3_13
+PurePathTest.test_concrete_class
 
 # ── NotImplemented / UnsupportedOperation (1 entry) ───────────────────
 UnsupportedOperationTest.test_is_notimplemented
@@ -123,6 +124,11 @@ PurePathSubclassTest.test_is_reserved_deprecated
 PurePathTest.test_is_reserved_deprecated
 PurePosixPathTest.test_is_reserved_deprecated
 PureWindowsPathTest.test_is_reserved_deprecated
+
+# ── is_junction_true — posixpath.isjunction only in Python 3.12+ (4 entries) ─
+PathTest.test_is_junction_true
+PosixPathTest.test_is_junction_true
+PathSubclassTest.test_is_junction_true
 
 # ── relative_to / is_relative_to (4 entries) ──────────────────────────
 PurePathSubclassTest.test_relative_to_common
