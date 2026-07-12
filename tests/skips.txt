@@ -45,8 +45,7 @@ PathTest.test_delete_outer_junction
 # CPython 3.13 pickle format references pathlib._local.PurePosixPath
 PurePathTest.test_concrete_class
 
-# ── NotImplemented / UnsupportedOperation (1 entry) ───────────────────
-UnsupportedOperationTest.test_is_notimplemented
+# ── NotImplemented / UnsupportedOperation — RESOLVED (0 entries) ─────
 
 # ── copy(): preserve_metadata not implemented (8 entries) ─────────────
 PathSubclassTest.test_copy_dir_preserve_metadata

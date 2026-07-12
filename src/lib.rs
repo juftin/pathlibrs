@@ -88,7 +88,26 @@ fn pathlibrs(m: &Bound<'_, PyModule>) -> PyResult<()> {
     let windows_path = m.getattr("WindowsPath")?;
     windows_path.setattr("parser", &ntpath_mod)?;
 
-    // Module metadata
+    // UnsupportedOperation — exception raised for unsupported operations
+    {
+        // Create the class dynamically at module init time.
+        // Equivalent to: type('UnsupportedOperation', (NotImplementedError,), {'__doc__': '...'})
+        let builtins = py.import("builtins")?;
+        let not_impl_error = builtins.getattr("NotImplementedError")?;
+        let type_builtin = builtins.getattr("type")?;
+        let name = pyo3::types::PyString::new(py, "UnsupportedOperation");
+        let bases = pyo3::types::PyTuple::new(py, &[not_impl_error])?;
+        let ns = pyo3::types::PyDict::new(py);
+        ns.set_item(
+            "__doc__",
+            "An exception that is raised when an unsupported operation is called.",
+        )?;
+        ns.set_item("__module__", "pathlibrs")?;
+        let unsupported_op = type_builtin.call1((name, bases, ns))?;
+        m.add("UnsupportedOperation", unsupported_op)?;
+    }
+
+    // Module metadata (added last so it's easy to verify module init ran to end)
     m.add("__version__", env!("CARGO_PKG_VERSION"))?;
 
     Ok(())
