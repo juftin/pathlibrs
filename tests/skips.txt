@@ -60,10 +60,10 @@ PathSubclassTest.test_from_uri_posix
 # REMOVED: PathSubclassTest.test_full_match_case_sensitive
 PathSubclassTest.test_handling_bad_descriptor
 # REMOVED: PathSubclassTest.test_hardlink_to
-PathSubclassTest.test_info_exists_caching
-PathSubclassTest.test_info_is_dir_caching
-PathSubclassTest.test_info_is_file_caching
-PathSubclassTest.test_info_is_symlink_caching
+# REMOVED: PathSubclassTest.test_info_exists_caching
+# REMOVED: PathSubclassTest.test_info_is_dir_caching
+# REMOVED: PathSubclassTest.test_info_is_file_caching
+# REMOVED: PathSubclassTest.test_info_is_symlink_caching
 PathSubclassTest.test_is_junction_true
 # REMOVED: PathSubclassTest.test_is_relative_to_common
 # REMOVED: PathSubclassTest.test_iterdir_symlink
@@ -88,8 +88,8 @@ PathSubclassTest.test_parse_windows_path
 PathSubclassTest.test_resolve_common
 PathSubclassTest.test_resolve_dot
 PathSubclassTest.test_resolve_loop
-PathSubclassTest.test_resolve_nonexist_relative_issue38671
-PathSubclassTest.test_rmdir
+# REMOVED: PathSubclassTest.test_resolve_nonexist_relative_issue38671
+# REMOVED: PathSubclassTest.test_rmdir
 # REMOVED: PathSubclassTest.test_symlink_to
 # REMOVED: PathSubclassTest.test_touch_common
 # REMOVED: PathSubclassTest.test_touch_mode
@@ -156,7 +156,7 @@ PathTest.test_mkdir_parents
 PathTest.test_parse_windows_path
 # REMOVED: PathTest.test_relative_to_common
 # REMOVED: PathTest.test_rename
-PathTest.test_rmdir
+# REMOVED: PathTest.test_rmdir
 # REMOVED: PathTest.test_symlink_to
 # REMOVED: PathTest.test_touch_common
 # REMOVED: PathTest.test_touch_mode
@@ -229,7 +229,7 @@ PosixPathTest.test_mkdir_parents
 PosixPathTest.test_parse_windows_path
 # REMOVED: PosixPathTest.test_relative_to_common
 # REMOVED: PosixPathTest.test_rename
-PosixPathTest.test_rmdir
+# REMOVED: PosixPathTest.test_rmdir
 # REMOVED: PosixPathTest.test_symlink_to
 # REMOVED: PosixPathTest.test_touch_common
 # REMOVED: PosixPathTest.test_touch_mode
@@ -329,24 +329,24 @@ PathTest.test_truediv
 # REMOVED: PurePathTest.test_ordering_common
 
 # Phase 2 — PathInfo is implemented but tests need Phase 3 (write_text, mkdir, symlink_to)
-PathTest.test_info_exists_caching
-PathTest.test_info_is_dir_caching
-PathTest.test_info_is_file_caching
-PathTest.test_info_is_symlink_caching
-PosixPathTest.test_info_exists_caching
-PosixPathTest.test_info_is_dir_caching
-PosixPathTest.test_info_is_file_caching
-PosixPathTest.test_info_is_symlink_caching
+# REMOVED: PathTest.test_info_exists_caching
+# REMOVED: PathTest.test_info_is_dir_caching
+# REMOVED: PathTest.test_info_is_file_caching
+# REMOVED: PathTest.test_info_is_symlink_caching
+# REMOVED: PosixPathTest.test_info_exists_caching
+# REMOVED: PosixPathTest.test_info_is_dir_caching
+# REMOVED: PosixPathTest.test_info_is_file_caching
+# REMOVED: PosixPathTest.test_info_is_symlink_caching
 
 # Phase 3 — resolve needs symlink_to
 PathTest.test_resolve_common
 PathTest.test_resolve_dot
 PathTest.test_resolve_loop
-PathTest.test_resolve_nonexist_relative_issue38671
+# REMOVED: PathTest.test_resolve_nonexist_relative_issue38671
 PosixPathTest.test_resolve_common
 PosixPathTest.test_resolve_dot
 PosixPathTest.test_resolve_loop
-PosixPathTest.test_resolve_nonexist_relative_issue38671
+# REMOVED: PosixPathTest.test_resolve_nonexist_relative_issue38671
 PathTest.test_is_junction_true
 PosixPathTest.test_is_junction_true
 
