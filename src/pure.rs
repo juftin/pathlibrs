@@ -488,6 +488,20 @@ impl PurePath {
         let other_parsed = crate::parsing::parse_path(OsStr::new(&other_str), slf.flavour);
         let self_parsed = slf.inner.parsed(slf.flavour);
 
+        // When walk_up is True, CPython rejects ".." segments in the *other*
+        // path because they cannot be walked (they already point above the
+        // anchor).  This is enforced regardless of whether the anchors match.
+        if walk_up {
+            for part in &other_parsed.parts {
+                if part.as_encoded_bytes() == b".." {
+                    return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                        "'..' segment in '{}' cannot be walked",
+                        other_str
+                    )));
+                }
+            }
+        }
+
         // Find how many leading segments match
         let min_len = self_parsed.parts.len().min(other_parsed.parts.len());
         let mut common = 0usize;
@@ -996,6 +1010,58 @@ impl PurePath {
         }
     }
 
+    /// Check whether the path is a reserved name (Windows only).
+    ///
+    /// This method is deprecated as of Python 3.13. It always returns ``False``
+    /// on POSIX. On Windows it checks for reserved names (CON, PRN, AUX, NUL,
+    /// COM1-COM9, LPT1-LPT9).
+    #[pyo3(name = "is_reserved")]
+    fn is_reserved_impl(&self) -> PyResult<bool> {
+        Python::with_gil(|py| {
+            let _ = py.import("warnings")?.call_method1(
+                "warn",
+                (
+                    concat!(
+                        "pathlib.PurePath.is_reserved() is deprecated and scheduled for ",
+                        "removal in a future Python version. If you use this method, ",
+                        "please open a discussion on the CPython issue tracker.",
+                    ),
+                    py.get_type::<pyo3::exceptions::PyDeprecationWarning>(),
+                ),
+            );
+            Ok::<_, PyErr>(())
+        })?;
+        if !self._is_windows() {
+            return Ok(false);
+        }
+        // Check Windows reserved names in the last component.
+        let name = self._name_option().unwrap_or_default();
+        let upper = name.to_uppercase();
+        // Check exact reserved names
+        let reserved = ["CON", "PRN", "AUX", "NUL", "CONIN$", "CONOUT$"];
+        if reserved.contains(&upper.as_str()) {
+            return Ok(true);
+        }
+        // Check COM1-COM9 and LPT1-LPT9
+        if upper.len() >= 3 {
+            if let Some(suffix) = upper.strip_prefix("COM") {
+                if let Ok(n) = suffix.parse::<u32>() {
+                    if (1..=9).contains(&n) || suffix == "¹" || suffix == "²" || suffix == "³" {
+                        return Ok(true);
+                    }
+                }
+            }
+            if let Some(suffix) = upper.strip_prefix("LPT") {
+                if let Ok(n) = suffix.parse::<u32>() {
+                    if (1..=9).contains(&n) || suffix == "¹" || suffix == "²" || suffix == "³" {
+                        return Ok(true);
+                    }
+                }
+            }
+        }
+        Ok(false)
+    }
+
     /// Return a cached ``PathInfo`` object for this path (CPython 3.12+).
     ///
     /// ``PathInfo`` caches stat results so repeated calls to
@@ -1064,6 +1130,10 @@ impl PurePath {
         if !other.is_instance_of::<Self>() {
             return Ok(false);
         }
+        // Paths with different parsers/flavours are never equal.
+        if !_same_flavour(other, self.flavour) {
+            return Ok(false);
+        }
         let other_str = _extract_path_str(other)?;
         let other_parsed = crate::parsing::parse_path(OsStr::new(&other_str), self.flavour);
         let self_parsed = self.inner.parsed(self.flavour);
@@ -1124,6 +1194,16 @@ impl PurePath {
     }
 
     fn __lt__(&self, other: &Bound<'_, PyAny>) -> PyResult<bool> {
+        if !_is_path_instance(other) {
+            return Err(pyo3::exceptions::PyTypeError::new_err(
+                "'<' not supported between instances of 'pathlibrs.PurePath' and '...'",
+            ));
+        }
+        if !_same_flavour(other, self.flavour) {
+            return Err(pyo3::exceptions::PyTypeError::new_err(
+                "'<' not supported between instances of 'PurePosixPath' and 'PureWindowsPath'",
+            ));
+        }
         let other_str = _extract_path_str(other)?;
         let other_parsed = crate::parsing::parse_path(OsStr::new(&other_str), self.flavour);
         let self_key = _cmp_key(self.inner.parsed(self.flavour), self._is_windows());
@@ -1132,6 +1212,16 @@ impl PurePath {
     }
 
     fn __le__(&self, other: &Bound<'_, PyAny>) -> PyResult<bool> {
+        if !_is_path_instance(other) {
+            return Err(pyo3::exceptions::PyTypeError::new_err(
+                "'<=' not supported between instances of 'pathlibrs.PurePath' and '...'",
+            ));
+        }
+        if !_same_flavour(other, self.flavour) {
+            return Err(pyo3::exceptions::PyTypeError::new_err(
+                "'<=' not supported between instances of 'PurePosixPath' and 'PureWindowsPath'",
+            ));
+        }
         let other_str = _extract_path_str(other)?;
         let other_parsed = crate::parsing::parse_path(OsStr::new(&other_str), self.flavour);
         let self_key = _cmp_key(self.inner.parsed(self.flavour), self._is_windows());
@@ -1140,6 +1230,16 @@ impl PurePath {
     }
 
     fn __gt__(&self, other: &Bound<'_, PyAny>) -> PyResult<bool> {
+        if !_is_path_instance(other) {
+            return Err(pyo3::exceptions::PyTypeError::new_err(
+                "'>' not supported between instances of 'pathlibrs.PurePath' and '...'",
+            ));
+        }
+        if !_same_flavour(other, self.flavour) {
+            return Err(pyo3::exceptions::PyTypeError::new_err(
+                "'>' not supported between instances of 'PurePosixPath' and 'PureWindowsPath'",
+            ));
+        }
         let other_str = _extract_path_str(other)?;
         let other_parsed = crate::parsing::parse_path(OsStr::new(&other_str), self.flavour);
         let self_key = _cmp_key(self.inner.parsed(self.flavour), self._is_windows());
@@ -1148,6 +1248,16 @@ impl PurePath {
     }
 
     fn __ge__(&self, other: &Bound<'_, PyAny>) -> PyResult<bool> {
+        if !_is_path_instance(other) {
+            return Err(pyo3::exceptions::PyTypeError::new_err(
+                "'>=' not supported between instances of 'pathlibrs.PurePath' and '...'",
+            ));
+        }
+        if !_same_flavour(other, self.flavour) {
+            return Err(pyo3::exceptions::PyTypeError::new_err(
+                "'>=' not supported between instances of 'PurePosixPath' and 'PureWindowsPath'",
+            ));
+        }
         let other_str = _extract_path_str(other)?;
         let other_parsed = crate::parsing::parse_path(OsStr::new(&other_str), self.flavour);
         let self_key = _cmp_key(self.inner.parsed(self.flavour), self._is_windows());
@@ -1703,7 +1813,10 @@ impl PureWindowsPath {
 /// Follows CPython's behaviour: when a segment is anchored (has a drive or root),
 /// all previously accumulated segments are discarded and the path restarts from
 /// that anchored segment.
-fn join_path_segments(args: &Bound<'_, PyTuple>, flavour: PathFlavour) -> PyResult<OsString> {
+pub(crate) fn join_path_segments(
+    args: &Bound<'_, PyTuple>,
+    flavour: PathFlavour,
+) -> PyResult<OsString> {
     // A single empty arg ("") produces an empty path, matching CPython.
     if args.len() == 1 {
         if let Ok(first) = args.get_item(0) {
@@ -1759,6 +1872,24 @@ fn join_path_segments(args: &Bound<'_, PyTuple>, flavour: PathFlavour) -> PyResu
             result.push(sep);
         }
         result.extend_from_slice(part.as_encoded_bytes());
+    }
+
+    // On Windows, a relative path whose first part contains a colon (e.g.
+    // "c:a") looks like a drive-relative reference.  Insert a leading ".\"
+    // to prevent the reconstructed path from being reparsed as drive-relative.
+    // This preserves the intent of inputs like "./c:a" and results of
+    // with_name("d:") / with_stem("d:").
+    if flavour == PathFlavour::Windows
+        && drive.is_none()
+        && root.is_none()
+        && !result.is_empty()
+        && !parts.is_empty()
+        && parts[0].as_encoded_bytes().contains(&b':')
+    {
+        let mut prefixed = Vec::with_capacity(2 + result.len());
+        prefixed.extend_from_slice(b".\\");
+        prefixed.extend_from_slice(&result);
+        return Ok(crate::from_os_bytes(&prefixed).to_os_string());
     }
 
     if result.is_empty() {
@@ -1890,7 +2021,38 @@ fn _drives_equal(a: &Option<OsString>, b: &Option<OsString>, windows: bool) -> b
     }
 }
 
-/// Extract a string from a Python object.
+/// Check whether `other` is a PurePath instance (or subclass thereof).
+///
+/// Returns ``true`` for PurePath, PurePosixPath, PureWindowsPath,
+/// PosixPath, WindowsPath, and any user-defined subclasses.
+/// Uses duck-type check: must have a ``parser`` attribute with a ``sep``.
+fn _is_path_instance(other: &Bound<'_, PyAny>) -> bool {
+    other
+        .getattr("parser")
+        .and_then(|p| p.getattr("sep"))
+        .is_ok()
+}
+
+/// Check whether `other` has the same parser/flavour as `expected_flavour`.
+///
+/// PurePosixPath and PureWindowsPath have different parsers (posixpath vs ntpath).
+/// Paths with different parsers are never equal and cannot be ordered.
+fn _same_flavour(other: &Bound<'_, PyAny>, expected_flavour: PathFlavour) -> bool {
+    if let Ok(parser) = other.getattr("parser") {
+        if let Ok(sep) = parser.getattr("sep") {
+            if let Ok(sep_str) = sep.extract::<String>() {
+                match expected_flavour {
+                    PathFlavour::Posix => return sep_str == "/",
+                    PathFlavour::Windows => return sep_str == "\\",
+                }
+            }
+        }
+    }
+    // If we can't determine the flavour, conservatively treat as same.
+    true
+}
+
+/// Extract a string from a Python object that is either a str or a PathLike.
 fn _extract_path_str(obj: &Bound<'_, PyAny>) -> PyResult<String> {
     // Reject bytes arguments (CPython pathlib raises TypeError for bytes).
     use pyo3::types::PyBytes;

@@ -1,51 +1,18 @@
-# tests/skips.txt
-# Format: <TestClass>.<test_method>
+# tests/skips.txt — Vendored CPython 3.14.6 Test Skips
 #
-# Tests listed here are skipped when running the vendored CPython 3.14 test suite.
-# Auto-generated from CI failure data (2026-07-09).
-#
+# Tests listed here are skipped when running the vendored CPython test suite.
 # Skip matching walks the MRO — PathTest.test_foo also skips
 # WindowsPathTest.test_foo and PosixPathTest.test_foo.
 #
-# Remove entries as features are implemented in pathlibrs.
-# Each section corresponds to a Phase 2+ feature gap.
+# Remove entries as features are fixed in pathlibrs.
+# Only private-API tests should remain as permanent skips.
+#
+# Stats: 186 active entries | 646 passed | 558 skipped | 0 failures
+#        (53 entries resolved from 239 baseline, +52 new passes)
+#
+# ═══════════════════════════════════════════════════════════════════════
 
-# -- PurePathTest — CPython pickle protocol compatibility
-# pathlibrs's Rust-backed __new__() signature is incompatible with CPython 3.13
-# pickle data that references pathlib._local.PurePosixPath
-PurePathTest.test_unpicking_3_13
-
-# -- CompatiblePathTest — path-like protocol compat
-CompatiblePathTest.test_rtruediv
-CompatiblePathTest.test_truediv
-
-# -- PathSubclassTest — concrete subclass I/O tests (Phase 2+)
-# REMOVED: PathSubclassTest.test_chmod
-# REMOVED: PathSubclassTest.test_chmod_follow_symlinks_true
-PathSubclassTest.test_complex_symlinks_absolute
-PathSubclassTest.test_complex_symlinks_relative
-PathSubclassTest.test_complex_symlinks_relative_dot_dot
-PathSubclassTest.test_constructor_nested
-# REMOVED: PathSubclassTest.test_copy_dangling_symlink
-# -- copy: remaining — needs preserve_metadata impl or incompatible (error_handling mocks CPython internals)
-PathSubclassTest.test_copy_dir_no_read_permission
-PathSubclassTest.test_copy_dir_preserve_metadata
-# REMOVED: PathSubclassTest.test_copy_directory_symlink_follow_symlinks_false
-# REMOVED: PathSubclassTest.test_copy_directory_symlink_into_itself
-# REMOVED: PathSubclassTest.test_copy_directory_symlink_to_existing_directory_symlink
-# REMOVED: PathSubclassTest.test_copy_directory_symlink_to_existing_symlink
-# REMOVED: PathSubclassTest.test_copy_directory_symlink_to_itself
-PathSubclassTest.test_copy_error_handling
-PathSubclassTest.test_copy_file_preserve_metadata
-# REMOVED: PathSubclassTest.test_copy_file_to_existing_symlink
-# REMOVED: PathSubclassTest.test_copy_file_to_existing_symlink_follow_symlinks_false
-PathSubclassTest.test_copy_link_preserve_metadata
-# REMOVED: PathSubclassTest.test_copy_symlink_follow_symlinks_false
-# REMOVED: PathSubclassTest.test_copy_symlink_follow_symlinks_true
-# REMOVED: PathSubclassTest.test_copy_symlink_to_existing_directory_symlink
-# REMOVED: PathSubclassTest.test_copy_symlink_to_existing_symlink
-# REMOVED: PathSubclassTest.test_copy_symlink_to_itself
-# -- delete: private _delete() API tests (audit: all 26 delete entries are private API)
+# ── Private API: _delete() (26 entries, permanent) ────────────────────
 PathSubclassTest.test_delete_dir
 PathSubclassTest.test_delete_does_not_choke_on_failing_lstat
 PathSubclassTest.test_delete_file
@@ -54,82 +21,6 @@ PathSubclassTest.test_delete_missing
 PathSubclassTest.test_delete_on_named_pipe
 PathSubclassTest.test_delete_symlink
 PathSubclassTest.test_delete_unwritable
-PathSubclassTest.test_different_parsers_unequal
-PathSubclassTest.test_different_parsers_unordered
-PathSubclassTest.test_equivalences
-# REMOVED: PathSubclassTest.test_expanduser_common
-# REMOVED: PathSubclassTest.test_expanduser_posix
-PathSubclassTest.test_from_uri_pathname2url_posix
-PathSubclassTest.test_from_uri_posix
-# REMOVED: PathSubclassTest.test_full_match_case_sensitive
-PathSubclassTest.test_handling_bad_descriptor
-# REMOVED: PathSubclassTest.test_hardlink_to
-PathSubclassTest.test_info_exists_caching
-PathSubclassTest.test_info_is_dir_caching
-PathSubclassTest.test_info_is_file_caching
-PathSubclassTest.test_info_is_symlink_caching
-PathSubclassTest.test_is_junction_true
-PathSubclassTest.test_is_relative_to_common
-# REMOVED: PathSubclassTest.test_iterdir_symlink
-PathSubclassTest.test_join_nested
-# REMOVED: PathSubclassTest.test_match_common
-# REMOVED: PathSubclassTest.test_match_empty
-# REMOVED: PathSubclassTest.test_match_posix
-PathSubclassTest.test_matches_writablepath_docstrings
-# REMOVED: PathSubclassTest.test_mkdir
-# REMOVED: PathSubclassTest.test_mkdir_concurrent_parent_creation
-# REMOVED: PathSubclassTest.test_mkdir_exist_ok
-# REMOVED: PathSubclassTest.test_mkdir_exist_ok_root
-# REMOVED: PathSubclassTest.test_mkdir_exist_ok_with_parent
-# REMOVED: PathSubclassTest.test_mkdir_no_parents_file
-PathSubclassTest.test_mkdir_parents
-# REMOVED: PathSubclassTest.test_mkdir_with_child_file
-# REMOVED: PathSubclassTest.test_open_common
-# REMOVED: PathSubclassTest.test_open_mode
-# REMOVED: PathSubclassTest.test_open_unbuffered
-PathSubclassTest.test_parse_windows_path
-PathSubclassTest.test_relative_to_common
-# REMOVED: PathSubclassTest.test_rename
-PathSubclassTest.test_resolve_common
-PathSubclassTest.test_resolve_dot
-PathSubclassTest.test_resolve_loop
-PathSubclassTest.test_resolve_nonexist_relative_issue38671
-PathSubclassTest.test_rmdir
-# REMOVED: PathSubclassTest.test_symlink_to
-# REMOVED: PathSubclassTest.test_touch_common
-# REMOVED: PathSubclassTest.test_touch_mode
-# REMOVED: PathSubclassTest.test_touch_nochange
-# REMOVED: PathSubclassTest.test_unlink
-# REMOVED: PathSubclassTest.test_unlink_missing_ok
-PathSubclassTest.test_with_segments
-
-# -- PathTest — concrete I/O tests (Phase 2+)
-# REMOVED: PathTest.test_chmod
-# REMOVED: PathTest.test_chmod_follow_symlinks_true
-PathTest.test_complex_symlinks_absolute
-PathTest.test_complex_symlinks_relative
-PathTest.test_complex_symlinks_relative_dot_dot
-PathTest.test_constructor_nested
-# REMOVED: PathTest.test_copy_dangling_symlink
-# -- copy: needs preserve_metadata or incompatible (error_handling)
-PathTest.test_copy_dir_no_read_permission
-PathTest.test_copy_dir_preserve_metadata
-# REMOVED: PathTest.test_copy_directory_symlink_follow_symlinks_false
-# REMOVED: PathTest.test_copy_directory_symlink_into_itself
-# REMOVED: PathTest.test_copy_directory_symlink_to_existing_directory_symlink
-# REMOVED: PathTest.test_copy_directory_symlink_to_existing_symlink
-# REMOVED: PathTest.test_copy_directory_symlink_to_itself
-PathTest.test_copy_error_handling
-PathTest.test_copy_file_preserve_metadata
-# REMOVED: PathTest.test_copy_file_to_existing_symlink
-# REMOVED: PathTest.test_copy_file_to_existing_symlink_follow_symlinks_false
-PathTest.test_copy_link_preserve_metadata
-# REMOVED: PathTest.test_copy_symlink_follow_symlinks_false
-# REMOVED: PathTest.test_copy_symlink_follow_symlinks_true
-# REMOVED: PathTest.test_copy_symlink_to_existing_directory_symlink
-# REMOVED: PathTest.test_copy_symlink_to_existing_symlink
-# REMOVED: PathTest.test_copy_symlink_to_itself
-# -- delete: private _delete() API tests
 PathTest.test_delete_dir
 PathTest.test_delete_does_not_choke_on_failing_lstat
 PathTest.test_delete_file
@@ -138,77 +29,6 @@ PathTest.test_delete_missing
 PathTest.test_delete_on_named_pipe
 PathTest.test_delete_symlink
 PathTest.test_delete_unwritable
-PathTest.test_different_parsers_unequal
-PathTest.test_different_parsers_unordered
-PathTest.test_equivalences
-PathTest.test_from_uri_pathname2url_posix
-PathTest.test_from_uri_posix
-# REMOVED: PathTest.test_full_match_case_sensitive
-PathTest.test_handling_bad_descriptor
-# REMOVED: PathTest.test_hardlink_to
-PathTest.test_is_relative_to_common
-# REMOVED: PathTest.test_iterdir_symlink
-PathTest.test_join_nested
-# REMOVED: PathTest.test_match_common
-# REMOVED: PathTest.test_match_empty
-# REMOVED: PathTest.test_match_posix
-# REMOVED: PathTest.test_mkdir
-# REMOVED: PathTest.test_mkdir_concurrent_parent_creation
-# REMOVED: PathTest.test_mkdir_exist_ok
-# REMOVED: PathTest.test_mkdir_exist_ok_root
-# REMOVED: PathTest.test_mkdir_exist_ok_with_parent
-# REMOVED: PathTest.test_mkdir_no_parents_file
-PathTest.test_mkdir_parents
-# REMOVED: PathTest.test_mkdir_with_child_file
-# REMOVED: PathTest.test_open_common
-# REMOVED: PathTest.test_open_mode
-# REMOVED: PathTest.test_open_unbuffered
-PathTest.test_parse_windows_path
-PathTest.test_relative_to_common
-# REMOVED: PathTest.test_rename
-PathTest.test_rmdir
-# REMOVED: PathTest.test_symlink_to
-# REMOVED: PathTest.test_touch_common
-# REMOVED: PathTest.test_touch_mode
-# REMOVED: PathTest.test_touch_nochange
-# REMOVED: PathTest.test_unlink
-# REMOVED: PathTest.test_unlink_missing_ok
-PathTest.test_with_segments
-
-# -- PathWalkTest — walk tests (Phase 2+)
-PathWalkTest.test_walk_above_recursion_limit
-PathWalkTest.test_walk_bad_dir
-PathWalkTest.test_walk_follow_symlinks
-PathWalkTest.test_walk_many_open_files
-PathWalkTest.test_walk_symlink_location
-
-# -- PosixPathTest — concrete POSIX I/O tests (Phase 2+)
-# REMOVED: PosixPathTest.test_chmod
-# REMOVED: PosixPathTest.test_chmod_follow_symlinks_true
-PosixPathTest.test_complex_symlinks_absolute
-PosixPathTest.test_complex_symlinks_relative
-PosixPathTest.test_complex_symlinks_relative_dot_dot
-PosixPathTest.test_constructor_nested
-# REMOVED: PosixPathTest.test_copy_dangling_symlink
-# -- copy: needs preserve_metadata or incompatible (error_handling)
-PosixPathTest.test_copy_dir_no_read_permission
-PosixPathTest.test_copy_dir_preserve_metadata
-# REMOVED: PosixPathTest.test_copy_directory_symlink_follow_symlinks_false
-# REMOVED: PosixPathTest.test_copy_directory_symlink_into_itself
-# REMOVED: PosixPathTest.test_copy_directory_symlink_to_existing_directory_symlink
-# REMOVED: PosixPathTest.test_copy_directory_symlink_to_existing_symlink
-# REMOVED: PosixPathTest.test_copy_directory_symlink_to_itself
-PosixPathTest.test_copy_error_handling
-PosixPathTest.test_copy_file_preserve_metadata
-# REMOVED: PosixPathTest.test_copy_file_to_existing_symlink
-# REMOVED: PosixPathTest.test_copy_file_to_existing_symlink_follow_symlinks_false
-PosixPathTest.test_copy_link_preserve_metadata
-# REMOVED: PosixPathTest.test_copy_symlink_follow_symlinks_false
-# REMOVED: PosixPathTest.test_copy_symlink_follow_symlinks_true
-# REMOVED: PosixPathTest.test_copy_symlink_to_existing_directory_symlink
-# REMOVED: PosixPathTest.test_copy_symlink_to_existing_symlink
-# REMOVED: PosixPathTest.test_copy_symlink_to_itself
-# -- delete: private _delete() API tests
 PosixPathTest.test_delete_dir
 PosixPathTest.test_delete_does_not_choke_on_failing_lstat
 PosixPathTest.test_delete_file
@@ -217,167 +37,52 @@ PosixPathTest.test_delete_missing
 PosixPathTest.test_delete_on_named_pipe
 PosixPathTest.test_delete_symlink
 PosixPathTest.test_delete_unwritable
-PosixPathTest.test_different_parsers_unequal
-PosixPathTest.test_different_parsers_unordered
-PosixPathTest.test_equivalences
-PosixPathTest.test_from_uri_pathname2url_posix
-PosixPathTest.test_from_uri_posix
-# REMOVED: PosixPathTest.test_full_match_case_sensitive
-PosixPathTest.test_handling_bad_descriptor
-# REMOVED: PosixPathTest.test_hardlink_to
-PosixPathTest.test_is_relative_to_common
-# REMOVED: PosixPathTest.test_iterdir_symlink
-PosixPathTest.test_join_nested
-# REMOVED: PosixPathTest.test_match_common
-# REMOVED: PosixPathTest.test_match_empty
-# REMOVED: PosixPathTest.test_mkdir
-# REMOVED: PosixPathTest.test_mkdir_concurrent_parent_creation
-# REMOVED: PosixPathTest.test_mkdir_exist_ok
-# REMOVED: PosixPathTest.test_mkdir_exist_ok_root
-# REMOVED: PosixPathTest.test_mkdir_exist_ok_with_parent
-# REMOVED: PosixPathTest.test_mkdir_no_parents_file
-PosixPathTest.test_mkdir_parents
-# REMOVED: PosixPathTest.test_mkdir_with_child_file
-# REMOVED: PosixPathTest.test_open_common
-# REMOVED: PosixPathTest.test_open_mode
-# REMOVED: PosixPathTest.test_open_unbuffered
-PosixPathTest.test_parse_windows_path
-PosixPathTest.test_relative_to_common
-# REMOVED: PosixPathTest.test_rename
-PosixPathTest.test_rmdir
-# REMOVED: PosixPathTest.test_symlink_to
-# REMOVED: PosixPathTest.test_touch_common
-# REMOVED: PosixPathTest.test_touch_mode
-# REMOVED: PosixPathTest.test_touch_nochange
-# REMOVED: PosixPathTest.test_unlink
-# REMOVED: PosixPathTest.test_unlink_missing_ok
-PosixPathTest.test_with_segments
-
-# -- PurePathSubclassTest — subclass init chain differences
-PurePathSubclassTest.test_as_posix_common
-PurePathSubclassTest.test_concrete_class
-PurePathSubclassTest.test_concrete_parser
-PurePathSubclassTest.test_constructor_nested
-PurePathSubclassTest.test_constructor_nested_foreign_flavour
-PurePathSubclassTest.test_different_parsers_unequal
-PurePathSubclassTest.test_different_parsers_unordered
-PurePathSubclassTest.test_div_nested
-PurePathSubclassTest.test_drive_common
-PurePathSubclassTest.test_drive_windows
-PurePathSubclassTest.test_equivalences
-PurePathSubclassTest.test_equivalences_windows
-PurePathSubclassTest.test_fspath_common
-# REMOVED: PurePathSubclassTest.test_full_match_case_sensitive
-PurePathSubclassTest.test_is_absolute_posix
-PurePathSubclassTest.test_is_absolute_windows
-PurePathSubclassTest.test_is_relative_to_common
-PurePathSubclassTest.test_is_relative_to_windows
-PurePathSubclassTest.test_is_reserved_deprecated
-PurePathSubclassTest.test_join_nested
-# REMOVED: PurePathSubclassTest.test_match_common
-# REMOVED: PurePathSubclassTest.test_match_empty
-# REMOVED: PurePathSubclassTest.test_match_posix
-# REMOVED: PurePathSubclassTest.test_match_windows
-PurePathSubclassTest.test_ordering_common
-PurePathSubclassTest.test_ordering_windows
-PurePathSubclassTest.test_parse_path_windows
-PurePathSubclassTest.test_parse_windows_path
-PurePathSubclassTest.test_pickling_common
-PurePathSubclassTest.test_relative_to_common
-PurePathSubclassTest.test_relative_to_windows
-PurePathSubclassTest.test_root_windows
-PurePathSubclassTest.test_str_common
-PurePathSubclassTest.test_str_subclass_common
-PurePathSubclassTest.test_str_subclass_windows
-PurePathSubclassTest.test_str_windows
-PurePathSubclassTest.test_with_name_windows
-PurePathSubclassTest.test_with_stem_windows
-
-# -- PurePathTest — base pure path tests for unimplemented features
-PurePathTest.test_concrete_class
-PurePathTest.test_concrete_parser
-PurePathTest.test_constructor_nested
-PurePathTest.test_different_parsers_unequal
-PurePathTest.test_different_parsers_unordered
-PurePathTest.test_equivalences
-# REMOVED: PurePathTest.test_full_match_case_sensitive
-PurePathTest.test_is_absolute_posix
-PurePathTest.test_is_relative_to_common
-PurePathTest.test_is_reserved_deprecated
-PurePathTest.test_join_nested
-# REMOVED: PurePathTest.test_match_common
-# REMOVED: PurePathTest.test_match_empty
-PurePathTest.test_parse_windows_path
-PurePathTest.test_relative_to_common
-
-# -- PurePosixPathTest — POSIX pure path tests for unimplemented features
-PurePosixPathTest.test_constructor_nested
-PurePosixPathTest.test_different_parsers_unequal
-PurePosixPathTest.test_different_parsers_unordered
-PurePosixPathTest.test_equivalences
-# REMOVED: PurePosixPathTest.test_full_match_case_sensitive
-PurePosixPathTest.test_is_absolute_posix
-PurePosixPathTest.test_is_relative_to_common
-PurePosixPathTest.test_is_reserved_deprecated
-PurePosixPathTest.test_join_nested
-# REMOVED: PurePosixPathTest.test_match_common
-# REMOVED: PurePosixPathTest.test_match_empty
-PurePosixPathTest.test_parse_windows_path
-PurePosixPathTest.test_relative_to_common
-
-# -- PureWindowsPathTest — Windows pure path tests for unimplemented features
-PureWindowsPathTest.test_constructor_nested
-PureWindowsPathTest.test_constructor_nested_foreign_flavour
-PureWindowsPathTest.test_different_parsers_unequal
-PureWindowsPathTest.test_different_parsers_unordered
-PureWindowsPathTest.test_drive_windows
-PureWindowsPathTest.test_equivalences
-PureWindowsPathTest.test_equivalences_windows
-PureWindowsPathTest.test_fspath_common
-# REMOVED: PureWindowsPathTest.test_full_match_case_sensitive
-PureWindowsPathTest.test_is_absolute_windows
-PureWindowsPathTest.test_is_relative_to_common
-PureWindowsPathTest.test_is_relative_to_windows
-PureWindowsPathTest.test_is_reserved_deprecated
-PureWindowsPathTest.test_join_nested
-# REMOVED: PureWindowsPathTest.test_match_common
-# REMOVED: PureWindowsPathTest.test_match_empty
-# REMOVED: PureWindowsPathTest.test_match_windows
-PureWindowsPathTest.test_ordering_windows
-PureWindowsPathTest.test_parse_path_windows
-PureWindowsPathTest.test_relative_to_common
-PureWindowsPathTest.test_relative_to_windows
-PureWindowsPathTest.test_str_common
-PureWindowsPathTest.test_str_windows
-PureWindowsPathTest.test_with_name_windows
-PureWindowsPathTest.test_with_stem_windows
-
-# -- UnsupportedOperationTest — NotImplemented semantics
-UnsupportedOperationTest.test_is_notimplemented
-
-# -- WindowsPathTest-specific methods (only defined on this class, not inherited) --
+# Additional Windows-only delete entries:
 PathTest.test_delete_inner_junction
 PathTest.test_delete_outer_junction
-PathTest.test_from_uri_pathname2url_windows
-PathTest.test_from_uri_windows
-# REMOVED: PathTest.test_mkdir_with_unknown_drive
 
-# -- WindowsPathTest inherited test methods that need own entries (truediv/rtruediv) --
-PathTest.test_rtruediv
-PathTest.test_truediv
-PurePathTest.test_ordering_common
+# ── Private API: Unpickling 3.13 (1 entry, permanent) ─────────────────
+# CPython 3.13 pickle format references pathlib._local.PurePosixPath
+PurePathTest.test_unpicking_3_13
 
-# Phase 2 — PathInfo is implemented but tests need Phase 3 (write_text, mkdir, symlink_to)
-PathTest.test_info_exists_caching
-PathTest.test_info_is_dir_caching
-PathTest.test_info_is_file_caching
-PathTest.test_info_is_symlink_caching
-PosixPathTest.test_info_exists_caching
-PosixPathTest.test_info_is_dir_caching
-PosixPathTest.test_info_is_file_caching
-PosixPathTest.test_info_is_symlink_caching
+# ── NotImplemented / UnsupportedOperation (1 entry) ───────────────────
+UnsupportedOperationTest.test_is_notimplemented
 
-# Phase 3 — resolve needs symlink_to
+# ── copy(): preserve_metadata not implemented (6 entries) ─────────────
+PathSubclassTest.test_copy_dir_preserve_metadata
+PathSubclassTest.test_copy_file_preserve_metadata
+PathSubclassTest.test_copy_link_preserve_metadata
+PathTest.test_copy_dir_preserve_metadata
+PathTest.test_copy_file_preserve_metadata
+PathTest.test_copy_link_preserve_metadata
+PosixPathTest.test_copy_dir_preserve_metadata
+PosixPathTest.test_copy_file_preserve_metadata
+PosixPathTest.test_copy_link_preserve_metadata
+
+# ── copy(): permission / error handling (6 entries) ───────────────────
+PathSubclassTest.test_copy_dir_no_read_permission
+PathSubclassTest.test_copy_error_handling
+PathTest.test_copy_dir_no_read_permission
+PathTest.test_copy_error_handling
+PosixPathTest.test_copy_dir_no_read_permission
+PosixPathTest.test_copy_error_handling
+
+# ── symlinks: complex (relative / dot-dot, 9 entries) ────────────────
+PathSubclassTest.test_complex_symlinks_absolute
+PathSubclassTest.test_complex_symlinks_relative
+PathSubclassTest.test_complex_symlinks_relative_dot_dot
+PathTest.test_complex_symlinks_absolute
+PathTest.test_complex_symlinks_relative
+PathTest.test_complex_symlinks_relative_dot_dot
+PosixPathTest.test_complex_symlinks_absolute
+PosixPathTest.test_complex_symlinks_relative
+PosixPathTest.test_complex_symlinks_relative_dot_dot
+
+# ── resolve() edge cases (12 entries) ─────────────────────────────────
+PathSubclassTest.test_resolve_common
+PathSubclassTest.test_resolve_dot
+PathSubclassTest.test_resolve_loop
+PathSubclassTest.test_resolve_nonexist_relative_issue38671
 PathTest.test_resolve_common
 PathTest.test_resolve_dot
 PathTest.test_resolve_loop
@@ -386,81 +91,162 @@ PosixPathTest.test_resolve_common
 PosixPathTest.test_resolve_dot
 PosixPathTest.test_resolve_loop
 PosixPathTest.test_resolve_nonexist_relative_issue38671
-PathTest.test_is_junction_true
-PosixPathTest.test_is_junction_true
 
-# Phase 2 edge case — docstrings access private pathlib.types API
-PathTest.test_matches_writablepath_docstrings
-PosixPathTest.test_matches_writablepath_docstrings
-
-# Windows path flavour not yet fully implemented (Phase 1 gaps)
-PathTest.test_absolute_windows
-PathTest.test_constructor_nested_foreign_flavour
-PathTest.test_drive_windows
+# ── cross-flavour: equivalences (7 entries) ───────────────────────────
+PathSubclassTest.test_equivalences
+PathTest.test_equivalences
 PathTest.test_equivalences_windows
-PathTest.test_expanduser_windows
+PosixPathTest.test_equivalences
+PurePathSubclassTest.test_equivalences_windows
+PurePathTest.test_equivalences_windows
+PureWindowsPathTest.test_equivalences_windows
+
+# ── cross-flavour: different parsers unequal/unordered (14 entries) ───
+PathSubclassTest.test_different_parsers_unequal
+PathSubclassTest.test_different_parsers_unordered
+PathTest.test_different_parsers_unequal
+PathTest.test_different_parsers_unordered
+PosixPathTest.test_different_parsers_unequal
+PosixPathTest.test_different_parsers_unordered
+PurePathSubclassTest.test_different_parsers_unequal
+PurePathSubclassTest.test_different_parsers_unordered
+PurePathTest.test_different_parsers_unequal
+PurePathTest.test_different_parsers_unordered
+PurePosixPathTest.test_different_parsers_unequal
+PurePosixPathTest.test_different_parsers_unordered
+PureWindowsPathTest.test_different_parsers_unequal
+PureWindowsPathTest.test_different_parsers_unordered
+
+# ── ordering: cross-flavour TypeError (8 entries) ─────────────────────
+PathSubclassTest.test_ordering_common
+PathTest.test_ordering_common
+PathTest.test_ordering_windows
+PosixPathTest.test_ordering_common
+PurePathSubclassTest.test_ordering_common
+PurePathTest.test_ordering_common
+PurePosixPathTest.test_ordering_common
+PureWindowsPathTest.test_ordering_windows
+
+# ── is_reserved() DeprecationWarning (7 entries) ──────────────────────
+PathSubclassTest.test_is_reserved_deprecated
+PathTest.test_is_reserved_deprecated
+PosixPathTest.test_is_reserved_deprecated
+PurePathSubclassTest.test_is_reserved_deprecated
+PurePathTest.test_is_reserved_deprecated
+PurePosixPathTest.test_is_reserved_deprecated
+PureWindowsPathTest.test_is_reserved_deprecated
+
+# ── relative_to / is_relative_to (7 entries) ──────────────────────────
+PathSubclassTest.test_relative_to_common
+PathTest.test_relative_to_common
+PosixPathTest.test_relative_to_common
+PurePathSubclassTest.test_relative_to_common
+PurePathTest.test_relative_to_common
+PurePosixPathTest.test_relative_to_common
+PureWindowsPathTest.test_relative_to_common
+
+# ── mkdir(parents=True) edge case (3 entries) ─────────────────────────
+PathSubclassTest.test_mkdir_parents
+PathTest.test_mkdir_parents
+PosixPathTest.test_mkdir_parents
+
+# ── rmdir (3 entries; Windows handle leak, passes on POSIX) ───────────
+PathSubclassTest.test_rmdir
+PathTest.test_rmdir
+WindowsPathTest.test_rmdir
+
+# ── walk() edge cases (5 entries) ─────────────────────────────────────
+PathWalkTest.test_walk_above_recursion_limit
+PathWalkTest.test_walk_bad_dir
+PathWalkTest.test_walk_follow_symlinks
+PathWalkTest.test_walk_many_open_files
+PathWalkTest.test_walk_symlink_location
+
+# ── from_uri / pathname2url POSIX (8 entries) ─────────────────────────
+PathSubclassTest.test_from_uri_pathname2url_posix
+PathSubclassTest.test_from_uri_posix
+PathTest.test_from_uri_pathname2url_posix
+PathTest.test_from_uri_posix
 PathTest.test_from_uri_pathname2url_windows
 PathTest.test_from_uri_windows
+PosixPathTest.test_from_uri_pathname2url_posix
+PosixPathTest.test_from_uri_posix
+
+# ── CompatiblePathTest (2 entries) ────────────────────────────────────
+CompatiblePathTest.test_rtruediv
+CompatiblePathTest.test_truediv
+
+# ── Concrete class move edge cases (2 entries) ────────────────────────
+PathTest.test_move_dir_into_itself
+PathTest.test_move_dir_into_itself_other_fs
+
+# ── Windows-specific: parser / drive / naming (32 entries) ────────────
+# Windows path features not fully implemented or testable on POSIX hosts
+PathSubclassTest.test_eq_windows
+PathTest.test_absolute_windows
+PathTest.test_drive_windows
+PathTest.test_eq_windows
+PathTest.test_expanduser_windows
 PathTest.test_group_windows
 PathTest.test_is_absolute_windows
-PathTest.test_is_relative_to_windows
-# REMOVED: PathTest.test_match_windows
-PathTest.test_ordering_windows
 PathTest.test_owner_windows
 PathTest.test_parse_path_windows
-PathTest.test_relative_to_windows
 PathTest.test_root_windows
 PathTest.test_str_windows
 PathTest.test_with_name_windows
 PathTest.test_with_stem_windows
-
-# -- Windows path regressions (Phase 5)
-# These were passing in Phase 4 but regressed after Phase 5 parsing and
-# name/stem/str changes. Needs investigation on a Windows host.
+PurePathSubclassTest.test_drive_windows
+PurePathSubclassTest.test_is_absolute_windows
+PurePathSubclassTest.test_with_name_windows
+PurePathSubclassTest.test_with_stem_windows
 PurePathTest.test_drive_windows
-PurePathTest.test_equivalences_windows
 PurePathTest.test_with_name_windows
 PurePathTest.test_with_stem_windows
-
-# -- Windows __eq__: drive-without-root normalization
-# c:a/b and c:/a/b should be equal on Windows (implied root after drive).
-# Needs normalization logic in __eq__ for Windows drive paths.
-PathTest.test_eq_windows
+PureWindowsPathTest.test_drive_windows
+PureWindowsPathTest.test_is_absolute_windows
+PureWindowsPathTest.test_with_name_windows
+PureWindowsPathTest.test_with_stem_windows
 WindowsPathTest.test_eq_windows
-PathSubclassTest.test_eq_windows
 
-# ═══════════════════════════════════════════════════════════════════════
-# Phase 5 Copy & Delete Skip Audit (2026-07-11)
-# ═══════════════════════════════════════════════════════════════════════
-#
-# Delete audit (26 entries):
-#   All 26 delete entries call private _delete() API — kept skipped.
-#   24 test_delete_* entries (8 per class × 3 classes) +
-#   2 Windows-specific entries (test_delete_inner_junction, test_delete_outer_junction).
-#
-# Copy audit (33 entries → 12 remaining):
-#   Unskipped 21 entries (7 tests × 3 classes):
-#     - Self-copy tests (already passing): test_copy_symlink_to_itself,
-#       test_copy_directory_symlink_to_itself, test_copy_directory_symlink_into_itself
-#     - Existing-symlink tests (fixed: no longer overwrite targets):
-#       test_copy_symlink_to_existing_symlink, test_copy_symlink_to_existing_directory_symlink,
-#       test_copy_directory_symlink_to_existing_symlink,
-#       test_copy_directory_symlink_to_existing_directory_symlink
-#     Fix: Removed preemptive target-removal in follow_symlinks=False symlink copy
-#     (src/fs.rs). Also added preserve_metadata kwarg to copy() and copy_into() (no-op).
-#   Remaining 12 entries:
-#     - preserve_metadata tests (9): needs implementation in copy_tree
-#     - test_copy_error_handling (3): mocks CPython fast-copy functions, incompatible
-#     - test_copy_dir_no_read_permission (3?): needs investigation
-#     (Note: some WindowsPathTest tests are skipped due to missing symlinks on macOS)
-#
-# Results: 239 active skip entries (down from 312).
-#           594 passed (up from 526), 607 skipped (down from 678).
-#
-# Move audit (45→2): 43 entries unskipped.
-#   Fixed move_tree to only fall back to copy+delete on EXDEV (cross-device).
-#   Remaining 2 entries: intermittent macOS ENAMETOOLONG rename edge case.
+# Windows: parse_windows_path on pure paths (6 entries)
+PathSubclassTest.test_parse_windows_path
+PathTest.test_parse_windows_path
+PosixPathTest.test_parse_windows_path
+PurePathTest.test_parse_windows_path
+PurePosixPathTest.test_parse_windows_path
+PureWindowsPathTest.test_parse_path_windows
 
-# -- move: intermittent runs (macOS long-path rename edge case)
-PathTest.test_move_dir_into_itself
-PathTest.test_move_dir_into_itself_other_fs
+# Windows: ordering_windows (included in ordering section above)
+
+# ── Constructor / nesting / subclassing (10 entries) ──────────────────
+PathSubclassTest.test_constructor_nested
+PathSubclassTest.test_with_segments
+PathTest.test_constructor_nested
+PathTest.test_constructor_nested_foreign_flavour
+PathTest.test_with_segments
+PosixPathTest.test_constructor_nested
+PosixPathTest.test_with_segments
+PurePathSubclassTest.test_constructor_nested_foreign_flavour
+PurePathTest.test_concrete_class
+PureWindowsPathTest.test_constructor_nested_foreign_flavour
+
+# ── fspath / is_absolute pure path (4 entries) ────────────────────────
+PurePathSubclassTest.test_is_absolute_posix
+PurePathTest.test_is_absolute_posix
+PurePosixPathTest.test_is_absolute_posix
+PureWindowsPathTest.test_fspath_common
+
+# ── Misc: descriptor / junction / docstrings (6 entries) ─────────────
+PathSubclassTest.test_handling_bad_descriptor
+PathSubclassTest.test_is_junction_true
+PathSubclassTest.test_matches_writablepath_docstrings
+PathTest.test_handling_bad_descriptor
+PathTest.test_is_junction_true
+PathTest.test_matches_writablepath_docstrings
+PosixPathTest.test_handling_bad_descriptor
+PosixPathTest.test_is_junction_true
+PosixPathTest.test_matches_writablepath_docstrings
+
+# ── Compat: truediv/rtruediv on concrete paths (2 entries) ────────────
+PathTest.test_rtruediv
+PathTest.test_truediv
