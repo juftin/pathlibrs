@@ -60,7 +60,9 @@ impl PurePath {
         // Call slf.with_segments(new_raw) rather than cls(new_raw) so that
         // subclasses that override with_segments preserve extra state.
         let raw_str = new_raw.to_string_lossy().into_owned();
-        Ok(slf_bound.call_method1("with_segments", (raw_str,))?.unbind())
+        Ok(slf_bound
+            .call_method1("with_segments", (raw_str,))?
+            .unbind())
     }
 
     #[inline]
