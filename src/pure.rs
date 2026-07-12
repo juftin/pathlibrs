@@ -488,6 +488,20 @@ impl PurePath {
         let other_parsed = crate::parsing::parse_path(OsStr::new(&other_str), slf.flavour);
         let self_parsed = slf.inner.parsed(slf.flavour);
 
+        // When walk_up is True, CPython rejects ".." segments in the *other*
+        // path because they cannot be walked (they already point above the
+        // anchor).  This is enforced regardless of whether the anchors match.
+        if walk_up {
+            for part in &other_parsed.parts {
+                if part.as_encoded_bytes() == b".." {
+                    return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                        "'..' segment in '{}' cannot be walked",
+                        other_str
+                    )));
+                }
+            }
+        }
+
         // Find how many leading segments match
         let min_len = self_parsed.parts.len().min(other_parsed.parts.len());
         let mut common = 0usize;

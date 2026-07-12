@@ -83,7 +83,7 @@ PathSubclassTest.test_mkdir_parents
 # REMOVED: PathSubclassTest.test_open_mode
 # REMOVED: PathSubclassTest.test_open_unbuffered
 PathSubclassTest.test_parse_windows_path
-PathSubclassTest.test_relative_to_common
+# REMOVED: PathSubclassTest.test_relative_to_common
 # REMOVED: PathSubclassTest.test_rename
 PathSubclassTest.test_resolve_common
 PathSubclassTest.test_resolve_dot
@@ -154,7 +154,7 @@ PathTest.test_mkdir_parents
 # REMOVED: PathTest.test_open_mode
 # REMOVED: PathTest.test_open_unbuffered
 PathTest.test_parse_windows_path
-PathTest.test_relative_to_common
+# REMOVED: PathTest.test_relative_to_common
 # REMOVED: PathTest.test_rename
 PathTest.test_rmdir
 # REMOVED: PathTest.test_symlink_to
@@ -227,7 +227,7 @@ PosixPathTest.test_mkdir_parents
 # REMOVED: PosixPathTest.test_open_mode
 # REMOVED: PosixPathTest.test_open_unbuffered
 PosixPathTest.test_parse_windows_path
-PosixPathTest.test_relative_to_common
+# REMOVED: PosixPathTest.test_relative_to_common
 # REMOVED: PosixPathTest.test_rename
 PosixPathTest.test_rmdir
 # REMOVED: PosixPathTest.test_symlink_to
@@ -261,8 +261,8 @@ PurePathSubclassTest.test_is_absolute_windows
 # REMOVED: PurePathSubclassTest.test_parse_path_windows
 # REMOVED: PurePathSubclassTest.test_parse_windows_path
 PurePathSubclassTest.test_pickling_common
-PurePathSubclassTest.test_relative_to_common
-PurePathSubclassTest.test_relative_to_windows
+# REMOVED: PurePathSubclassTest.test_relative_to_common
+# REMOVED: PurePathSubclassTest.test_relative_to_windows
 # REMOVED: PurePathSubclassTest.test_root_windows
 # REMOVED: PurePathSubclassTest.test_str_common
 # REMOVED: PurePathSubclassTest.test_str_subclass_common
@@ -281,7 +281,7 @@ PurePathTest.test_is_absolute_posix
 # REMOVED: PurePathTest.test_match_common
 # REMOVED: PurePathTest.test_match_empty
 PurePathTest.test_parse_windows_path
-PurePathTest.test_relative_to_common
+# REMOVED: PurePathTest.test_relative_to_common
 
 # -- PurePosixPathTest — POSIX pure path tests for unimplemented features
 # REMOVED: PurePosixPathTest.test_full_match_case_sensitive
@@ -290,7 +290,7 @@ PurePosixPathTest.test_is_absolute_posix
 # REMOVED: PurePosixPathTest.test_match_common
 # REMOVED: PurePosixPathTest.test_match_empty
 PurePosixPathTest.test_parse_windows_path
-PurePosixPathTest.test_relative_to_common
+# REMOVED: PurePosixPathTest.test_relative_to_common
 
 # -- PureWindowsPathTest — Windows pure path tests for unimplemented features
 PureWindowsPathTest.test_constructor_nested_foreign_flavour
@@ -306,8 +306,8 @@ PureWindowsPathTest.test_is_absolute_windows
 # REMOVED: PureWindowsPathTest.test_match_windows
 PureWindowsPathTest.test_ordering_windows
 PureWindowsPathTest.test_parse_path_windows
-PureWindowsPathTest.test_relative_to_common
-PureWindowsPathTest.test_relative_to_windows
+# REMOVED: PureWindowsPathTest.test_relative_to_common
+# REMOVED: PureWindowsPathTest.test_relative_to_windows
 # REMOVED: PureWindowsPathTest.test_str_common
 # REMOVED: PureWindowsPathTest.test_str_windows
 # REMOVED: PureWindowsPathTest.test_with_name_windows
@@ -369,7 +369,7 @@ PathTest.test_is_absolute_windows
 PathTest.test_ordering_windows
 PathTest.test_owner_windows
 PathTest.test_parse_path_windows
-PathTest.test_relative_to_windows
+# REMOVED: PathTest.test_relative_to_windows
 PathTest.test_root_windows
 PathTest.test_str_windows
 PathTest.test_with_name_windows
