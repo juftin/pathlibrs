@@ -631,8 +631,7 @@ pub fn mkdir(path: &OsStr, mode: u32, parents: bool, exist_ok: bool) -> PyResult
                     // Only chmod if the permissions actually differ.
                     if masked_mode != (actual & 0o777) {
                         let perms = std::fs::Permissions::from_mode(masked_mode);
-                        std::fs::set_permissions(&path_buf, perms)
-                            .map_err(io_err_to_pyerr)?;
+                        std::fs::set_permissions(&path_buf, perms).map_err(io_err_to_pyerr)?;
                     }
                 }
             }
@@ -1161,11 +1160,16 @@ pub fn walk_entries(
 /// For directories: recursively copies the entire tree.
 /// For symlinks: copies the symlink (not the target), or follows if
 /// ``follow_symlinks=True``.
+///
+/// When ``preserve_metadata`` is true, atime, mtime, permissions, and
+/// (on macOS) flags are copied from source to destination after each
+/// copy operation.
 pub fn copy_tree(
     src: &OsStr,
     dst: &OsStr,
     follow_symlinks: bool,
     dirs_exist_ok: bool,
+    preserve_metadata: bool,
 ) -> PyResult<()> {
     let src_path = StdPath::new(src);
     let dst_path = StdPath::new(dst);
@@ -1194,10 +1198,19 @@ pub fn copy_tree(
                     // Check if resolved target exists
                     let target_md = std::fs::symlink_metadata(&resolved)?;
                     if target_md.is_dir() {
-                        copy_dir_recursive(&resolved, dst_path, follow_symlinks, dirs_exist_ok)?;
+                        copy_dir_recursive(
+                            &resolved,
+                            dst_path,
+                            follow_symlinks,
+                            dirs_exist_ok,
+                            preserve_metadata,
+                        )?;
                     } else {
                         std::fs::create_dir_all(dst_path.parent().unwrap_or(StdPath::new(".")))?;
                         std::fs::copy(&resolved, dst_path)?;
+                        if preserve_metadata {
+                            preserve_meta(&target_md, dst_path)?;
+                        }
                     }
                 } else {
                     // Copy just the symlink — let the OS raise an error if
@@ -1215,13 +1228,30 @@ pub fn copy_tree(
                             std::os::windows::fs::symlink_file(&target, dst_path)?;
                         }
                     }
+                    if preserve_metadata {
+                        // For symlinks, use lchmod / lchflags where available
+                        #[cfg(unix)]
+                        preserve_link_meta(src_path, dst_path, &md)?;
+                    }
                 }
             } else if ft.is_dir() {
-                copy_dir_recursive(src_path, dst_path, follow_symlinks, dirs_exist_ok)?;
+                copy_dir_recursive(
+                    src_path,
+                    dst_path,
+                    follow_symlinks,
+                    dirs_exist_ok,
+                    preserve_metadata,
+                )?;
+                if preserve_metadata {
+                    preserve_meta(&md, dst_path)?;
+                }
             } else {
                 // Regular file
                 std::fs::create_dir_all(dst_path.parent().unwrap_or(StdPath::new(".")))?;
                 std::fs::copy(src_path, dst_path)?;
+                if preserve_metadata {
+                    preserve_meta(&md, dst_path)?;
+                }
             }
             Ok(())
         })
@@ -1233,6 +1263,89 @@ pub fn copy_tree(
 /// Reset the visited-path set between top-level copy operations.
 fn copy_dir_recursive_reset_visited() {
     COPY_VISITED.with(|v| v.borrow_mut().clear());
+}
+
+// ── Metadata preservation helpers ────────────────────────────────────
+
+/// Copy atime, mtime, and permission bits from source to destination.
+#[cfg(unix)]
+fn preserve_meta(md: &std::fs::Metadata, dst: &StdPath) -> Result<(), io::Error> {
+    use std::os::unix::fs::{MetadataExt, PermissionsExt};
+
+    // Build a CString from the path for libc calls.
+    let c_path = std::ffi::CString::new(dst.as_os_str().as_encoded_bytes())
+        .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
+
+    // -- atime / mtime (nanosecond precision via utimensat) --
+    let atime = libc::timespec {
+        tv_sec: md.atime(),
+        tv_nsec: md.atime_nsec() as _,
+    };
+    let mtime = libc::timespec {
+        tv_sec: md.mtime(),
+        tv_nsec: md.mtime_nsec() as _,
+    };
+    let times = [atime, mtime];
+    // utimensat failure is non-fatal (e.g., on read-only fs)
+    unsafe { libc::utimensat(libc::AT_FDCWD, c_path.as_ptr(), times.as_ptr(), 0) };
+
+    // -- permissions (only the lower 12 bits: rwx + setuid/setgid/sticky) --
+    let mode = md.permissions().mode() & 0o7777;
+    let perms = std::fs::Permissions::from_mode(mode);
+    let _ = std::fs::set_permissions(dst, perms);
+
+    // -- macOS flags (UF_NODUMP, etc.) --
+    #[cfg(any(target_os = "macos", target_os = "ios"))]
+    {
+        let mut stat_buf: libc::stat = unsafe { std::mem::zeroed() };
+        if unsafe { libc::stat(c_path.as_ptr(), &mut stat_buf) } == 0 {
+            let flags = stat_buf.st_flags;
+            if flags != 0 {
+                unsafe { libc::chflags(c_path.as_ptr(), flags as libc::c_uint) };
+            }
+        }
+    }
+
+    Ok(())
+}
+
+/// Copy lchmod / lchflags for symlinks (where available).
+#[cfg(unix)]
+fn preserve_link_meta(
+    src: &StdPath,
+    dst: &StdPath,
+    _md: &std::fs::Metadata,
+) -> Result<(), io::Error> {
+    // lchmod: change permissions on the symlink itself (not its target)
+    let c_src = std::ffi::CString::new(src.as_os_str().as_encoded_bytes()).unwrap();
+    let c_dst = std::ffi::CString::new(dst.as_os_str().as_encoded_bytes()).unwrap();
+    let mut stat_buf: libc::stat = unsafe { std::mem::zeroed() };
+    if unsafe { libc::lstat(c_src.as_ptr(), &mut stat_buf) } == 0 {
+        let mode = stat_buf.st_mode & 0o7777;
+        // fchmodat with AT_SYMLINK_NOFOLLOW = lchmod
+        unsafe {
+            libc::fchmodat(
+                libc::AT_FDCWD,
+                c_dst.as_ptr(),
+                mode,
+                libc::AT_SYMLINK_NOFOLLOW,
+            );
+        }
+    }
+
+    // lchflags on macOS
+    #[cfg(any(target_os = "macos", target_os = "ios"))]
+    {
+        let mut stat_buf: libc::stat = unsafe { std::mem::zeroed() };
+        if unsafe { libc::lstat(c_src.as_ptr(), &mut stat_buf) } == 0 {
+            let flags = stat_buf.st_flags;
+            if flags != 0 {
+                unsafe { libc::chflags(c_dst.as_ptr(), flags as libc::c_uint) };
+            }
+        }
+    }
+
+    Ok(())
 }
 
 /// Normalize . and .. components without filesystem access.
@@ -1289,6 +1402,7 @@ fn copy_dir_recursive(
     dst: &StdPath,
     follow_symlinks: bool,
     dirs_exist_ok: bool,
+    preserve_metadata: bool,
 ) -> Result<(), io::Error> {
     // Normalize src so that child entry paths (e.g., read_dir results)
     // resolve correctly when computing symlink targets.
@@ -1346,9 +1460,12 @@ fn copy_dir_recursive(
                 };
                 let target_md = std::fs::symlink_metadata(&resolved)?;
                 if target_md.is_dir() {
-                    copy_dir_recursive(&resolved, &dst_entry, true, false)?;
+                    copy_dir_recursive(&resolved, &dst_entry, true, false, preserve_metadata)?;
                 } else {
                     std::fs::copy(&resolved, &dst_entry)?;
+                    if preserve_metadata {
+                        preserve_meta(&target_md, &dst_entry)?;
+                    }
                 }
             } else {
                 let target = std::fs::read_link(&src_entry)?;
@@ -1363,11 +1480,27 @@ fn copy_dir_recursive(
                         std::os::windows::fs::symlink_file(&target, &dst_entry)?;
                     }
                 }
+                if preserve_metadata {
+                    #[cfg(unix)]
+                    preserve_link_meta(&src_entry, &dst_entry, &md)?;
+                }
             }
         } else if md.is_dir() {
-            copy_dir_recursive(&src_entry, &dst_entry, follow_symlinks, false)?;
+            copy_dir_recursive(
+                &src_entry,
+                &dst_entry,
+                follow_symlinks,
+                false,
+                preserve_metadata,
+            )?;
+            if preserve_metadata {
+                preserve_meta(&md, &dst_entry)?;
+            }
         } else {
             std::fs::copy(&src_entry, &dst_entry)?;
+            if preserve_metadata {
+                preserve_meta(&md, &dst_entry)?;
+            }
         }
     }
 
@@ -1528,7 +1661,7 @@ pub fn move_tree(src: &OsStr, dst: &OsStr) -> PyResult<()> {
                 }
                 std::fs::remove_file(src_path)?;
             } else if md.is_dir() {
-                copy_dir_recursive(src_path, dst_path, false, false)?;
+                copy_dir_recursive(src_path, dst_path, false, false, false)?;
                 delete_recursive(src_path, false)?;
             } else {
                 std::fs::create_dir_all(dst_path.parent().unwrap_or(StdPath::new(".")))?;

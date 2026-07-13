@@ -1695,12 +1695,13 @@ impl PurePath {
             }
         }
 
-        let _ = (preserve_metadata, ignore, on_error);
+        let _ = (ignore, on_error);
         crate::fs::copy_tree(
             slf.inner.raw(),
             OsStr::new(&target_str),
             follow_symlinks,
             dirs_exist_ok,
+            preserve_metadata,
         )?;
 
         Self::_make_child(py, slf.as_ptr(), OsString::from(&target_str))
@@ -1728,12 +1729,13 @@ impl PurePath {
             )));
         }
         let final_dst = format!("{}/{}", target_str.trim_end_matches('/'), name);
-        let _ = (preserve_metadata, ignore, on_error);
+        let _ = (ignore, on_error);
         crate::fs::copy_tree(
             slf.inner.raw(),
             OsStr::new(&final_dst),
             follow_symlinks,
             dirs_exist_ok,
+            preserve_metadata,
         )?;
         Self::_make_child(py, slf.as_ptr(), OsString::from(&final_dst))
     }

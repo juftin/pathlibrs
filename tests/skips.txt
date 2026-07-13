@@ -7,8 +7,8 @@
 # Remove entries as features are fixed in pathlibrs.
 # Only private-API tests should remain as permanent skips.
 #
-# Stats: 112 active entries | 729 passed | 475 skipped | 0 failures (all 6 CI platforms)
-#        (127 entries resolved from 239 baseline)
+# Stats: 106 active entries | 735 passed | 469 skipped | 0 failures (all 6 CI platforms)
+#        (133 entries resolved from 239 baseline)
 #
 # ═══════════════════════════════════════════════════════════════════════
 
@@ -46,14 +46,6 @@ PathTest.test_delete_outer_junction
 PurePathTest.test_concrete_class
 
 # ── NotImplemented / UnsupportedOperation — RESOLVED (0 entries) ─────
-
-# ── copy(): preserve_metadata not implemented (8 entries) ─────────────
-PathSubclassTest.test_copy_dir_preserve_metadata
-PathSubclassTest.test_copy_link_preserve_metadata
-PathTest.test_copy_dir_preserve_metadata
-PathTest.test_copy_link_preserve_metadata
-PosixPathTest.test_copy_dir_preserve_metadata
-PosixPathTest.test_copy_link_preserve_metadata
 
 # ── copy(): permission / error handling (6 entries) ───────────────────
 PathSubclassTest.test_copy_dir_no_read_permission
