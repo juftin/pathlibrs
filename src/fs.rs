@@ -1208,6 +1208,7 @@ pub fn copy_tree(
                     } else {
                         std::fs::create_dir_all(dst_path.parent().unwrap_or(StdPath::new(".")))?;
                         std::fs::copy(&resolved, dst_path)?;
+                        #[cfg(unix)]
                         if preserve_metadata {
                             preserve_meta(&target_md, dst_path)?;
                         }
@@ -1242,6 +1243,7 @@ pub fn copy_tree(
                     dirs_exist_ok,
                     preserve_metadata,
                 )?;
+                #[cfg(unix)]
                 if preserve_metadata {
                     preserve_meta(&md, dst_path)?;
                 }
@@ -1249,6 +1251,7 @@ pub fn copy_tree(
                 // Regular file
                 std::fs::create_dir_all(dst_path.parent().unwrap_or(StdPath::new(".")))?;
                 std::fs::copy(src_path, dst_path)?;
+                #[cfg(unix)]
                 if preserve_metadata {
                     preserve_meta(&md, dst_path)?;
                 }
@@ -1463,6 +1466,7 @@ fn copy_dir_recursive(
                     copy_dir_recursive(&resolved, &dst_entry, true, false, preserve_metadata)?;
                 } else {
                     std::fs::copy(&resolved, &dst_entry)?;
+                    #[cfg(unix)]
                     if preserve_metadata {
                         preserve_meta(&target_md, &dst_entry)?;
                     }
@@ -1493,11 +1497,13 @@ fn copy_dir_recursive(
                 false,
                 preserve_metadata,
             )?;
+            #[cfg(unix)]
             if preserve_metadata {
                 preserve_meta(&md, &dst_entry)?;
             }
         } else {
             std::fs::copy(&src_entry, &dst_entry)?;
+            #[cfg(unix)]
             if preserve_metadata {
                 preserve_meta(&md, &dst_entry)?;
             }
