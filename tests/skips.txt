@@ -7,8 +7,8 @@
 # Remove entries as features are fixed in pathlibrs.
 # Only private-API tests should remain as permanent skips.
 #
-# Stats: 106 active entries | 735 passed | 469 skipped | 0 failures (all 6 CI platforms)
-#        (133 entries resolved from 239 baseline)
+# Stats: 110 active entries | 729 passed | 475 skipped | 0 failures (all 6 CI platforms)
+#        (129 entries resolved from 239 baseline)
 #
 # ═══════════════════════════════════════════════════════════════════════
 
@@ -103,7 +103,14 @@ PathSubclassTest.test_is_junction_true
 
 # ── relative_to / is_relative_to — RESOLVED (0 entries) ──────────────
 
-# ── rmdir (1 entry; Windows handle leak, passes on POSIX) ─────────────
+# ── mkdir(parents=True) edge case (3 entries; passes on POSIX, errno
+#    mismatch on Windows) ───────────────────────────────────────────────
+PathSubclassTest.test_mkdir_parents
+PathTest.test_mkdir_parents
+PosixPathTest.test_mkdir_parents
+
+# ── rmdir (2 entries; Windows handle leak, passes on POSIX) ───────────
+PathTest.test_rmdir
 WindowsPathTest.test_rmdir
 
 # ── walk() edge cases (5 entries) ─────────────────────────────────────
