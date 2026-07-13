@@ -465,7 +465,7 @@ impl PurePath {
         let _py = _cls.py();
         let parts: Vec<String> = pathsegments
             .iter()
-            .map(|item| item.extract::<String>())
+            .map(|item| _extract_path_str(&item))
             .collect::<PyResult<Vec<String>>>()?;
 
         let segments_str = parts.join("/");

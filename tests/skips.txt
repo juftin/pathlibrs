@@ -183,6 +183,4 @@ PathSubclassTest.test_matches_writablepath_docstrings
 PathTest.test_matches_writablepath_docstrings
 PosixPathTest.test_matches_writablepath_docstrings
 
-# ── Compat: truediv/rtruediv on concrete paths (2 entries) ────────────
-PathTest.test_rtruediv
-PathTest.test_truediv
+# ── Compat: truediv/rtruediv — RESOLVED (0 entries) ──────────────────
