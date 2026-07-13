@@ -7,8 +7,8 @@
 # Remove entries as features are fixed in pathlibrs.
 # Only private-API tests should remain as permanent skips.
 #
-# Stats: 160 active entries | 646 passed | 558 skipped | 0 failures
-#        (79 entries resolved from 239 baseline, +26 new passes)
+# Stats: 116 active entries | 723 passed | 481 skipped | 0 failures (all 6 CI platforms)
+#        (123 entries resolved from 239 baseline)
 #
 # ═══════════════════════════════════════════════════════════════════════
 
