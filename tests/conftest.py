@@ -48,7 +48,21 @@ if not hasattr(unittest.TestCase, "assertEndsWith"):
 
     unittest.TestCase.assertEndsWith = _assert_ends_with
 
+# ── Python < 3.11 compat: assertIsSubclass ─────────────────────────────────
+# Added in Python 3.11's unittest.TestCase. The vendored CPython 3.14 tests
+# use this method, so backport it for older Python versions.
+if not hasattr(unittest.TestCase, "assertIsSubclass"):
+
+    def _assert_is_subclass(self, cls, class_or_tuple, msg=None):  # noqa: N802
+        """Fail if cls is not a subclass of class_or_tuple."""
+        if not issubclass(cls, class_or_tuple):
+            standard_msg = f"{cls!r} is not a subclass of {class_or_tuple!r}"  # noqa: N806
+            self.fail(self._formatMessage(msg, standard_msg))
+
+    unittest.TestCase.assertIsSubclass = _assert_is_subclass
+
 sys.modules["pathlib"] = pathlibrs
+
 
 # ── Register pathlib._local for Python 3.13 pickle compatibility ───────────
 # CPython's Lib/pathlib/_local.py exists so pathlib objects pickled under

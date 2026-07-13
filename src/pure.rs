@@ -47,15 +47,22 @@ impl PurePath {
     }
 
     /// Construct a new path object of the same Python type as `slf_ptr`.
+    ///
+    /// Uses ``with_segments`` so that subclasses that override it to carry extra
+    /// state (e.g., ``session_id``) get their state preserved. This matches
+    /// CPython's ``_make_child`` which delegates to ``self.with_segments``.
     fn _make_child(
         py: Python<'_>,
         slf_ptr: *mut pyo3::ffi::PyObject,
         new_raw: OsString,
     ) -> PyResult<PyObject> {
         let slf_bound = unsafe { pyo3::Bound::<'_, pyo3::PyAny>::from_borrowed_ptr(py, slf_ptr) };
-        let cls = slf_bound.getattr("__class__")?;
-        let args = PyTuple::new(py, &[PyString::new(py, &new_raw.to_string_lossy())])?;
-        Ok(cls.call1(args)?.unbind())
+        // Call slf.with_segments(new_raw) rather than cls(new_raw) so that
+        // subclasses that override with_segments preserve extra state.
+        let raw_str = new_raw.to_string_lossy().into_owned();
+        Ok(slf_bound
+            .call_method1("with_segments", (raw_str,))?
+            .unbind())
     }
 
     #[inline]
@@ -458,7 +465,7 @@ impl PurePath {
         let _py = _cls.py();
         let parts: Vec<String> = pathsegments
             .iter()
-            .map(|item| item.extract::<String>())
+            .map(|item| _extract_path_str(&item))
             .collect::<PyResult<Vec<String>>>()?;
 
         let segments_str = parts.join("/");
@@ -1089,7 +1096,11 @@ impl PurePath {
     fn __truediv__<'py>(slf: PyRef<'py, Self>, other: &Bound<'py, PyAny>) -> PyResult<PyObject> {
         let py = slf.py();
         let ptr = slf.as_ptr();
-        let other_str = _extract_path_str(other)?;
+        // Return NotImplemented for non-str / non-PathLike objects (matching CPython).
+        let other_str = match _try_extract_path_str(other) {
+            Ok(s) => s,
+            Err(_) => return Ok(py.NotImplemented()),
+        };
         let mut raw = slf.inner.raw().to_os_string();
         if !raw.as_encoded_bytes().is_empty() && !other_str.is_empty() {
             let sep = slf._sep();
@@ -1106,7 +1117,11 @@ impl PurePath {
     fn __rtruediv__<'py>(slf: PyRef<'py, Self>, other: &Bound<'py, PyAny>) -> PyResult<PyObject> {
         let py = slf.py();
         let ptr = slf.as_ptr();
-        let other_str = _extract_path_str(other)?;
+        // Return NotImplemented for non-str / non-PathLike objects (matching CPython).
+        let other_str = match _try_extract_path_str(other) {
+            Ok(s) => s,
+            Err(_) => return Ok(py.NotImplemented()),
+        };
         let path_raw = slf.inner.raw().to_os_string();
         let raw = if other_str.is_empty() {
             path_raw
@@ -2050,6 +2065,23 @@ fn _same_flavour(other: &Bound<'_, PyAny>, expected_flavour: PathFlavour) -> boo
     }
     // If we can't determine the flavour, conservatively treat as same.
     true
+}
+
+/// Extract a string from a Python object that is either a str or a PathLike.
+///
+/// Unlike [`_extract_path_str`], this function returns an error for objects
+/// that are not ``str`` and do not implement ``__fspath__``.  It is used by the
+/// ``/`` operator (``__truediv__`` / ``__rtruediv__``) so that
+/// ``NotImplemented`` is returned for types like ``CompatiblePathTest.CompatPath``.
+fn _try_extract_path_str(obj: &Bound<'_, PyAny>) -> PyResult<String> {
+    use pyo3::types::PyString;
+    if obj.is_instance_of::<PyString>() || obj.hasattr("__fspath__")? {
+        _extract_path_str(obj)
+    } else {
+        Err(pyo3::exceptions::PyTypeError::new_err(
+            "argument should be a str or an os.PathLike object, not '{}'",
+        ))
+    }
 }
 
 /// Extract a string from a Python object that is either a str or a PathLike.
