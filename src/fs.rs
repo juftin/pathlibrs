@@ -610,18 +610,29 @@ pub fn mkdir(path: &OsStr, mode: u32, parents: bool, exist_ok: bool) -> PyResult
 
     match result {
         Ok(()) => {
-            // Set permissions after creation (Unix-only).
-            // Only override when the caller explicitly requested a mode.
+            // On Unix, adjust permissions after creation when the caller
+            // requested a specific mode.  std::fs::create_dir / create_dir_all
+            // always pass mode 0o777 to the OS, and the kernel applies the
+            // process umask.  We derive the umask from the actual permissions
+            // of the newly created directory, then chmod to apply the same
+            // umask to the caller's requested mode.
             #[cfg(unix)]
             {
                 if mode != 0o777 {
                     use std::os::unix::fs::PermissionsExt;
-                    let perms = std::fs::Permissions::from_mode(mode);
-                    let perm_result = Python::with_gil(|py| {
-                        py.allow_threads(|| std::fs::set_permissions(&path_buf, perms))
-                    });
-                    if let Err(e) = perm_result {
-                        return Err(io_err_to_pyerr(e));
+                    let actual = std::fs::metadata(&path_buf)
+                        .map_err(io_err_to_pyerr)?
+                        .permissions()
+                        .mode();
+                    // The permission bits of the just-created directory are
+                    // 0o777 & ~umask.  Invert to recover the umask.
+                    let umask = (0o777u32) & !actual;
+                    let masked_mode = mode & !umask;
+                    // Only chmod if the permissions actually differ.
+                    if masked_mode != (actual & 0o777) {
+                        let perms = std::fs::Permissions::from_mode(masked_mode);
+                        std::fs::set_permissions(&path_buf, perms)
+                            .map_err(io_err_to_pyerr)?;
                     }
                 }
             }
