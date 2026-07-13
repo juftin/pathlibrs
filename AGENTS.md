@@ -213,6 +213,86 @@ letters, UNC paths, extended-length prefixes) in pure Rust — no Windows OS nee
     ```
     Push only after both pass. This catches formatting, lint, and test failures before they hit CI.
 
+## Troubleshooting & Common Pitfalls
+
+### "Why are my Rust changes not reflected in test results?"
+
+**Always use `make test-python`, never `uv run pytest` directly.** The Makefile
+target depends on `install` which runs `maturin develop` to rebuild the Rust
+extension. Running `uv run pytest` or `pytest` directly skips the rebuild and
+tests run against the last installed build.
+
+The `--no-sync` flag on `test-python` is **required** — removing it causes
+`uv` to re-sync the venv, which blows away `maturin develop`'s editable install.
+
+If the build cache gets stuck, use `make rebuild` to force a fresh `cargo build`
+followed by `maturin develop`.
+
+### "Tests pass locally but fail in CI on Python 3.10"
+
+The vendored CPython 3.14 test suite uses APIs that didn't exist in Python 3.10.
+`tests/conftest.py` backports these via monkey-patches:
+
+- `assertIsSubclass` (added in Python 3.11)
+- `assertStartsWith` / `assertEndsWith` (added in Python 3.12)
+
+When adding new features that unskip vendored tests, verify they're Python
+3.10-compatible. If the test uses a 3.11+ API that can't be cleanly shimmed
+(e.g., `pathname2url(add_scheme=True)` whose internal behavior changed between
+3.10 and 3.11+), keep the test in `skips.txt`.
+
+### "Tests pass on macOS/Linux but fail on Windows CI"
+
+Some tests pass on POSIX but fail on Windows due to path-parsing or symlink
+differences:
+
+- **complex_symlinks** (9 tests) — relative/dot-dot symlink resolution works
+  on POSIX but not Windows. Keep in `skips.txt` until Windows support is added.
+- **PathTest.test_rmdir** — Windows-specific handle leak. Keep skipped.
+
+When removing entries from `skips.txt`, run `make test-windows` first to check
+for Windows-flavour regressions. The `--windows-flavour` flag exercises the
+Windows path parser on any host OS.
+
+### "CI fails on `cargo fmt --check`"
+
+`cargo fmt` _must_ pass before pushing. CI runs `make fmt-check-rust` first.
+Always run `make ci` or at minimum `make fmt` before committing. Pre-commit
+hooks (`make hooks-install`) catch this locally, but they need to be installed
+in each new worktree.
+
+### "Pre-commit hooks aren't running"
+
+After creating a new git worktree, run `make hooks-install` to install the
+hooks into `.git/hooks`. Without this, `cargo fmt`, `cargo clippy`, and other
+checks won't run on commit.
+
+### "I need to push a branch"
+
+Push to the `jufty-bot` fork, not directly to `juftin/pathlibrs`:
+
+```bash
+git push jufty-bot resolve-skips
+```
+
+GitHub identity for all operations is `jufty-bot`. Use:
+
+```bash
+GH_CONFIG_DIR="$HOME/.config/gh-bot" gh ...
+```
+
+### "How do I check CI after pushing?"
+
+```bash
+# Wait ~90 seconds after push, then:
+GH_CONFIG_DIR="$HOME/.config/gh-bot" gh run list \
+  --repo juftin/pathlibrs --branch resolve-skips --limit 1
+
+# Watch until completion:
+GH_CONFIG_DIR="$HOME/.config/gh-bot" gh run watch <run-id> \
+  --repo juftin/pathlibrs --exit-status
+```
+
 ## Pre-Commit Hooks
 
 Pre-commit runs on every `git commit` to catch issues before they hit CI.
