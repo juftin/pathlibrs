@@ -7,8 +7,8 @@
 # Remove entries as features are fixed in pathlibrs.
 # Only private-API tests should remain as permanent skips.
 #
-# Stats: 110 active entries | 729 passed | 475 skipped | 0 failures (all 6 CI platforms)
-#        (129 entries resolved from 239 baseline)
+# Stats: 103 active entries | 730 passed | 474 skipped | 0 failures (all 6 CI platforms)
+#        (136 entries resolved from 239 baseline)
 #
 # ═══════════════════════════════════════════════════════════════════════
 
@@ -77,18 +77,13 @@ PosixPathTest.test_resolve_common
 PosixPathTest.test_resolve_dot
 PosixPathTest.test_resolve_loop
 
-# ── cross-flavour: equivalences (7 entries) ───────────────────────────
-PathTest.test_equivalences_windows
-PurePathSubclassTest.test_equivalences_windows
-PurePathTest.test_equivalences_windows
+# ── cross-flavour: equivalences — RESOLVED (0 entries) ───────────
 
 # ── cross-flavour: different parsers unordered — RESOLVED (0 entries) ─
 
-# ── ordering: cross-flavour TypeError (8 entries) ─────────────────────
-PathTest.test_ordering_windows
+# ── ordering: cross-flavour TypeError — RESOLVED (0 entries) ────────
 
-# ── expanduser_windows — EnvironmentVarGuard.unset() API change, fails on Py3.10 (1 entry)
-PathTest.test_expanduser_windows
+# ── expanduser_windows — RESOLVED (0 entries) ───────────────────────
 
 # ── owner/group windows — raises UnsupportedOperation, pathlibrs lacks it (2 entries) ─
 PathTest.test_group_windows
@@ -162,16 +157,14 @@ PosixPathTest.test_parse_windows_path
 PurePathTest.test_parse_windows_path
 PurePosixPathTest.test_parse_windows_path
 
-# ── Constructor / nesting / subclassing (7 entries) ──────────────────
+# ── Constructor / nesting / subclassing (3 entries) ──────────────────
 PathSubclassTest.test_with_segments
-PathTest.test_constructor_nested_foreign_flavour
 PathTest.test_with_segments
 PosixPathTest.test_with_segments
-PurePathSubclassTest.test_constructor_nested_foreign_flavour
 
 # ── fspath / is_absolute pure path — RESOLVED (0 entries) ────────────
 
-# ── Misc: descriptor / junction / docstrings (6 entries) ─────────────
+# ── Misc: descriptor / junction / docstrings (3 entries) ─────────────
 PathSubclassTest.test_matches_writablepath_docstrings
 PathTest.test_matches_writablepath_docstrings
 PosixPathTest.test_matches_writablepath_docstrings
