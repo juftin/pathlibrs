@@ -8,6 +8,9 @@ use std::io::{self, Write};
 use std::path::Path as StdPath;
 use std::sync::OnceLock;
 
+#[cfg(unix)]
+use std::os::unix::fs::PermissionsExt;
+
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 
@@ -610,13 +613,18 @@ pub fn mkdir(path: &OsStr, mode: u32, parents: bool, exist_ok: bool) -> PyResult
 
     match result {
         Ok(()) => {
-            // Set permissions after creation (Unix-only).
-            // Only override when the caller explicitly requested a mode.
+            // Set permissions after creation when explicit mode requested.
+            // Query the current umask so that set_permissions mirrors what
+            // mkdir(2) would produce (CPython test_mkdir_parents).
             #[cfg(unix)]
             {
                 if mode != 0o777 {
-                    use std::os::unix::fs::PermissionsExt;
-                    let perms = std::fs::Permissions::from_mode(mode);
+                    // Query the current umask so that set_permissions mirrors
+                    // what mkdir(2) would produce (CPython test_mkdir_parents).
+                    let umask = unsafe { libc::umask(0o777) } as u32;
+                    unsafe { libc::umask(umask as libc::mode_t) };
+                    let effective_mode = mode & !umask;
+                    let perms = std::fs::Permissions::from_mode(effective_mode);
                     let perm_result = Python::with_gil(|py| {
                         py.allow_threads(|| std::fs::set_permissions(&path_buf, perms))
                     });

@@ -112,9 +112,6 @@ PathSubclassTest.test_is_junction_true
 # ── relative_to / is_relative_to — RESOLVED (0 entries) ──────────────
 
 # ── mkdir(parents=True) edge case (3 entries) ─────────────────────────
-PathSubclassTest.test_mkdir_parents
-PathTest.test_mkdir_parents
-PosixPathTest.test_mkdir_parents
 
 # ── rmdir (2 entries; Windows handle leak, passes on POSIX) ───────────
 PathTest.test_rmdir
