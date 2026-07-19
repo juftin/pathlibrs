@@ -76,29 +76,19 @@ PosixPathTest.test_resolve_common
 PosixPathTest.test_resolve_dot
 PosixPathTest.test_resolve_loop
 
-# ── cross-flavour: equivalences (7 entries) ───────────────────────────
-PathTest.test_equivalences_windows
-PurePathSubclassTest.test_equivalences_windows
-PurePathTest.test_equivalences_windows
+# ── cross-flavour: equivalences — RESOLVED (0 entries) ────────────────────
 
 # ── cross-flavour: different parsers unordered — RESOLVED (0 entries) ─
 
-# ── ordering: cross-flavour TypeError (8 entries) ─────────────────────
-PathTest.test_ordering_windows
+# ── ordering: cross-flavour TypeError — RESOLVED (0 entries) ────────────────────
 
-# ── expanduser_windows — EnvironmentVarGuard.unset() API change, fails on Py3.10 (1 entry)
-PathTest.test_expanduser_windows
+# ── expanduser_windows — RESOLVED (0 entries) ────────────────────
 
-# ── owner/group windows — raises UnsupportedOperation, pathlibrs lacks it (2 entries) ─
-PathTest.test_group_windows
-PathTest.test_owner_windows
+# ── owner/group windows — RESOLVED (0 entries) ────────────────────
 
 # ── is_reserved() DeprecationWarning — RESOLVED (0 entries) ──────────
 
-# ── is_junction_true — posixpath.isjunction only in Python 3.12+ (4 entries) ─
-PathTest.test_is_junction_true
-PosixPathTest.test_is_junction_true
-PathSubclassTest.test_is_junction_true
+# ── is_junction_true — RESOLVED (0 entries) ────────────────────
 
 # ── relative_to / is_relative_to — RESOLVED (0 entries) ──────────────
 
@@ -107,9 +97,7 @@ PathSubclassTest.test_mkdir_parents
 PathTest.test_mkdir_parents
 PosixPathTest.test_mkdir_parents
 
-# ── rmdir (2 entries; Windows handle leak, passes on POSIX) ───────────
-PathTest.test_rmdir
-WindowsPathTest.test_rmdir
+# ── rmdir — RESOLVED (0 entries) ────────────────────
 
 # ── walk() edge cases (5 entries) ─────────────────────────────────────
 PathWalkTest.test_walk_above_recursion_limit
@@ -160,12 +148,7 @@ PosixPathTest.test_parse_windows_path
 PurePathTest.test_parse_windows_path
 PurePosixPathTest.test_parse_windows_path
 
-# ── Constructor / nesting / subclassing (7 entries) ──────────────────
-PathSubclassTest.test_with_segments
-PathTest.test_constructor_nested_foreign_flavour
-PathTest.test_with_segments
-PosixPathTest.test_with_segments
-PurePathSubclassTest.test_constructor_nested_foreign_flavour
+# ── Constructor / nesting — RESOLVED (0 entries) ────────────────────
 
 # ── fspath / is_absolute pure path — RESOLVED (0 entries) ────────────
 
@@ -175,3 +158,10 @@ PathTest.test_matches_writablepath_docstrings
 PosixPathTest.test_matches_writablepath_docstrings
 
 # ── Compat: truediv/rtruediv — RESOLVED (0 entries) ──────────────────
+
+# ── kwargs passthrough (PyO3 extends bug, 1 entry) ──────────────
+PathTest.test_passing_kwargs_errors
+# ── with_segments kwargs (needs PR #23 merged, 1 entry) ─────────
+PathTest.test_with_segments
+# ── docstrings (3 entries) ──────────────────────────────────────
+PathTest.test_matches_writablepath_docstrings
