@@ -127,15 +127,14 @@ PathWalkTest.test_walk_follow_symlinks
 PathWalkTest.test_walk_many_open_files
 PathWalkTest.test_walk_symlink_location
 
-# ── from_uri / pathname2url POSIX (8 entries) ─────────────────────────
+# ── from_uri / pathname2url POSIX (5 entries) ─────────────────────────
+# from_uri_posix: RESOLVED (3 entries, hostname + file:rel/path fix)
+# from_uri_pathname2url_posix: requires pathname2url(add_scheme=True) — Python 3.14+ only
 PathSubclassTest.test_from_uri_pathname2url_posix
-PathSubclassTest.test_from_uri_posix
 PathTest.test_from_uri_pathname2url_posix
-PathTest.test_from_uri_posix
 PathTest.test_from_uri_pathname2url_windows
 PathTest.test_from_uri_windows
 PosixPathTest.test_from_uri_pathname2url_posix
-PosixPathTest.test_from_uri_posix
 
 # ── CompatiblePathTest — RESOLVED (0 entries) ─────────────────────────
 
