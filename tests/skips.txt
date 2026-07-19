@@ -167,10 +167,7 @@ PurePathTest.test_parse_windows_path
 PurePosixPathTest.test_parse_windows_path
 
 # ── Constructor / nesting / subclassing (7 entries) ──────────────────
-PathSubclassTest.test_with_segments
 PathTest.test_constructor_nested_foreign_flavour
-PathTest.test_with_segments
-PosixPathTest.test_with_segments
 PurePathSubclassTest.test_constructor_nested_foreign_flavour
 
 # ── fspath / is_absolute pure path — RESOLVED (0 entries) ────────────
@@ -181,3 +178,5 @@ PathTest.test_matches_writablepath_docstrings
 PosixPathTest.test_matches_writablepath_docstrings
 
 # ── Compat: truediv/rtruediv — RESOLVED (0 entries) ──────────────────
+# ── kwargs passthrough (PyO3 extends bug, 1 entry) ──────────────
+PathTest.test_passing_kwargs_errors
