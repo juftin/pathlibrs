@@ -80,7 +80,9 @@ PathTest.test_resolve_dot
 
 # ── ordering: cross-flavour TypeError — RESOLVED (0 entries) ────────────────────
 
-# ── expanduser_windows — RESOLVED (0 entries) ────────────────────
+# ── expanduser_windows (1 entry, Py3.10 only) ──────────────────────
+# EnvironmentVarGuard.unset() API change — fails on Python 3.10
+PathTest.test_expanduser_windows
 
 # ── owner/group windows (2 entries) ─────────────────────────────────
 PathTest.test_group_windows
@@ -100,10 +102,11 @@ PathTest.test_mkdir_parents
 # ── rmdir (1 entry, Windows handle leak) ──────────────────────────
 PathTest.test_rmdir
 
-# ── walk() edge cases (1 entry) ───────────────────────────────────────
+# ── walk() edge cases (2 entries) ───────────────────────────────────────
 # walk_bad_dir: eager walk processes subdirs before yielding root (CPython is lazy)
+# walk_above_recursion_limit: recursion limit issue on Python 3.10 Windows
 PathWalkTest.test_walk_bad_dir
-# walk_above_recursion_limit, walk_follow_symlinks, walk_many_open_files, walk_symlink_location: RESOLVED (4 entries)
+PathWalkTest.test_walk_above_recursion_limit
 
 # ── from_uri / pathname2url POSIX (5 entries) ─────────────────────────
 # from_uri_posix: RESOLVED (3 entries, hostname + file:rel/path fix)
