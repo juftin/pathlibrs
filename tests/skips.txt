@@ -79,7 +79,8 @@ PosixPathTest.test_copy_error_handling
 
 # ── is_reserved() DeprecationWarning — RESOLVED (0 entries) ──────────
 
-# ── is_junction_true — RESOLVED (0 entries) ────────────────────
+# ── is_junction_true — posixpath.isjunction only in Python 3.12+ (1 entry)
+PathTest.test_is_junction_true
 
 # ── relative_to / is_relative_to — RESOLVED (0 entries) ──────────────
 
