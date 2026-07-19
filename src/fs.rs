@@ -547,7 +547,7 @@ fn resolve_non_strict(path: &StdPath) -> Result<std::path::PathBuf, io::Error> {
             Err(e)
                 if e.kind() == io::ErrorKind::NotFound
                     || e.kind() == io::ErrorKind::NotADirectory
-                    || e.raw_os_error() == Some(libc::ELOOP) =>
+                    || cfg!(unix) && e.raw_os_error() == Some(libc::ELOOP) =>
             {
                 popped.push(components.pop().unwrap());
             }

@@ -2134,6 +2134,25 @@ fn _extract_path_str(obj: &Bound<'_, PyAny>) -> PyResult<String> {
     Ok(obj.str()?.to_string())
 }
 
+/// Returns true if ``authority`` matches the local machine's hostname.
+#[cfg(unix)]
+fn is_local_hostname(authority: &str) -> bool {
+    let mut buf = [0u8; 256];
+    let rc = unsafe { libc::gethostname(buf.as_mut_ptr() as *mut _, buf.len()) };
+    if rc != 0 {
+        return false;
+    }
+    let hostname = unsafe { std::ffi::CStr::from_ptr(buf.as_ptr() as *const _).to_string_lossy() };
+    authority.eq_ignore_ascii_case(&hostname)
+}
+
+#[cfg(not(unix))]
+fn is_local_hostname(_authority: &str) -> bool {
+    // On non-Unix platforms (Windows), we can't easily check the hostname.
+    // Fall back to only accepting empty authority and "localhost".
+    false
+}
+
 /// Parse a ``file:`` URI into a path string.
 ///
 /// Supports:
@@ -2178,17 +2197,9 @@ fn parse_file_uri(uri: &str) -> PyResult<String> {
 
     // Accept empty authority, "localhost", or the local machine's hostname.
     // CPython's url2pathname matches against socket.gethostname().
-    let is_local = authority.is_empty() || authority.eq_ignore_ascii_case("localhost") || {
-        let mut buf = [0u8; 256];
-        let rc = unsafe { libc::gethostname(buf.as_mut_ptr() as *mut _, buf.len()) };
-        if rc != 0 {
-            false
-        } else {
-            let hostname =
-                unsafe { std::ffi::CStr::from_ptr(buf.as_ptr() as *const _).to_string_lossy() };
-            authority.eq_ignore_ascii_case(&hostname)
-        }
-    };
+    let is_local = authority.is_empty()
+        || authority.eq_ignore_ascii_case("localhost")
+        || is_local_hostname(authority);
     if !is_local {
         return Err(pyo3::exceptions::PyValueError::new_err(format!(
             "non-local file: URI not supported: '{uri}'"
