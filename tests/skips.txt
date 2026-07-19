@@ -120,12 +120,10 @@ PosixPathTest.test_mkdir_parents
 PathTest.test_rmdir
 WindowsPathTest.test_rmdir
 
-# ── walk() edge cases (5 entries) ─────────────────────────────────────
-PathWalkTest.test_walk_above_recursion_limit
+# ── walk() edge cases (1 entry) ───────────────────────────────────────
+# walk_bad_dir: eager walk processes subdirs before yielding root (CPython is lazy)
 PathWalkTest.test_walk_bad_dir
-PathWalkTest.test_walk_follow_symlinks
-PathWalkTest.test_walk_many_open_files
-PathWalkTest.test_walk_symlink_location
+# walk_above_recursion_limit, walk_follow_symlinks, walk_many_open_files, walk_symlink_location: RESOLVED (4 entries)
 
 # ── from_uri / pathname2url POSIX (8 entries) ─────────────────────────
 PathSubclassTest.test_from_uri_pathname2url_posix

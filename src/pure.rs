@@ -1490,21 +1490,21 @@ impl PurePath {
     /// Yields ``(dirpath, dirnames, filenames)`` tuples. The caller may
     /// modify ``dirnames`` in-place to control which subdirectories are
     /// visited next (when ``topdown=True``).
-    #[pyo3(signature = (topdown = true, onerror = None, follow_symlinks = false))]
+    #[pyo3(signature = (top_down = true, on_error = None, follow_symlinks = false))]
     fn walk<'py>(
         slf: PyRef<'py, Self>,
-        topdown: bool,
-        onerror: Option<PyObject>,
+        top_down: bool,
+        on_error: Option<PyObject>,
         follow_symlinks: bool,
     ) -> PyResult<PyObject> {
         let py = slf.py();
         let ptr = slf.as_ptr();
 
-        // Collect walk entries with depth info for topdown/bottomup ordering
-        let entries = match crate::fs::walk_entries(slf.inner.raw(), topdown, follow_symlinks) {
+        // Collect walk entries with depth info for top_down/bottomup ordering
+        let entries = match crate::fs::walk_entries(slf.inner.raw(), top_down, follow_symlinks) {
             Ok(e) => e,
             Err(e) => {
-                if let Some(ref handler) = onerror {
+                if let Some(ref handler) = on_error {
                     handler.call1(py, (e,))?;
                     return Ok(PyList::new(py, Vec::<PyObject>::new())?.into_any().unbind());
                 }
@@ -1513,11 +1513,18 @@ impl PurePath {
         };
 
         let mut results: Vec<PyObject> = Vec::with_capacity(entries.len());
-        for (dirpath_str, dirnames, filenames) in &entries {
-            let dp: PyObject = Self::_make_child(py, ptr, dirpath_str.clone())?;
+        for entry in &entries {
+            // Call on_error for directories we couldn't read.
+            if let Some(ref err_msg) = entry.error {
+                if let Some(ref handler) = on_error {
+                    let pyerr = pyo3::exceptions::PyOSError::new_err(err_msg.clone());
+                    handler.call1(py, (pyerr,))?;
+                }
+            }
+            let dp: PyObject = Self::_make_child(py, ptr, entry.path.clone())?;
             let dn: PyObject = PyList::new(
                 py,
-                dirnames.iter().map(|n| {
+                entry.dirnames.iter().map(|n| {
                     n.to_string_lossy()
                         .into_owned()
                         .into_pyobject(py)
@@ -1530,7 +1537,7 @@ impl PurePath {
             .unbind();
             let fn_: PyObject = PyList::new(
                 py,
-                filenames.iter().map(|n| {
+                entry.filenames.iter().map(|n| {
                     n.to_string_lossy()
                         .into_owned()
                         .into_pyobject(py)
@@ -1544,7 +1551,7 @@ impl PurePath {
             let tup = PyTuple::new(py, [dp, dn, fn_])?;
             results.push(tup.into_any().unbind());
         }
-        Ok(PyList::new(py, results)?.into_any().unbind())
+        Ok(PyList::new(py, results)?.call_method0("__iter__")?.unbind())
     }
 
     // -- Phase 4: Glob & Pattern Matching --------------------------------
