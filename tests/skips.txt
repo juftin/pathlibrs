@@ -63,16 +63,7 @@ PathTest.test_copy_error_handling
 PosixPathTest.test_copy_dir_no_read_permission
 PosixPathTest.test_copy_error_handling
 
-# ── symlinks: complex (relative / dot-dot, 9 entries) ────────────────
-PathSubclassTest.test_complex_symlinks_absolute
-PathSubclassTest.test_complex_symlinks_relative
-PathSubclassTest.test_complex_symlinks_relative_dot_dot
-PathTest.test_complex_symlinks_absolute
-PathTest.test_complex_symlinks_relative
-PathTest.test_complex_symlinks_relative_dot_dot
-PosixPathTest.test_complex_symlinks_absolute
-PosixPathTest.test_complex_symlinks_relative
-PosixPathTest.test_complex_symlinks_relative_dot_dot
+# ── symlinks: complex — RESOLVED (0 entries) ────────────────────────
 
 # ── resolve() edge cases (9 entries) ──────────────────────────────────
 PathSubclassTest.test_resolve_common
