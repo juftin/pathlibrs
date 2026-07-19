@@ -888,7 +888,7 @@ impl PurePath {
     }
 
     /// Resolve the path to an absolute path, resolving symlinks.
-    #[pyo3(signature = (*, strict = false))]
+    #[pyo3(signature = (strict = false))]
     fn resolve<'py>(slf: PyRef<'py, Self>, strict: bool) -> PyResult<PyObject> {
         let py = slf.py();
         let resolved = crate::fs::resolve(slf.inner.raw(), strict)?;
@@ -2147,7 +2147,12 @@ fn parse_file_uri(uri: &str) -> PyResult<String> {
     let authority_rest = match rest.strip_prefix("//") {
         Some(ar) => ar,
         None => {
-            // file:relative/path → relative path
+            // file:/absolute/path → absolute path; file:relative → invalid
+            if !rest.starts_with('/') {
+                return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                    "non-local file: URI not supported: '{uri}'"
+                )));
+            }
             return Ok(rest.to_string());
         }
     };
@@ -2164,32 +2169,42 @@ fn parse_file_uri(uri: &str) -> PyResult<String> {
         }
     };
 
-    // If authority is empty or "localhost", it's a local path
-    if authority.is_empty() || authority.eq_ignore_ascii_case("localhost") {
-        if path_part.is_empty() {
-            return Ok("/".to_string());
-        }
-
-        // Windows drive letter: /C:/path or /C|/path
-        if path_part.len() >= 3
-            && path_part.as_bytes()[0].is_ascii_alphabetic()
-            && (path_part.as_bytes()[1] == b':' || path_part.as_bytes()[1] == b'|')
-            && path_part.as_bytes()[2] == b'/'
-        {
-            let drive = path_part.as_bytes()[0] as char;
-            let rest_path = &path_part[3..];
-            if rest_path.is_empty() {
-                Ok(format!("{drive}:\\"))
-            } else {
-                Ok(format!("{drive}:\\{rest_path}"))
-            }
+    // Accept empty authority, "localhost", or the local machine's hostname.
+    // CPython's url2pathname matches against socket.gethostname().
+    let is_local = authority.is_empty() || authority.eq_ignore_ascii_case("localhost") || {
+        let mut buf = [0u8; 256];
+        let rc = unsafe { libc::gethostname(buf.as_mut_ptr() as *mut _, buf.len()) };
+        if rc != 0 {
+            false
         } else {
-            Ok(format!("/{path_part}"))
+            let hostname =
+                unsafe { std::ffi::CStr::from_ptr(buf.as_ptr() as *const _).to_string_lossy() };
+            authority.eq_ignore_ascii_case(&hostname)
+        }
+    };
+    if !is_local {
+        return Err(pyo3::exceptions::PyValueError::new_err(format!(
+            "non-local file: URI not supported: '{uri}'"
+        )));
+    }
+    if path_part.is_empty() {
+        return Ok("/".to_string());
+    }
+
+    // Windows drive letter: /C:/path or /C|/path
+    if path_part.len() >= 3
+        && path_part.as_bytes()[0].is_ascii_alphabetic()
+        && (path_part.as_bytes()[1] == b':' || path_part.as_bytes()[1] == b'|')
+        && path_part.as_bytes()[2] == b'/'
+    {
+        let drive = path_part.as_bytes()[0] as char;
+        let rest_path = &path_part[3..];
+        if rest_path.is_empty() {
+            Ok(format!("{drive}:\\"))
+        } else {
+            Ok(format!("{drive}:\\{rest_path}"))
         }
     } else {
-        // Non-local authority — not a local path
-        Err(pyo3::exceptions::PyValueError::new_err(format!(
-            "non-local file: URI not supported: '{uri}'"
-        )))
+        Ok(format!("/{path_part}"))
     }
 }

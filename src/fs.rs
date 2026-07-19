@@ -519,6 +519,9 @@ fn resolve_non_strict(path: &StdPath) -> Result<std::path::PathBuf, io::Error> {
     let mut components: Vec<&OsStr> = path.iter().collect();
     let is_absolute = path.is_absolute();
 
+    // Track components we've popped (non-existent suffix).
+    let mut popped: Vec<&OsStr> = Vec::new();
+
     while !components.is_empty() {
         let test_path: std::path::PathBuf = if is_absolute {
             let mut p = std::path::PathBuf::from("/");
@@ -531,20 +534,39 @@ fn resolve_non_strict(path: &StdPath) -> Result<std::path::PathBuf, io::Error> {
         };
 
         match std::fs::canonicalize(&test_path) {
-            Ok(resolved) => return Ok(resolved),
-            Err(e) if e.kind() == io::ErrorKind::NotFound => {
-                components.pop();
+            Ok(resolved) => {
+                // Re-append the popped non-existent components.
+                // Popped components are stored in reverse order (last popped first),
+                // so iterate in reverse to restore original order.
+                let mut result = resolved;
+                for c in popped.iter().rev() {
+                    result.push(c);
+                }
+                return Ok(result);
+            }
+            Err(e)
+                if e.kind() == io::ErrorKind::NotFound
+                    || e.kind() == io::ErrorKind::NotADirectory
+                    || e.raw_os_error() == Some(libc::ELOOP) =>
+            {
+                popped.push(components.pop().unwrap());
             }
             Err(e) => return Err(e),
         }
     }
 
-    if is_absolute {
-        Ok(path.to_path_buf())
+    // No existing prefix found — return cwd-joined or absolute path.
+    let base = if is_absolute {
+        std::path::PathBuf::from("/")
     } else {
-        let cwd = std::env::current_dir()?;
-        Ok(cwd.join(path))
+        std::env::current_dir()?
+    };
+    // Re-append all original components to the base.
+    let mut result = base;
+    for c in path.iter() {
+        result.push(c);
     }
+    Ok(result)
 }
 
 // ═══════════════════════════════════════════════════════════════════════
