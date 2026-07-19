@@ -547,7 +547,7 @@ fn resolve_non_strict(path: &StdPath) -> Result<std::path::PathBuf, io::Error> {
             Err(e)
                 if e.kind() == io::ErrorKind::NotFound
                     || e.kind() == io::ErrorKind::NotADirectory
-                    || cfg!(unix) && e.raw_os_error() == Some(libc::ELOOP) =>
+                    || is_eloop(&e) =>
             {
                 popped.push(components.pop().unwrap());
             }
@@ -1089,6 +1089,17 @@ fn is_dir_target(path: &OsString) -> bool {
     std::fs::metadata(StdPath::new(path))
         .map(|m| m.is_dir())
         .unwrap_or(false)
+}
+
+/// Check for symlink loop (ELOOP) error, platform-dependent.
+#[cfg(unix)]
+fn is_eloop(e: &std::io::Error) -> bool {
+    e.raw_os_error() == Some(libc::ELOOP)
+}
+
+#[cfg(not(unix))]
+fn is_eloop(_e: &std::io::Error) -> bool {
+    false
 }
 
 /// A single ``(dirpath, dirnames, filenames, error)`` walk entry.
