@@ -74,16 +74,7 @@ PosixPathTest.test_complex_symlinks_absolute
 PosixPathTest.test_complex_symlinks_relative
 PosixPathTest.test_complex_symlinks_relative_dot_dot
 
-# ── resolve() edge cases (9 entries) ──────────────────────────────────
-PathSubclassTest.test_resolve_common
-PathSubclassTest.test_resolve_dot
-PathSubclassTest.test_resolve_loop
-PathTest.test_resolve_common
-PathTest.test_resolve_dot
-PathTest.test_resolve_loop
-PosixPathTest.test_resolve_common
-PosixPathTest.test_resolve_dot
-PosixPathTest.test_resolve_loop
+# ── resolve() edge cases — RESOLVED (0 entries) ─────────────────────
 
 # ── cross-flavour: equivalences (7 entries) ───────────────────────────
 PathTest.test_equivalences_windows

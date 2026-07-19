@@ -877,7 +877,7 @@ impl PurePath {
     }
 
     /// Resolve the path to an absolute path, resolving symlinks.
-    #[pyo3(signature = (*, strict = false))]
+    #[pyo3(signature = (strict = false))]
     fn resolve<'py>(slf: PyRef<'py, Self>, strict: bool) -> PyResult<PyObject> {
         let py = slf.py();
         let resolved = crate::fs::resolve(slf.inner.raw(), strict)?;
