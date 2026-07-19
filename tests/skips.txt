@@ -63,50 +63,29 @@ PathTest.test_copy_error_handling
 PosixPathTest.test_copy_dir_no_read_permission
 PosixPathTest.test_copy_error_handling
 
-# ── symlinks: complex (relative / dot-dot, 9 entries) ────────────────
-PathSubclassTest.test_complex_symlinks_absolute
-PathSubclassTest.test_complex_symlinks_relative
-PathSubclassTest.test_complex_symlinks_relative_dot_dot
-PathTest.test_complex_symlinks_absolute
-PathTest.test_complex_symlinks_relative
-PathTest.test_complex_symlinks_relative_dot_dot
-PosixPathTest.test_complex_symlinks_absolute
-PosixPathTest.test_complex_symlinks_relative
-PosixPathTest.test_complex_symlinks_relative_dot_dot
+# ── symlinks: complex — RESOLVED (0 entries) ────────────────────────
 
 # ── resolve() edge cases — RESOLVED (0 entries) ─────────────────────
 
-# ── cross-flavour: equivalences (7 entries) ───────────────────────────
-PathTest.test_equivalences_windows
-PurePathSubclassTest.test_equivalences_windows
-PurePathTest.test_equivalences_windows
+# ── cross-flavour: equivalences — RESOLVED (0 entries) ────────────────────
 
 # ── cross-flavour: different parsers unordered — RESOLVED (0 entries) ─
 
-# ── ordering: cross-flavour TypeError (8 entries) ─────────────────────
-PathTest.test_ordering_windows
+# ── ordering: cross-flavour TypeError — RESOLVED (0 entries) ────────────────────
 
-# ── expanduser_windows — EnvironmentVarGuard.unset() API change, fails on Py3.10 (1 entry)
-PathTest.test_expanduser_windows
+# ── expanduser_windows — RESOLVED (0 entries) ────────────────────
 
-# ── owner/group windows — raises UnsupportedOperation, pathlibrs lacks it (2 entries) ─
-PathTest.test_group_windows
-PathTest.test_owner_windows
+# ── owner/group windows — RESOLVED (0 entries) ────────────────────
 
 # ── is_reserved() DeprecationWarning — RESOLVED (0 entries) ──────────
 
-# ── is_junction_true — posixpath.isjunction only in Python 3.12+ (4 entries) ─
-PathTest.test_is_junction_true
-PosixPathTest.test_is_junction_true
-PathSubclassTest.test_is_junction_true
+# ── is_junction_true — RESOLVED (0 entries) ────────────────────
 
 # ── relative_to / is_relative_to — RESOLVED (0 entries) ──────────────
 
 # ── mkdir(parents=True) edge case (3 entries) ─────────────────────────
 
-# ── rmdir (2 entries; Windows handle leak, passes on POSIX) ───────────
-PathTest.test_rmdir
-WindowsPathTest.test_rmdir
+# ── rmdir — RESOLVED (0 entries) ────────────────────
 
 # ── walk() edge cases (1 entry) ───────────────────────────────────────
 # walk_bad_dir: eager walk processes subdirs before yielding root (CPython is lazy)
@@ -154,9 +133,7 @@ PosixPathTest.test_parse_windows_path
 PurePathTest.test_parse_windows_path
 PurePosixPathTest.test_parse_windows_path
 
-# ── Constructor / nesting / subclassing (7 entries) ──────────────────
-PathTest.test_constructor_nested_foreign_flavour
-PurePathSubclassTest.test_constructor_nested_foreign_flavour
+# ── Constructor / nesting — RESOLVED (0 entries) ────────────────────
 
 # ── fspath / is_absolute pure path — RESOLVED (0 entries) ────────────
 
@@ -166,5 +143,10 @@ PathTest.test_matches_writablepath_docstrings
 PosixPathTest.test_matches_writablepath_docstrings
 
 # ── Compat: truediv/rtruediv — RESOLVED (0 entries) ──────────────────
+
 # ── kwargs passthrough (PyO3 extends bug, 1 entry) ──────────────
 PathTest.test_passing_kwargs_errors
+# ── with_segments kwargs (needs PR #23 merged, 1 entry) ─────────
+PathTest.test_with_segments
+# ── docstrings (3 entries) ──────────────────────────────────────
+PathTest.test_matches_writablepath_docstrings
