@@ -8,6 +8,9 @@ use std::io::{self, Write};
 use std::path::Path as StdPath;
 use std::sync::OnceLock;
 
+#[cfg(unix)]
+use std::os::unix::fs::PermissionsExt;
+
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 
@@ -516,6 +519,9 @@ fn resolve_non_strict(path: &StdPath) -> Result<std::path::PathBuf, io::Error> {
     let mut components: Vec<&OsStr> = path.iter().collect();
     let is_absolute = path.is_absolute();
 
+    // Track components we've popped (non-existent suffix).
+    let mut popped: Vec<&OsStr> = Vec::new();
+
     while !components.is_empty() {
         let test_path: std::path::PathBuf = if is_absolute {
             let mut p = std::path::PathBuf::from("/");
@@ -528,20 +534,39 @@ fn resolve_non_strict(path: &StdPath) -> Result<std::path::PathBuf, io::Error> {
         };
 
         match std::fs::canonicalize(&test_path) {
-            Ok(resolved) => return Ok(resolved),
-            Err(e) if e.kind() == io::ErrorKind::NotFound => {
-                components.pop();
+            Ok(resolved) => {
+                // Re-append the popped non-existent components.
+                // Popped components are stored in reverse order (last popped first),
+                // so iterate in reverse to restore original order.
+                let mut result = resolved;
+                for c in popped.iter().rev() {
+                    result.push(c);
+                }
+                return Ok(result);
+            }
+            Err(e)
+                if e.kind() == io::ErrorKind::NotFound
+                    || e.kind() == io::ErrorKind::NotADirectory
+                    || is_eloop(&e) =>
+            {
+                popped.push(components.pop().unwrap());
             }
             Err(e) => return Err(e),
         }
     }
 
-    if is_absolute {
-        Ok(path.to_path_buf())
+    // No existing prefix found — return cwd-joined or absolute path.
+    let base = if is_absolute {
+        std::path::PathBuf::from("/")
     } else {
-        let cwd = std::env::current_dir()?;
-        Ok(cwd.join(path))
+        std::env::current_dir()?
+    };
+    // Re-append all original components to the base.
+    let mut result = base;
+    for c in path.iter() {
+        result.push(c);
     }
+    Ok(result)
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -610,13 +635,18 @@ pub fn mkdir(path: &OsStr, mode: u32, parents: bool, exist_ok: bool) -> PyResult
 
     match result {
         Ok(()) => {
-            // Set permissions after creation (Unix-only).
-            // Only override when the caller explicitly requested a mode.
+            // Set permissions after creation when explicit mode requested.
+            // Query the current umask so that set_permissions mirrors what
+            // mkdir(2) would produce (CPython test_mkdir_parents).
             #[cfg(unix)]
             {
                 if mode != 0o777 {
-                    use std::os::unix::fs::PermissionsExt;
-                    let perms = std::fs::Permissions::from_mode(mode);
+                    // Query the current umask so that set_permissions mirrors
+                    // what mkdir(2) would produce (CPython test_mkdir_parents).
+                    let umask = unsafe { libc::umask(0o777) } as u32;
+                    unsafe { libc::umask(umask as libc::mode_t) };
+                    let effective_mode = mode & !umask;
+                    let perms = std::fs::Permissions::from_mode(effective_mode);
                     let perm_result = Python::with_gil(|py| {
                         py.allow_threads(|| std::fs::set_permissions(&path_buf, perms))
                     });
@@ -1054,8 +1084,32 @@ pub fn read_dir(path: &OsStr) -> PyResult<Vec<DirEntry>> {
     result.map_err(io_err_to_pyerr)
 }
 
-/// A single ``(dirpath, dirnames, filenames)`` walk entry.
-type WalkEntry = (OsString, Vec<OsString>, Vec<OsString>);
+/// Check if a path points to a directory, following symlinks.
+fn is_dir_target(path: &OsString) -> bool {
+    std::fs::metadata(StdPath::new(path))
+        .map(|m| m.is_dir())
+        .unwrap_or(false)
+}
+
+/// Check for symlink loop (ELOOP) error, platform-dependent.
+#[cfg(unix)]
+fn is_eloop(e: &std::io::Error) -> bool {
+    e.raw_os_error() == Some(libc::ELOOP)
+}
+
+#[cfg(not(unix))]
+fn is_eloop(_e: &std::io::Error) -> bool {
+    false
+}
+
+/// A single ``(dirpath, dirnames, filenames, error)`` walk entry.
+pub struct WalkEntry {
+    pub path: OsString,
+    pub dirnames: Vec<OsString>,
+    pub filenames: Vec<OsString>,
+    /// Store the io::Error string for conversion to PyErr in walk().
+    pub error: Option<String>,
+}
 
 /// Walk a directory tree, yielding ``(dirpath, dirnames, filenames)`` tuples.
 ///
@@ -1078,38 +1132,55 @@ pub fn walk_entries(
 ) -> PyResult<Vec<WalkEntry>> {
     let mut results: Vec<WalkEntry> = Vec::new();
     let mut stack: Vec<OsString> = vec![OsString::from(path)];
+    let mut is_first = true;
 
     while let Some(current) = stack.pop() {
+        let is_root = is_first;
+        is_first = false;
         let entries = match read_dir(&current) {
             Ok(e) => e,
-            Err(_) => continue,
+            Err(e) => {
+                if is_root {
+                    return Err(e);
+                }
+                // Non-root directory: record error and push placeholder entry.
+                results.push(WalkEntry {
+                    path: current,
+                    dirnames: Vec::new(),
+                    filenames: Vec::new(),
+                    error: Some(e.to_string()),
+                });
+                continue;
+            }
         };
 
         let mut dirnames: Vec<OsString> = Vec::new();
         let mut filenames: Vec<OsString> = Vec::new();
 
         for entry in &entries {
-            if entry.is_dir {
+            // A symlink to a directory should be classified as a directory
+            // (matching CPython's os.scandir + DirEntry.is_dir(follow_symlinks=...)).
+            let is_directory =
+                entry.is_dir || (entry.is_symlink && follow_symlinks && is_dir_target(&entry.path));
+            if is_directory {
                 dirnames.push(entry.name.clone());
             } else {
                 filenames.push(entry.name.clone());
             }
         }
 
-        results.push((current.clone(), dirnames.clone(), filenames));
+        results.push(WalkEntry {
+            path: current.clone(),
+            dirnames: dirnames.clone(),
+            filenames,
+            error: None,
+        });
 
-        if !follow_symlinks {
-            // Only push non-symlink directories
-            for entry in &entries {
-                if entry.is_dir && !entry.is_symlink {
-                    stack.push(entry.path.clone());
-                }
-            }
-        } else {
-            for entry in &entries {
-                if entry.is_dir {
-                    stack.push(entry.path.clone());
-                }
+        for entry in &entries {
+            let is_directory =
+                entry.is_dir || (entry.is_symlink && follow_symlinks && is_dir_target(&entry.path));
+            if is_directory && (!entry.is_symlink || follow_symlinks) {
+                stack.push(entry.path.clone());
             }
         }
     }
@@ -1119,17 +1190,19 @@ pub fn walk_entries(
         // For top-down, we need to reorder: yield parent before children.
         // Since we used a stack (LIFO), the results are actually in reverse
         // depth-first order. Let's just sort by depth.
-        results.sort_by_key(|(p, _, _)| {
-            p.as_encoded_bytes()
+        results.sort_by_key(|e| {
+            e.path
+                .as_encoded_bytes()
                 .iter()
                 .filter(|&&b| b == b'/' || b == b'\\')
                 .count()
         });
     } else {
         // Bottom-up: deeper directories first.
-        results.sort_by_key(|(p, _, _)| {
+        results.sort_by_key(|e| {
             std::cmp::Reverse(
-                p.as_encoded_bytes()
+                e.path
+                    .as_encoded_bytes()
                     .iter()
                     .filter(|&&b| b == b'/' || b == b'\\')
                     .count(),

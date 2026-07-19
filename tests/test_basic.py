@@ -353,8 +353,14 @@ class TestNewFeatures:
         assert isinstance(result, PurePosixPath)
 
     def test_from_uri_posix_relative(self) -> None:
-        result = PurePosixPath.from_uri("file:relative/path")
-        assert str(result) == "relative/path"
+        """file: without authority requires absolute path — CPython 3.14+ rejects relative."""
+        import pytest
+
+        with pytest.raises(ValueError, match="non-local"):
+            PurePosixPath.from_uri("file:relative/path")
+        # file:/absolute/path (with leading /) is still valid
+        result = PurePosixPath.from_uri("file:/relative/path")
+        assert str(result) == "/relative/path"
 
     def test_from_uri_windows_drive(self) -> None:
         result = PureWindowsPath.from_uri("file:///C:/Users/Name")

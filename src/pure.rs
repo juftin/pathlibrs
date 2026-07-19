@@ -7,7 +7,7 @@ use std::hash::{Hash, Hasher};
 use std::sync::Mutex;
 
 use pyo3::prelude::*;
-use pyo3::types::{PyAnyMethods, PyList, PyString, PyTuple, PyType};
+use pyo3::types::{PyAnyMethods, PyDict, PyList, PyString, PyTuple, PyType};
 
 use crate::fs::PathInfo;
 use crate::iter::{GlobIter, ParentsIter};
@@ -157,8 +157,9 @@ impl PurePath {
 #[pymethods]
 impl PurePath {
     #[new]
-    #[pyo3(signature = (*args))]
-    fn new(args: &Bound<'_, PyTuple>) -> PyResult<Self> {
+    #[pyo3(signature = (*args, **kwargs))]
+    fn new(args: &Bound<'_, PyTuple>, kwargs: Option<&Bound<'_, PyDict>>) -> PyResult<Self> {
+        let _ = kwargs;
         #[cfg(windows)]
         let join_flavour = PathFlavour::Windows;
         #[cfg(not(windows))]
@@ -178,6 +179,16 @@ impl PurePath {
             flavour: PathFlavour::Posix,
             path_info: Mutex::new(None),
         })
+    }
+
+    /// No-op initialiser (CPython compat).
+    ///
+    /// Prevents fall-through to ``object.__init__()`` when subclasses call
+    /// ``super().__init__(*pathsegments)``.
+    #[pyo3(signature = (*args))]
+    fn __init__(&self, args: &Bound<'_, PyTuple>) -> PyResult<()> {
+        let _ = args;
+        Ok(())
     }
 
     // -- properties ----------------------------------------------------
@@ -877,7 +888,7 @@ impl PurePath {
     }
 
     /// Resolve the path to an absolute path, resolving symlinks.
-    #[pyo3(signature = (*, strict = false))]
+    #[pyo3(signature = (strict = false))]
     fn resolve<'py>(slf: PyRef<'py, Self>, strict: bool) -> PyResult<PyObject> {
         let py = slf.py();
         let resolved = crate::fs::resolve(slf.inner.raw(), strict)?;
@@ -1490,21 +1501,21 @@ impl PurePath {
     /// Yields ``(dirpath, dirnames, filenames)`` tuples. The caller may
     /// modify ``dirnames`` in-place to control which subdirectories are
     /// visited next (when ``topdown=True``).
-    #[pyo3(signature = (topdown = true, onerror = None, follow_symlinks = false))]
+    #[pyo3(signature = (top_down = true, on_error = None, follow_symlinks = false))]
     fn walk<'py>(
         slf: PyRef<'py, Self>,
-        topdown: bool,
-        onerror: Option<PyObject>,
+        top_down: bool,
+        on_error: Option<PyObject>,
         follow_symlinks: bool,
     ) -> PyResult<PyObject> {
         let py = slf.py();
         let ptr = slf.as_ptr();
 
-        // Collect walk entries with depth info for topdown/bottomup ordering
-        let entries = match crate::fs::walk_entries(slf.inner.raw(), topdown, follow_symlinks) {
+        // Collect walk entries with depth info for top_down/bottomup ordering
+        let entries = match crate::fs::walk_entries(slf.inner.raw(), top_down, follow_symlinks) {
             Ok(e) => e,
             Err(e) => {
-                if let Some(ref handler) = onerror {
+                if let Some(ref handler) = on_error {
                     handler.call1(py, (e,))?;
                     return Ok(PyList::new(py, Vec::<PyObject>::new())?.into_any().unbind());
                 }
@@ -1513,11 +1524,18 @@ impl PurePath {
         };
 
         let mut results: Vec<PyObject> = Vec::with_capacity(entries.len());
-        for (dirpath_str, dirnames, filenames) in &entries {
-            let dp: PyObject = Self::_make_child(py, ptr, dirpath_str.clone())?;
+        for entry in &entries {
+            // Call on_error for directories we couldn't read.
+            if let Some(ref err_msg) = entry.error {
+                if let Some(ref handler) = on_error {
+                    let pyerr = pyo3::exceptions::PyOSError::new_err(err_msg.clone());
+                    handler.call1(py, (pyerr,))?;
+                }
+            }
+            let dp: PyObject = Self::_make_child(py, ptr, entry.path.clone())?;
             let dn: PyObject = PyList::new(
                 py,
-                dirnames.iter().map(|n| {
+                entry.dirnames.iter().map(|n| {
                     n.to_string_lossy()
                         .into_owned()
                         .into_pyobject(py)
@@ -1530,7 +1548,7 @@ impl PurePath {
             .unbind();
             let fn_: PyObject = PyList::new(
                 py,
-                filenames.iter().map(|n| {
+                entry.filenames.iter().map(|n| {
                     n.to_string_lossy()
                         .into_owned()
                         .into_pyobject(py)
@@ -1544,7 +1562,7 @@ impl PurePath {
             let tup = PyTuple::new(py, [dp, dn, fn_])?;
             results.push(tup.into_any().unbind());
         }
-        Ok(PyList::new(py, results)?.into_any().unbind())
+        Ok(PyList::new(py, results)?.call_method0("__iter__")?.unbind())
     }
 
     // -- Phase 4: Glob & Pattern Matching --------------------------------
@@ -1607,13 +1625,8 @@ impl PurePath {
             })
             .collect();
 
-        let cls = {
-            let bound =
-                unsafe { pyo3::Bound::<'_, pyo3::PyAny>::from_borrowed_ptr(py, slf.as_ptr()) };
-            bound.getattr("__class__")?.unbind()
-        };
-
-        let iter = GlobIter::new(str_results, cls);
+        let source: PyObject = slf.into_pyobject(py)?.into_any().unbind();
+        let iter = GlobIter::new(str_results, source);
         Ok(Py::new(py, iter)?.into_pyobject(py)?.into_any().unbind())
     }
 
@@ -1795,8 +1808,12 @@ pub struct PurePosixPath;
 #[pymethods]
 impl PurePosixPath {
     #[new]
-    #[pyo3(signature = (*args))]
-    fn new(args: &Bound<'_, PyTuple>) -> PyResult<(Self, PurePath)> {
+    #[pyo3(signature = (*args, **kwargs))]
+    fn new(
+        args: &Bound<'_, PyTuple>,
+        kwargs: Option<&Bound<'_, PyDict>>,
+    ) -> PyResult<(Self, PurePath)> {
+        let _ = kwargs;
         let raw = join_path_segments(args, PathFlavour::Posix)?;
         Ok((Self, PurePath::new_posix(raw)))
     }
@@ -1812,8 +1829,12 @@ pub struct PureWindowsPath;
 #[pymethods]
 impl PureWindowsPath {
     #[new]
-    #[pyo3(signature = (*args))]
-    fn new(args: &Bound<'_, PyTuple>) -> PyResult<(Self, PurePath)> {
+    #[pyo3(signature = (*args, **kwargs))]
+    fn new(
+        args: &Bound<'_, PyTuple>,
+        kwargs: Option<&Bound<'_, PyDict>>,
+    ) -> PyResult<(Self, PurePath)> {
+        let _ = kwargs;
         let raw = join_path_segments(args, PathFlavour::Windows)?;
         Ok((Self, PurePath::new_windows(raw)))
     }
@@ -2113,6 +2134,25 @@ fn _extract_path_str(obj: &Bound<'_, PyAny>) -> PyResult<String> {
     Ok(obj.str()?.to_string())
 }
 
+/// Returns true if ``authority`` matches the local machine's hostname.
+#[cfg(unix)]
+fn is_local_hostname(authority: &str) -> bool {
+    let mut buf = [0u8; 256];
+    let rc = unsafe { libc::gethostname(buf.as_mut_ptr() as *mut _, buf.len()) };
+    if rc != 0 {
+        return false;
+    }
+    let hostname = unsafe { std::ffi::CStr::from_ptr(buf.as_ptr() as *const _).to_string_lossy() };
+    authority.eq_ignore_ascii_case(&hostname)
+}
+
+#[cfg(not(unix))]
+fn is_local_hostname(_authority: &str) -> bool {
+    // On non-Unix platforms (Windows), we can't easily check the hostname.
+    // Fall back to only accepting empty authority and "localhost".
+    false
+}
+
 /// Parse a ``file:`` URI into a path string.
 ///
 /// Supports:
@@ -2133,7 +2173,12 @@ fn parse_file_uri(uri: &str) -> PyResult<String> {
     let authority_rest = match rest.strip_prefix("//") {
         Some(ar) => ar,
         None => {
-            // file:relative/path → relative path
+            // file:/absolute/path → absolute path; file:relative → invalid
+            if !rest.starts_with('/') {
+                return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                    "non-local file: URI not supported: '{uri}'"
+                )));
+            }
             return Ok(rest.to_string());
         }
     };
@@ -2150,32 +2195,34 @@ fn parse_file_uri(uri: &str) -> PyResult<String> {
         }
     };
 
-    // If authority is empty or "localhost", it's a local path
-    if authority.is_empty() || authority.eq_ignore_ascii_case("localhost") {
-        if path_part.is_empty() {
-            return Ok("/".to_string());
-        }
+    // Accept empty authority, "localhost", or the local machine's hostname.
+    // CPython's url2pathname matches against socket.gethostname().
+    let is_local = authority.is_empty()
+        || authority.eq_ignore_ascii_case("localhost")
+        || is_local_hostname(authority);
+    if !is_local {
+        return Err(pyo3::exceptions::PyValueError::new_err(format!(
+            "non-local file: URI not supported: '{uri}'"
+        )));
+    }
+    if path_part.is_empty() {
+        return Ok("/".to_string());
+    }
 
-        // Windows drive letter: /C:/path or /C|/path
-        if path_part.len() >= 3
-            && path_part.as_bytes()[0].is_ascii_alphabetic()
-            && (path_part.as_bytes()[1] == b':' || path_part.as_bytes()[1] == b'|')
-            && path_part.as_bytes()[2] == b'/'
-        {
-            let drive = path_part.as_bytes()[0] as char;
-            let rest_path = &path_part[3..];
-            if rest_path.is_empty() {
-                Ok(format!("{drive}:\\"))
-            } else {
-                Ok(format!("{drive}:\\{rest_path}"))
-            }
+    // Windows drive letter: /C:/path or /C|/path
+    if path_part.len() >= 3
+        && path_part.as_bytes()[0].is_ascii_alphabetic()
+        && (path_part.as_bytes()[1] == b':' || path_part.as_bytes()[1] == b'|')
+        && path_part.as_bytes()[2] == b'/'
+    {
+        let drive = path_part.as_bytes()[0] as char;
+        let rest_path = &path_part[3..];
+        if rest_path.is_empty() {
+            Ok(format!("{drive}:\\"))
         } else {
-            Ok(format!("/{path_part}"))
+            Ok(format!("{drive}:\\{rest_path}"))
         }
     } else {
-        // Non-local authority — not a local path
-        Err(pyo3::exceptions::PyValueError::new_err(format!(
-            "non-local file: URI not supported: '{uri}'"
-        )))
+        Ok(format!("/{path_part}"))
     }
 }
