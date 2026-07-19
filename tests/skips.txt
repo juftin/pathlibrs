@@ -63,7 +63,11 @@ PathTest.test_copy_error_handling
 PosixPathTest.test_copy_dir_no_read_permission
 PosixPathTest.test_copy_error_handling
 
-# ── symlinks: complex — RESOLVED (0 entries) ────────────────────────
+# ── symlinks: complex (3 entries, Windows-only) ──────────────────────
+# POSIX passes; Windows has //?/D: prefix mismatch
+PathTest.test_complex_symlinks_absolute
+PathTest.test_complex_symlinks_relative
+PathTest.test_complex_symlinks_relative_dot_dot
 
 # ── resolve() edge cases — RESOLVED (0 entries) ─────────────────────
 
@@ -75,7 +79,8 @@ PosixPathTest.test_copy_error_handling
 
 # ── expanduser_windows — RESOLVED (0 entries) ────────────────────
 
-# ── owner/group windows — RESOLVED (0 entries) ────────────────────
+# ── owner/group windows (1 entry) ─────────────────────────────────
+PathTest.test_group_windows
 
 # ── is_reserved() DeprecationWarning — RESOLVED (0 entries) ──────────
 
@@ -86,7 +91,8 @@ PathTest.test_is_junction_true
 
 # ── mkdir(parents=True) edge case (3 entries) ─────────────────────────
 
-# ── rmdir — RESOLVED (0 entries) ────────────────────
+# ── rmdir (1 entry, Windows handle leak) ──────────────────────────
+PathTest.test_rmdir
 
 # ── walk() edge cases (1 entry) ───────────────────────────────────────
 # walk_bad_dir: eager walk processes subdirs before yielding root (CPython is lazy)
