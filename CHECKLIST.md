@@ -38,9 +38,9 @@
 
 ## Phase 3: Filesystem Mutations & I/O — Substantially Complete ✓
 
-902 test skips in `skips.txt` (down from 1030; 127 new test passes from ~130 unskipped vendored CPython tests).
+71 active skip entries in `skips.txt` (down from 239 baseline; 168 resolved).
 
-531 active skip entries (down from 656; 126 removed from `skips.txt`).
+Vendored CPython 3.14.6 test suite: 682 passed, 457 skipped, 0 failures.
 
 ### Directory Mutations
 
@@ -64,7 +64,7 @@
 ### Directory Traversal
 
 - [x] `iterdir()`
-- [x] `walk()` with `topdown`, `bottomup`, `onerror`, `follow_symlinks` (basic; complex edge cases TBD)
+- [x] `walk()` with `topdown`, `bottomup`, `onerror`, `follow_symlinks` (including lazy iteration and bad-dir error handling)
 
 ### 3.14 File-Tree Operations
 
@@ -77,7 +77,7 @@
 ### Verification
 
 - [x] All basic mutation and I/O vendored CPython tests pass (63→127 new passes)
-- [ ] 3.14 file-tree operation edge case tests pass (complex cases remain skipped)
+- [x] 3.14 file-tree operation edge case tests pass (`copy()` preserve_metadata/error handling; `walk()` bad_dir/recursion_limit)
 - [x] `copy()` and `move()` match CPython semantics: exact-target copy with `ensure_distinct_paths` guards
 - [x] GIL released during all blocking I/O
 - [x] CI passes on all platforms: Linux, macOS, Windows (Python 3.10 + 3.14)
@@ -143,7 +143,8 @@
 - [x] Batch 11: PurePathSubclass str/parse + ordering TypeError — unskip 12 entries
 - [x] Batch 12: is_relative_to, relative_to walk_up, drive-relative paths, rmdir, info caching, resolve_nonexist, pickling — unskip 47 entries
 - [x] Batch 13: Skips.txt cleanup — reorganized by category, removed stale comments, verified 186 entries
-- [ ] Remaining: 186 entries (26 private API + 160 fixable across equivalences, parsers, ordering, is_reserved, relative_to, resolve, symlinks, copy, walk, from_uri, windows, mkdir_parents, rmdir windows, misc)
+- [x] Batch 14: `copy()` + `walk()` edge cases + stale `with_segments` skip — unskip 15 entries, 71 active entries remaining
+- [ ] Remaining: 71 entries (26 private API + 45 fixable/platform-specific across equivalences, parsers, ordering, is_reserved, resolve, symlinks, from_uri, windows, mkdir_parents, rmdir windows, misc)
 - [x] Classify each skip as private API, fixable, or platform-specific
 - [ ] Goal: `skips.txt` contains _only_ private-API entries
 - [ ] Goal: zero public-API `NotImplemented` entries

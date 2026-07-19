@@ -60,6 +60,7 @@ fn pathlibrs(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<iter::PartsIter>()?;
     m.add_class::<iter::ParentsIter>()?;
     m.add_class::<iter::GlobIter>()?;
+    m.add_class::<pure::WalkIter>()?;
 
     // Stat result and PathInfo (Phase 2)
     m.add_class::<fs::StatResult>()?;

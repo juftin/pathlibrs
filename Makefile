@@ -67,7 +67,7 @@ fmt-rust: ## Format Rust code (cargo fmt).
 
 .PHONY: fmt-python
 fmt-python: ## Format Python code (ruff format .).
-	uv run ruff format .
+	uv run --no-sync ruff format --force-exclude .
 
 .PHONY: fmt-check
 fmt-check: fmt-check-rust fmt-check-python ## Check formatting without modifying (CI).
@@ -78,7 +78,7 @@ fmt-check-rust: ## Check Rust formatting (cargo fmt --check --verbose).
 
 .PHONY: fmt-check-python
 fmt-check-python: ## Check Python formatting (ruff format --check .).
-	uv run ruff format --check .
+	uv run --no-sync ruff format --check --force-exclude .
 
 ##@ Lint
 
@@ -91,7 +91,7 @@ lint-rust: ## Rust clippy with warnings as errors.
 
 .PHONY: lint-python
 lint-python: ## Python ruff check.
-	uv run ruff check .
+	uv run --no-sync ruff check --force-exclude .
 
 ##@ CI
 

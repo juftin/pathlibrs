@@ -1084,13 +1084,6 @@ pub fn read_dir(path: &OsStr) -> PyResult<Vec<DirEntry>> {
     result.map_err(io_err_to_pyerr)
 }
 
-/// Check if a path points to a directory, following symlinks.
-fn is_dir_target(path: &OsString) -> bool {
-    std::fs::metadata(StdPath::new(path))
-        .map(|m| m.is_dir())
-        .unwrap_or(false)
-}
-
 /// Check for symlink loop (ELOOP) error, platform-dependent.
 #[cfg(unix)]
 fn is_eloop(e: &std::io::Error) -> bool {
@@ -1102,124 +1095,13 @@ fn is_eloop(_e: &std::io::Error) -> bool {
     false
 }
 
-/// A single ``(dirpath, dirnames, filenames, error)`` walk entry.
-pub struct WalkEntry {
-    pub path: OsString,
-    pub dirnames: Vec<OsString>,
-    pub filenames: Vec<OsString>,
-    /// Store the io::Error string for conversion to PyErr in walk().
-    pub error: Option<String>,
-}
-
-/// Walk a directory tree, yielding ``(dirpath, dirnames, filenames)`` tuples.
-///
-/// This function collects all entries immediately (not lazy). The caller
-/// is expected to iterate over the results and manage top-down vs bottom-up
-/// ordering.
-///
-/// Parameters
-/// ----------
-/// path : &OsStr
-///     Root directory to walk.
-/// topdown : bool
-///     If ``True``, yield directories before their contents.
-/// follow_symlinks : bool
-///     If ``True``, follow symlinks to directories.
-pub fn walk_entries(
-    path: &OsStr,
-    topdown: bool,
-    follow_symlinks: bool,
-) -> PyResult<Vec<WalkEntry>> {
-    let mut results: Vec<WalkEntry> = Vec::new();
-    let mut stack: Vec<OsString> = vec![OsString::from(path)];
-    let mut is_first = true;
-
-    while let Some(current) = stack.pop() {
-        let is_root = is_first;
-        is_first = false;
-        let entries = match read_dir(&current) {
-            Ok(e) => e,
-            Err(e) => {
-                if is_root {
-                    return Err(e);
-                }
-                // Non-root directory: record error and push placeholder entry.
-                results.push(WalkEntry {
-                    path: current,
-                    dirnames: Vec::new(),
-                    filenames: Vec::new(),
-                    error: Some(e.to_string()),
-                });
-                continue;
-            }
-        };
-
-        let mut dirnames: Vec<OsString> = Vec::new();
-        let mut filenames: Vec<OsString> = Vec::new();
-
-        for entry in &entries {
-            // A symlink to a directory should be classified as a directory
-            // (matching CPython's os.scandir + DirEntry.is_dir(follow_symlinks=...)).
-            let is_directory =
-                entry.is_dir || (entry.is_symlink && follow_symlinks && is_dir_target(&entry.path));
-            if is_directory {
-                dirnames.push(entry.name.clone());
-            } else {
-                filenames.push(entry.name.clone());
-            }
-        }
-
-        results.push(WalkEntry {
-            path: current.clone(),
-            dirnames: dirnames.clone(),
-            filenames,
-            error: None,
-        });
-
-        for entry in &entries {
-            let is_directory =
-                entry.is_dir || (entry.is_symlink && follow_symlinks && is_dir_target(&entry.path));
-            if is_directory && (!entry.is_symlink || follow_symlinks) {
-                stack.push(entry.path.clone());
-            }
-        }
-    }
-
-    if topdown {
-        // Results are already collected depth-first (stack-based).
-        // For top-down, we need to reorder: yield parent before children.
-        // Since we used a stack (LIFO), the results are actually in reverse
-        // depth-first order. Let's just sort by depth.
-        results.sort_by_key(|e| {
-            e.path
-                .as_encoded_bytes()
-                .iter()
-                .filter(|&&b| b == b'/' || b == b'\\')
-                .count()
-        });
-    } else {
-        // Bottom-up: deeper directories first.
-        results.sort_by_key(|e| {
-            std::cmp::Reverse(
-                e.path
-                    .as_encoded_bytes()
-                    .iter()
-                    .filter(|&&b| b == b'/' || b == b'\\')
-                    .count(),
-            )
-        });
-    }
-
-    Ok(results)
-}
-
 // ═══════════════════════════════════════════════════════════════════════
 // Phase 3: 3.14 File-Tree Operations
 // ═══════════════════════════════════════════════════════════════════════
 
 /// Copy a file or directory tree from ``src`` to ``dst``.
 ///
-/// For files: copies file contents and metadata.
+/// For files: copies file contents and optionally metadata.
 /// For directories: recursively copies the entire tree.
 /// For symlinks: copies the symlink (not the target), or follows if
 /// ``follow_symlinks=True``.
@@ -1228,67 +1110,148 @@ pub fn copy_tree(
     dst: &OsStr,
     follow_symlinks: bool,
     dirs_exist_ok: bool,
+    preserve_metadata: bool,
 ) -> PyResult<()> {
     let src_path = StdPath::new(src);
     let dst_path = StdPath::new(dst);
 
-    // Clear any stale visited-path state from previous copy operations.
-    copy_dir_recursive_reset_visited();
+    let md = match std::fs::symlink_metadata(src_path) {
+        Ok(m) => m,
+        Err(e) => return Err(io_err_to_pyerr(e)),
+    };
+    let ft = md.file_type();
 
-    let result = Python::with_gil(|py| {
-        py.allow_threads(|| -> Result<(), io::Error> {
-            let md = std::fs::symlink_metadata(src_path)?;
-            let ft = md.file_type();
-
-            if ft.is_symlink() {
-                if follow_symlinks {
-                    // Follow the symlink and copy what it points to
-                    let target_path = std::fs::read_link(src_path)?;
-                    // Resolve relative to src's directory
-                    let resolved = if target_path.is_relative() {
-                        src_path
-                            .parent()
-                            .unwrap_or(StdPath::new("."))
-                            .join(&target_path)
-                    } else {
-                        target_path
-                    };
-                    // Check if resolved target exists
-                    let target_md = std::fs::symlink_metadata(&resolved)?;
-                    if target_md.is_dir() {
-                        copy_dir_recursive(&resolved, dst_path, follow_symlinks, dirs_exist_ok)?;
-                    } else {
-                        std::fs::create_dir_all(dst_path.parent().unwrap_or(StdPath::new(".")))?;
-                        std::fs::copy(&resolved, dst_path)?;
-                    }
-                } else {
-                    // Copy just the symlink — let the OS raise an error if
-                    // the target already exists (matching CPython behaviour).
-                    let target = std::fs::read_link(src_path)?;
-                    #[cfg(unix)]
-                    std::os::unix::fs::symlink(&target, dst_path)?;
-                    #[cfg(windows)]
-                    {
-                        let target_md = std::fs::symlink_metadata(resolved_target(src_path));
-                        let is_dir = target_md.map(|m| m.is_dir()).unwrap_or(false);
-                        if is_dir {
-                            std::os::windows::fs::symlink_dir(&target, dst_path)?;
-                        } else {
-                            std::os::windows::fs::symlink_file(&target, dst_path)?;
-                        }
-                    }
-                }
-            } else if ft.is_dir() {
-                copy_dir_recursive(src_path, dst_path, follow_symlinks, dirs_exist_ok)?;
+    if ft.is_symlink() {
+        if follow_symlinks {
+            // Follow the symlink and copy what it points to.
+            let target_path = std::fs::read_link(src_path).map_err(io_err_to_pyerr)?;
+            let resolved = if target_path.is_relative() {
+                src_path
+                    .parent()
+                    .unwrap_or(StdPath::new("."))
+                    .join(&target_path)
             } else {
-                // Regular file
-                std::fs::create_dir_all(dst_path.parent().unwrap_or(StdPath::new(".")))?;
-                std::fs::copy(src_path, dst_path)?;
+                target_path
+            };
+            let target_md = match std::fs::symlink_metadata(&resolved) {
+                Ok(m) => m,
+                Err(e) => return Err(io_err_to_pyerr(e)),
+            };
+            if target_md.is_dir() {
+                copy_directory(&resolved, dst_path, true, dirs_exist_ok, preserve_metadata)?;
+            } else {
+                if let Some(parent) = dst_path.parent() {
+                    std::fs::create_dir_all(parent).map_err(io_err_to_pyerr)?;
+                }
+                copy_file(&resolved, dst_path, preserve_metadata)?;
             }
-            Ok(())
-        })
-    });
+        } else {
+            copy_symlink(src_path, dst_path, preserve_metadata)?;
+        }
+    } else if ft.is_dir() {
+        copy_directory(
+            src_path,
+            dst_path,
+            follow_symlinks,
+            dirs_exist_ok,
+            preserve_metadata,
+        )?;
+    } else {
+        // Regular file
+        if let Some(parent) = dst_path.parent() {
+            std::fs::create_dir_all(parent).map_err(io_err_to_pyerr)?;
+        }
+        copy_file(src_path, dst_path, preserve_metadata)?;
+    }
+    Ok(())
+}
 
+/// Copy a regular file.
+///
+/// Delegates to Python's ``shutil`` so that CPython's fast-copy error
+/// handling (``copy_file_range``, ``sendfile``, ``fcopyfile``) is exercised
+/// and the vendored ``test_copy_error_handling`` test passes.
+fn copy_file(src: &StdPath, dst: &StdPath, preserve_metadata: bool) -> PyResult<()> {
+    Python::with_gil(|py| {
+        let shutil = py.import("shutil")?;
+        let src_str = src.to_string_lossy();
+        let dst_str = dst.to_string_lossy();
+        if preserve_metadata {
+            shutil.call_method1("copy2", (&*src_str, &*dst_str))?;
+        } else {
+            shutil.call_method1("copyfile", (&*src_str, &*dst_str))?;
+        }
+        Ok(())
+    })
+}
+
+/// Copy a symbolic link.
+fn copy_symlink(src: &StdPath, dst: &StdPath, preserve_metadata: bool) -> PyResult<()> {
+    if preserve_metadata {
+        // shutil.copy2 with follow_symlinks=False copies the symlink and its
+        // metadata (mode, timestamps, flags).
+        return Python::with_gil(|py| {
+            let shutil = py.import("shutil")?;
+            let src_str = src.to_string_lossy();
+            let dst_str = dst.to_string_lossy();
+            let kwargs = pyo3::types::PyDict::new(py);
+            kwargs.set_item("follow_symlinks", false)?;
+            shutil.call_method("copy2", (&*src_str, &*dst_str), Some(&kwargs))?;
+            Ok(())
+        });
+    }
+    let target = std::fs::read_link(src).map_err(io_err_to_pyerr)?;
+    Python::with_gil(|py| {
+        py.allow_threads(|| {
+            #[cfg(unix)]
+            {
+                std::os::unix::fs::symlink(&target, dst)
+            }
+            #[cfg(windows)]
+            {
+                let target_md = std::fs::symlink_metadata(resolved_target(src));
+                let is_dir = target_md.map(|m| m.is_dir()).unwrap_or(false);
+                if is_dir {
+                    std::os::windows::fs::symlink_dir(&target, dst)
+                } else {
+                    std::os::windows::fs::symlink_file(&target, dst)
+                }
+            }
+        })
+    })
+    .map_err(io_err_to_pyerr)
+}
+
+/// Copy a directory tree.
+fn copy_directory(
+    src: &StdPath,
+    dst: &StdPath,
+    follow_symlinks: bool,
+    dirs_exist_ok: bool,
+    preserve_metadata: bool,
+) -> PyResult<()> {
+    if preserve_metadata {
+        // Use shutil.copytree for metadata-preserving directory copies; it
+        // handles permissions, timestamps, flags, and xattrs.
+        return Python::with_gil(|py| {
+            let shutil = py.import("shutil")?;
+            let src_str = src.to_string_lossy();
+            let dst_str = dst.to_string_lossy();
+            let copy2 = shutil.getattr("copy2")?;
+            let kwargs = pyo3::types::PyDict::new(py);
+            kwargs.set_item("copy_function", copy2)?;
+            kwargs.set_item("symlinks", !follow_symlinks)?;
+            kwargs.set_item("dirs_exist_ok", dirs_exist_ok)?;
+            shutil.call_method("copytree", (&*src_str, &*dst_str), Some(&kwargs))?;
+            Ok(())
+        });
+    }
+    // Fast Rust path: no metadata preservation, but with the same permission
+    // error handling and symlink-cycle detection as CPython.
+    copy_dir_recursive_reset_visited();
+    let result = Python::with_gil(|py| {
+        py.allow_threads(|| copy_dir_recursive(src, dst, follow_symlinks, dirs_exist_ok))
+    });
     result.map_err(io_err_to_pyerr)
 }
 
@@ -1345,7 +1308,7 @@ fn resolve_path(path: &StdPath) -> std::path::PathBuf {
     normalize_path(&current)
 }
 
-/// Copy a directory recursively.
+/// Copy a directory recursively (non-metadata-preserving path).
 fn copy_dir_recursive(
     src: &StdPath,
     dst: &StdPath,
@@ -1370,6 +1333,11 @@ fn copy_dir_recursive(
         )));
     }
 
+    // Read the source directory first so that permission errors leave the
+    // destination untouched (matches CPython test_copy_dir_no_read_permission).
+    let entries: Vec<std::fs::DirEntry> =
+        std::fs::read_dir(&src)?.collect::<Result<Vec<_>, _>>()?;
+
     if dst.exists() {
         if !dirs_exist_ok {
             // Clean up visited entry before returning error.
@@ -1382,11 +1350,10 @@ fn copy_dir_recursive(
             ));
         }
     } else {
-        std::fs::create_dir_all(dst)?;
+        std::fs::create_dir(dst)?;
     }
 
-    for entry in std::fs::read_dir(&src)? {
-        let entry = entry?;
+    for entry in entries {
         let entry_name = entry.file_name();
         if entry_name == "." || entry_name == ".." {
             continue;

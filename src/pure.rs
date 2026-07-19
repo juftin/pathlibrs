@@ -4,6 +4,7 @@
 
 use std::ffi::{OsStr, OsString};
 use std::hash::{Hash, Hasher};
+use std::path::Path as StdPath;
 use std::sync::Mutex;
 
 use pyo3::prelude::*;
@@ -1509,60 +1510,10 @@ impl PurePath {
         follow_symlinks: bool,
     ) -> PyResult<PyObject> {
         let py = slf.py();
-        let ptr = slf.as_ptr();
-
-        // Collect walk entries with depth info for top_down/bottomup ordering
-        let entries = match crate::fs::walk_entries(slf.inner.raw(), top_down, follow_symlinks) {
-            Ok(e) => e,
-            Err(e) => {
-                if let Some(ref handler) = on_error {
-                    handler.call1(py, (e,))?;
-                    return Ok(PyList::new(py, Vec::<PyObject>::new())?.into_any().unbind());
-                }
-                return Err(e);
-            }
-        };
-
-        let mut results: Vec<PyObject> = Vec::with_capacity(entries.len());
-        for entry in &entries {
-            // Call on_error for directories we couldn't read.
-            if let Some(ref err_msg) = entry.error {
-                if let Some(ref handler) = on_error {
-                    let pyerr = pyo3::exceptions::PyOSError::new_err(err_msg.clone());
-                    handler.call1(py, (pyerr,))?;
-                }
-            }
-            let dp: PyObject = Self::_make_child(py, ptr, entry.path.clone())?;
-            let dn: PyObject = PyList::new(
-                py,
-                entry.dirnames.iter().map(|n| {
-                    n.to_string_lossy()
-                        .into_owned()
-                        .into_pyobject(py)
-                        .unwrap()
-                        .into_any()
-                        .unbind()
-                }),
-            )?
-            .into_any()
-            .unbind();
-            let fn_: PyObject = PyList::new(
-                py,
-                entry.filenames.iter().map(|n| {
-                    n.to_string_lossy()
-                        .into_owned()
-                        .into_pyobject(py)
-                        .unwrap()
-                        .into_any()
-                        .unbind()
-                }),
-            )?
-            .into_any()
-            .unbind();
-            let tup = PyTuple::new(py, [dp, dn, fn_])?;
-            results.push(tup.into_any().unbind());
-        }
-        Ok(PyList::new(py, results)?.call_method0("__iter__")?.unbind())
+        let source = unsafe { Py::from_borrowed_ptr(py, slf.as_ptr()) };
+        let root = slf.inner.raw().to_os_string();
+        let iter = WalkIter::new(source, root, top_down, follow_symlinks, on_error);
+        Ok(Py::new(py, iter)?.into_pyobject(py)?.into_any().unbind())
     }
 
     // -- Phase 4: Glob & Pattern Matching --------------------------------
@@ -1708,12 +1659,13 @@ impl PurePath {
             }
         }
 
-        let _ = (preserve_metadata, ignore, on_error);
+        let _ = (ignore, on_error);
         crate::fs::copy_tree(
             slf.inner.raw(),
             OsStr::new(&target_str),
             follow_symlinks,
             dirs_exist_ok,
+            preserve_metadata,
         )?;
 
         Self::_make_child(py, slf.as_ptr(), OsString::from(&target_str))
@@ -1741,12 +1693,13 @@ impl PurePath {
             )));
         }
         let final_dst = format!("{}/{}", target_str.trim_end_matches('/'), name);
-        let _ = (preserve_metadata, ignore, on_error);
+        let _ = (ignore, on_error);
         crate::fs::copy_tree(
             slf.inner.raw(),
             OsStr::new(&final_dst),
             follow_symlinks,
             dirs_exist_ok,
+            preserve_metadata,
         )?;
         Self::_make_child(py, slf.as_ptr(), OsString::from(&final_dst))
     }
@@ -1795,6 +1748,201 @@ impl PurePath {
     #[pyo3(signature = (*, ignore_errors = false))]
     fn delete(&self, ignore_errors: bool) -> PyResult<()> {
         crate::fs::delete_tree(self.inner.raw(), ignore_errors)
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// WalkIter — lazy directory-tree iterator used by Path.walk()
+// ═══════════════════════════════════════════════════════════════════════
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum WalkFrameState {
+    Pending,
+    Yielded,
+}
+
+#[derive(Debug)]
+struct WalkFrame {
+    path: OsString,
+    state: WalkFrameState,
+    dirnames: Vec<OsString>,
+    filenames: Vec<OsString>,
+}
+
+/// Lazy iterator for ``Path.walk()``.
+///
+/// Mirrors CPython's ``os.walk`` generator: each call to ``__next__``
+/// reads a single directory, yields its tuple, and pushes its
+/// subdirectories onto the stack. This allows the caller to modify the
+/// yielded ``dirnames`` list before subdirectories are visited.
+#[pyclass(module = "pathlibrs")]
+pub struct WalkIter {
+    source: Py<PyAny>,
+    topdown: bool,
+    follow_symlinks: bool,
+    on_error: Option<PyObject>,
+    stack: Vec<WalkFrame>,
+}
+
+impl WalkIter {
+    fn new(
+        source: Py<PyAny>,
+        root: OsString,
+        topdown: bool,
+        follow_symlinks: bool,
+        on_error: Option<PyObject>,
+    ) -> Self {
+        Self {
+            source,
+            topdown,
+            follow_symlinks,
+            on_error,
+            stack: vec![WalkFrame {
+                path: root,
+                state: WalkFrameState::Pending,
+                dirnames: Vec::new(),
+                filenames: Vec::new(),
+            }],
+        }
+    }
+
+    fn build_tuple<'py>(
+        &self,
+        py: Python<'py>,
+        path: &OsStr,
+        dirnames: &[OsString],
+        filenames: &[OsString],
+    ) -> PyResult<PyObject> {
+        let dp: PyObject = self.source.call_method1(
+            py,
+            "with_segments",
+            (path.to_string_lossy().into_owned(),),
+        )?;
+        let dn: PyObject = PyList::new(
+            py,
+            dirnames.iter().map(|n| {
+                n.to_string_lossy()
+                    .into_owned()
+                    .into_pyobject(py)
+                    .unwrap()
+                    .into_any()
+                    .unbind()
+            }),
+        )?
+        .into_any()
+        .unbind();
+        let fn_: PyObject = PyList::new(
+            py,
+            filenames.iter().map(|n| {
+                n.to_string_lossy()
+                    .into_owned()
+                    .into_pyobject(py)
+                    .unwrap()
+                    .into_any()
+                    .unbind()
+            }),
+        )?
+        .into_any()
+        .unbind();
+        Ok(PyTuple::new(py, [dp, dn, fn_])?.into_any().unbind())
+    }
+}
+
+#[pymethods]
+impl WalkIter {
+    fn __iter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> {
+        slf
+    }
+
+    fn __next__<'py>(mut slf: PyRefMut<'py, Self>, py: Python<'py>) -> PyResult<Option<PyObject>> {
+        while let Some(mut frame) = slf.stack.pop() {
+            match frame.state {
+                WalkFrameState::Pending => {
+                    let entries = match crate::fs::read_dir(&frame.path) {
+                        Ok(e) => e,
+                        Err(e) => {
+                            // CPython's os.walk swallows directory read errors
+                            // by default; call on_error only when provided.
+                            if let Some(ref handler) = slf.on_error {
+                                handler.call1(py, (e,))?;
+                            }
+                            continue;
+                        }
+                    };
+
+                    let mut dirnames: Vec<OsString> = Vec::new();
+                    let mut filenames: Vec<OsString> = Vec::new();
+                    for entry in entries {
+                        let is_directory = entry.is_dir
+                            || (entry.is_symlink
+                                && slf.follow_symlinks
+                                && std::fs::metadata(StdPath::new(&entry.path))
+                                    .map(|m| m.is_dir())
+                                    .unwrap_or(false));
+                        if is_directory {
+                            dirnames.push(entry.name);
+                        } else {
+                            filenames.push(entry.name);
+                        }
+                    }
+
+                    if slf.topdown {
+                        // Yield now; children will be pushed after the caller
+                        // has had a chance to modify `dirnames`.
+                        let path = frame.path.clone();
+                        frame.dirnames = dirnames.clone();
+                        frame.filenames = filenames.clone();
+                        frame.state = WalkFrameState::Yielded;
+                        slf.stack.push(frame);
+                        return Ok(Some(slf.build_tuple(py, &path, &dirnames, &filenames)?));
+                    }
+
+                    // Bottom-up: push a marker for this directory, then push
+                    // children so they are yielded first.
+                    let path = frame.path.clone();
+                    frame.dirnames = dirnames.clone();
+                    frame.filenames = filenames;
+                    frame.state = WalkFrameState::Yielded;
+                    slf.stack.push(frame);
+                    for name in dirnames.iter().rev() {
+                        let child_path = StdPath::new(&path).join(name).as_os_str().to_os_string();
+                        slf.stack.push(WalkFrame {
+                            path: child_path,
+                            state: WalkFrameState::Pending,
+                            dirnames: Vec::new(),
+                            filenames: Vec::new(),
+                        });
+                    }
+                }
+                WalkFrameState::Yielded => {
+                    if slf.topdown {
+                        // Push children (respecting any in-place modifications
+                        // to `dirnames` made by the caller).
+                        for name in frame.dirnames.iter().rev() {
+                            let child_path = StdPath::new(&frame.path)
+                                .join(name)
+                                .as_os_str()
+                                .to_os_string();
+                            slf.stack.push(WalkFrame {
+                                path: child_path,
+                                state: WalkFrameState::Pending,
+                                dirnames: Vec::new(),
+                                filenames: Vec::new(),
+                            });
+                        }
+                    } else {
+                        // Bottom-up marker: all children have been yielded.
+                        return Ok(Some(slf.build_tuple(
+                            py,
+                            &frame.path,
+                            &frame.dirnames,
+                            &frame.filenames,
+                        )?));
+                    }
+                }
+            }
+        }
+        Ok(None)
     }
 }
 
