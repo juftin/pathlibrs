@@ -1084,8 +1084,21 @@ pub fn read_dir(path: &OsStr) -> PyResult<Vec<DirEntry>> {
     result.map_err(io_err_to_pyerr)
 }
 
-/// A single ``(dirpath, dirnames, filenames)`` walk entry.
-type WalkEntry = (OsString, Vec<OsString>, Vec<OsString>);
+/// Check if a path points to a directory, following symlinks.
+fn is_dir_target(path: &OsString) -> bool {
+    std::fs::metadata(StdPath::new(path))
+        .map(|m| m.is_dir())
+        .unwrap_or(false)
+}
+
+/// A single ``(dirpath, dirnames, filenames, error)`` walk entry.
+pub struct WalkEntry {
+    pub path: OsString,
+    pub dirnames: Vec<OsString>,
+    pub filenames: Vec<OsString>,
+    /// Store the io::Error string for conversion to PyErr in walk().
+    pub error: Option<String>,
+}
 
 /// Walk a directory tree, yielding ``(dirpath, dirnames, filenames)`` tuples.
 ///
@@ -1108,38 +1121,55 @@ pub fn walk_entries(
 ) -> PyResult<Vec<WalkEntry>> {
     let mut results: Vec<WalkEntry> = Vec::new();
     let mut stack: Vec<OsString> = vec![OsString::from(path)];
+    let mut is_first = true;
 
     while let Some(current) = stack.pop() {
+        let is_root = is_first;
+        is_first = false;
         let entries = match read_dir(&current) {
             Ok(e) => e,
-            Err(_) => continue,
+            Err(e) => {
+                if is_root {
+                    return Err(e);
+                }
+                // Non-root directory: record error and push placeholder entry.
+                results.push(WalkEntry {
+                    path: current,
+                    dirnames: Vec::new(),
+                    filenames: Vec::new(),
+                    error: Some(e.to_string()),
+                });
+                continue;
+            }
         };
 
         let mut dirnames: Vec<OsString> = Vec::new();
         let mut filenames: Vec<OsString> = Vec::new();
 
         for entry in &entries {
-            if entry.is_dir {
+            // A symlink to a directory should be classified as a directory
+            // (matching CPython's os.scandir + DirEntry.is_dir(follow_symlinks=...)).
+            let is_directory =
+                entry.is_dir || (entry.is_symlink && follow_symlinks && is_dir_target(&entry.path));
+            if is_directory {
                 dirnames.push(entry.name.clone());
             } else {
                 filenames.push(entry.name.clone());
             }
         }
 
-        results.push((current.clone(), dirnames.clone(), filenames));
+        results.push(WalkEntry {
+            path: current.clone(),
+            dirnames: dirnames.clone(),
+            filenames,
+            error: None,
+        });
 
-        if !follow_symlinks {
-            // Only push non-symlink directories
-            for entry in &entries {
-                if entry.is_dir && !entry.is_symlink {
-                    stack.push(entry.path.clone());
-                }
-            }
-        } else {
-            for entry in &entries {
-                if entry.is_dir {
-                    stack.push(entry.path.clone());
-                }
+        for entry in &entries {
+            let is_directory =
+                entry.is_dir || (entry.is_symlink && follow_symlinks && is_dir_target(&entry.path));
+            if is_directory && (!entry.is_symlink || follow_symlinks) {
+                stack.push(entry.path.clone());
             }
         }
     }
@@ -1149,17 +1179,19 @@ pub fn walk_entries(
         // For top-down, we need to reorder: yield parent before children.
         // Since we used a stack (LIFO), the results are actually in reverse
         // depth-first order. Let's just sort by depth.
-        results.sort_by_key(|(p, _, _)| {
-            p.as_encoded_bytes()
+        results.sort_by_key(|e| {
+            e.path
+                .as_encoded_bytes()
                 .iter()
                 .filter(|&&b| b == b'/' || b == b'\\')
                 .count()
         });
     } else {
         // Bottom-up: deeper directories first.
-        results.sort_by_key(|(p, _, _)| {
+        results.sort_by_key(|e| {
             std::cmp::Reverse(
-                p.as_encoded_bytes()
+                e.path
+                    .as_encoded_bytes()
                     .iter()
                     .filter(|&&b| b == b'/' || b == b'\\')
                     .count(),
