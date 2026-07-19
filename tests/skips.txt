@@ -69,7 +69,10 @@ PathTest.test_complex_symlinks_absolute
 PathTest.test_complex_symlinks_relative
 PathTest.test_complex_symlinks_relative_dot_dot
 
-# ── resolve() edge cases — RESOLVED (0 entries) ─────────────────────
+# ── resolve() edge cases (2 entries, Windows-only) ───────────────────
+# POSIX passes; Windows has //?/D: prefix mismatch
+PathTest.test_resolve_common
+PathTest.test_resolve_dot
 
 # ── cross-flavour: equivalences — RESOLVED (0 entries) ────────────────────
 
@@ -79,8 +82,9 @@ PathTest.test_complex_symlinks_relative_dot_dot
 
 # ── expanduser_windows — RESOLVED (0 entries) ────────────────────
 
-# ── owner/group windows (1 entry) ─────────────────────────────────
+# ── owner/group windows (2 entries) ─────────────────────────────────
 PathTest.test_group_windows
+PathTest.test_owner_windows
 
 # ── is_reserved() DeprecationWarning — RESOLVED (0 entries) ──────────
 
@@ -89,7 +93,9 @@ PathTest.test_is_junction_true
 
 # ── relative_to / is_relative_to — RESOLVED (0 entries) ──────────────
 
-# ── mkdir(parents=True) edge case (3 entries) ─────────────────────────
+# ── mkdir(parents=True) edge case (1 entry) ──────────────────────────
+# umask fix is Unix-only; Windows has different mkdir behaviour
+PathTest.test_mkdir_parents
 
 # ── rmdir (1 entry, Windows handle leak) ──────────────────────────
 PathTest.test_rmdir
