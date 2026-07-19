@@ -7,7 +7,7 @@ use std::hash::{Hash, Hasher};
 use std::sync::Mutex;
 
 use pyo3::prelude::*;
-use pyo3::types::{PyAnyMethods, PyList, PyString, PyTuple, PyType};
+use pyo3::types::{PyAnyMethods, PyDict, PyList, PyString, PyTuple, PyType};
 
 use crate::fs::PathInfo;
 use crate::iter::{GlobIter, ParentsIter};
@@ -157,8 +157,9 @@ impl PurePath {
 #[pymethods]
 impl PurePath {
     #[new]
-    #[pyo3(signature = (*args))]
-    fn new(args: &Bound<'_, PyTuple>) -> PyResult<Self> {
+    #[pyo3(signature = (*args, **kwargs))]
+    fn new(args: &Bound<'_, PyTuple>, kwargs: Option<&Bound<'_, PyDict>>) -> PyResult<Self> {
+        let _ = kwargs;
         #[cfg(windows)]
         let join_flavour = PathFlavour::Windows;
         #[cfg(not(windows))]
@@ -178,6 +179,16 @@ impl PurePath {
             flavour: PathFlavour::Posix,
             path_info: Mutex::new(None),
         })
+    }
+
+    /// No-op initialiser (CPython compat).
+    ///
+    /// Prevents fall-through to ``object.__init__()`` when subclasses call
+    /// ``super().__init__(*pathsegments)``.
+    #[pyo3(signature = (*args))]
+    fn __init__(&self, args: &Bound<'_, PyTuple>) -> PyResult<()> {
+        let _ = args;
+        Ok(())
     }
 
     // -- properties ----------------------------------------------------
@@ -1607,13 +1618,8 @@ impl PurePath {
             })
             .collect();
 
-        let cls = {
-            let bound =
-                unsafe { pyo3::Bound::<'_, pyo3::PyAny>::from_borrowed_ptr(py, slf.as_ptr()) };
-            bound.getattr("__class__")?.unbind()
-        };
-
-        let iter = GlobIter::new(str_results, cls);
+        let source: PyObject = slf.into_pyobject(py)?.into_any().unbind();
+        let iter = GlobIter::new(str_results, source);
         Ok(Py::new(py, iter)?.into_pyobject(py)?.into_any().unbind())
     }
 
@@ -1795,8 +1801,12 @@ pub struct PurePosixPath;
 #[pymethods]
 impl PurePosixPath {
     #[new]
-    #[pyo3(signature = (*args))]
-    fn new(args: &Bound<'_, PyTuple>) -> PyResult<(Self, PurePath)> {
+    #[pyo3(signature = (*args, **kwargs))]
+    fn new(
+        args: &Bound<'_, PyTuple>,
+        kwargs: Option<&Bound<'_, PyDict>>,
+    ) -> PyResult<(Self, PurePath)> {
+        let _ = kwargs;
         let raw = join_path_segments(args, PathFlavour::Posix)?;
         Ok((Self, PurePath::new_posix(raw)))
     }
@@ -1812,8 +1822,12 @@ pub struct PureWindowsPath;
 #[pymethods]
 impl PureWindowsPath {
     #[new]
-    #[pyo3(signature = (*args))]
-    fn new(args: &Bound<'_, PyTuple>) -> PyResult<(Self, PurePath)> {
+    #[pyo3(signature = (*args, **kwargs))]
+    fn new(
+        args: &Bound<'_, PyTuple>,
+        kwargs: Option<&Bound<'_, PyDict>>,
+    ) -> PyResult<(Self, PurePath)> {
+        let _ = kwargs;
         let raw = join_path_segments(args, PathFlavour::Windows)?;
         Ok((Self, PurePath::new_windows(raw)))
     }

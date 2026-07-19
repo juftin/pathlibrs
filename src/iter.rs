@@ -6,7 +6,7 @@
 use std::ffi::OsString;
 
 use pyo3::prelude::*;
-use pyo3::types::PyTuple;
+use pyo3::types::PyString;
 
 use crate::repr::{PathFlavour, PathRepr};
 
@@ -93,13 +93,15 @@ pub struct ParentsIter {
     parts: Vec<OsString>,
     /// Current number of parts to include (decreasing).
     part_count: usize,
-    /// The Python class to use for constructing path objects.
-    cls: PyObject,
+    /// The source path instance, used to construct result paths via
+    /// ``with_segments`` so that subclasses that override it preserve
+    /// extra state (CPython test_with_segments).
+    source: PyObject,
 }
 
 impl ParentsIter {
     /// Create a new parents iterator from a parsed path.
-    pub fn new(repr: &PathRepr, flavour: PathFlavour, cls: PyObject) -> Self {
+    pub fn new(repr: &PathRepr, flavour: PathFlavour, source: PyObject) -> Self {
         let parsed = repr.parsed(flavour);
         Self {
             raw: repr.raw().to_os_string(),
@@ -107,7 +109,7 @@ impl ParentsIter {
             flavour,
             parts: parsed.parts.clone(),
             part_count: parsed.parts.len(),
-            cls,
+            source,
         }
     }
 }
@@ -154,9 +156,14 @@ impl ParentsIter {
         let parent_bytes = &raw_bytes[..end];
         let parent_str = crate::from_os_bytes(parent_bytes).to_string_lossy();
 
-        // Construct a new path object using the stored class
-        let args = pyo3::types::PyTuple::new(py, &[pyo3::types::PyString::new(py, &parent_str)])?;
-        let result = self.cls.call1(py, args)?;
+        // Construct a new path object via with_segments so that subclasses
+        // that override it preserve extra state (CPython test_with_segments).
+        let parent_str = PyString::new(py, &parent_str);
+        let result = self
+            .source
+            .bind(py)
+            .call_method1("with_segments", (parent_str,))?;
+        let result = result.unbind();
 
         self.part_count = self.part_count.saturating_sub(1);
         Ok(Some(result))
@@ -171,17 +178,19 @@ impl ParentsIter {
 pub struct GlobIter {
     results: Vec<String>,
     pos: usize,
-    /// The Python class to use for constructing result path objects.
-    cls: PyObject,
+    /// The source path instance, used to construct result paths via
+    /// ``with_segments`` so that subclasses that override it preserve
+    /// extra state (CPython test_with_segments).
+    source: PyObject,
 }
 
 impl GlobIter {
     /// Create a new GlobIter from collected result paths.
-    pub fn new(results: Vec<String>, cls: PyObject) -> Self {
+    pub fn new(results: Vec<String>, source: PyObject) -> Self {
         Self {
             results,
             pos: 0,
-            cls,
+            source,
         }
     }
 }
@@ -198,7 +207,14 @@ impl GlobIter {
         }
         let path_str = &self.results[self.pos];
         self.pos += 1;
-        let args = PyTuple::new(py, &[pyo3::types::PyString::new(py, path_str)])?;
-        Ok(Some(self.cls.call1(py, args)?))
+        // Use with_segments so that subclasses that override it preserve
+        // extra state (CPython test_with_segments).
+        let arg = PyString::new(py, path_str);
+        Ok(Some(
+            self.source
+                .bind(py)
+                .call_method1("with_segments", (arg,))?
+                .unbind(),
+        ))
     }
 }
