@@ -7,10 +7,10 @@
 # Remove entries as features are fixed in pathlibrs.
 # Only private-API tests should remain as permanent skips.
 #
-# Stats: 29 active entries | 792 passed | 411 skipped | 0 failures (macOS)
+# Stats: 30 active entries | 791 passed | 412 skipped | 0 failures (macOS)
 #        27 private-API entries (permanent)
-#         2 platform-specific / deferred
-#       (210 entries resolved from 239 baseline)
+#         3 platform-specific / deferred
+#       (209 entries resolved from 239 baseline)
 
 # ═══════════════════════════════════════════════════════════════════════
 
@@ -46,6 +46,11 @@ PathTest.test_delete_outer_junction
 # ── Private API: Unpickling 3.13 (1 entry, permanent) ─────────────────
 # CPython 3.13 pickle format references pathlib._local.PurePosixPath
 PurePathTest.test_concrete_class
+
+# ── rmdir (1 entry, Windows handle leak) ──────────────────────────────
+# POSIX passes; on Windows, rmdir raises PermissionError (os error 5)
+# after iterdir+unlink. Likely a Windows symlink/junction unlink issue.
+PathTest.test_rmdir
 
 # ── test_absolute_windows (1 entry, Windows-only) ───────────────────
 # Uses os_helper.subst_drive() — cannot run on POSIX.

@@ -538,6 +538,17 @@ impl PathInfo {
 
 /// Non-strict resolution: resolve existing prefix, append rest.
 fn resolve_non_strict(path: &StdPath) -> Result<std::path::PathBuf, io::Error> {
+    let mut current = path.to_path_buf();
+    loop {
+        let result = resolve_non_strict_once(&current)?;
+        if result == current {
+            return Ok(result);
+        }
+        current = result;
+    }
+}
+
+fn resolve_non_strict_once(path: &StdPath) -> Result<std::path::PathBuf, io::Error> {
     let mut components: Vec<&OsStr> = path.iter().collect();
     let is_absolute = path.is_absolute();
 
