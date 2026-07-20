@@ -7,42 +7,14 @@
 # Remove entries as features are fixed in pathlibrs.
 # Only private-API tests should remain as permanent skips.
 #
-# Stats: 27 active entries | 795 passed | 409 skipped | 0 failures (macOS)
-#        27 private-API entries (permanent)
-#         0 platform-specific / deferred
-#       (212 entries resolved from 239 baseline)
+# Stats: 1 active entry | 819 passed | 384 skipped | 0 failures (macOS)
+#        1 permanent (class-hierarchy)
+#       (238 entries resolved from 239 baseline)
 
 # ═══════════════════════════════════════════════════════════════════════
 
-# ── Private API: _delete() (26 entries, permanent) ────────────────────
-PathSubclassTest.test_delete_dir
-PathSubclassTest.test_delete_does_not_choke_on_failing_lstat
-PathSubclassTest.test_delete_file
-PathSubclassTest.test_delete_inner_symlink
-PathSubclassTest.test_delete_missing
-PathSubclassTest.test_delete_on_named_pipe
-PathSubclassTest.test_delete_symlink
-PathSubclassTest.test_delete_unwritable
-PathTest.test_delete_dir
-PathTest.test_delete_does_not_choke_on_failing_lstat
-PathTest.test_delete_file
-PathTest.test_delete_inner_symlink
-PathTest.test_delete_missing
-PathTest.test_delete_on_named_pipe
-PathTest.test_delete_symlink
-PathTest.test_delete_unwritable
-PosixPathTest.test_delete_dir
-PosixPathTest.test_delete_does_not_choke_on_failing_lstat
-PosixPathTest.test_delete_file
-PosixPathTest.test_delete_inner_symlink
-PosixPathTest.test_delete_missing
-PosixPathTest.test_delete_on_named_pipe
-PosixPathTest.test_delete_symlink
-PosixPathTest.test_delete_unwritable
-# Additional Windows-only delete entries:
-PathTest.test_delete_inner_junction
-PathTest.test_delete_outer_junction
-
-# ── Private API: Unpickling 3.13 (1 entry, permanent) ─────────────────
-# CPython 3.13 pickle format references pathlib._local.PurePosixPath
+# ── Class hierarchy: PurePath does not auto-dispatch (1 entry) ────────
+# CPython's PurePath('a') returns PurePosixPath on POSIX.  Our
+# PurePath('a') returns PurePath — auto-dispatch to the platform
+# concrete subclass is not implemented.
 PurePathTest.test_concrete_class
