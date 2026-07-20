@@ -8,9 +8,6 @@ use std::io::{self, Write};
 use std::path::Path as StdPath;
 use std::sync::OnceLock;
 
-#[cfg(unix)]
-use std::os::unix::fs::PermissionsExt;
-
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 
@@ -635,23 +632,28 @@ pub fn mkdir(path: &OsStr, mode: u32, parents: bool, exist_ok: bool) -> PyResult
 
     match result {
         Ok(()) => {
-            // Set permissions after creation when explicit mode requested.
-            // Query the current umask so that set_permissions mirrors what
-            // mkdir(2) would produce (CPython test_mkdir_parents).
+            // On Unix, adjust permissions after creation when the caller
+            // requested a specific mode.  std::fs::create_dir / create_dir_all
+            // always pass mode 0o777 to the OS, and the kernel applies the
+            // process umask.  We derive the umask from the actual permissions
+            // of the newly created directory, then chmod to apply the same
+            // umask to the caller's requested mode.
             #[cfg(unix)]
             {
                 if mode != 0o777 {
-                    // Query the current umask so that set_permissions mirrors
-                    // what mkdir(2) would produce (CPython test_mkdir_parents).
-                    let umask = unsafe { libc::umask(0o777) } as u32;
-                    unsafe { libc::umask(umask as libc::mode_t) };
-                    let effective_mode = mode & !umask;
-                    let perms = std::fs::Permissions::from_mode(effective_mode);
-                    let perm_result = Python::with_gil(|py| {
-                        py.allow_threads(|| std::fs::set_permissions(&path_buf, perms))
-                    });
-                    if let Err(e) = perm_result {
-                        return Err(io_err_to_pyerr(e));
+                    use std::os::unix::fs::PermissionsExt;
+                    let actual = std::fs::metadata(&path_buf)
+                        .map_err(io_err_to_pyerr)?
+                        .permissions()
+                        .mode();
+                    // The permission bits of the just-created directory are
+                    // 0o777 & ~umask.  Invert to recover the umask.
+                    let umask = (0o777u32) & !actual;
+                    let masked_mode = mode & !umask;
+                    // Only chmod if the permissions actually differ.
+                    if masked_mode != (actual & 0o777) {
+                        let perms = std::fs::Permissions::from_mode(masked_mode);
+                        std::fs::set_permissions(&path_buf, perms).map_err(io_err_to_pyerr)?;
                     }
                 }
             }
