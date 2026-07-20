@@ -568,6 +568,7 @@ fn resolve_non_strict(path: &StdPath) -> Result<std::path::PathBuf, io::Error> {
             }
             Err(e)
                 if e.kind() == io::ErrorKind::NotFound
+                    || e.kind() == io::ErrorKind::PermissionDenied
                     || e.kind() == io::ErrorKind::NotADirectory
                     || is_eloop(&e) =>
             {
