@@ -950,17 +950,30 @@ impl PurePath {
             return Self::_make_child(py, slf.as_ptr(), OsString::from(raw));
         }
 
+        // On Windows-flavoured paths, drive-relative paths like "Z:" or
+        // "Z:foo" need per-drive CWD resolution.  os.path.abspath() calls
+        // GetFullPathNameW on Windows which handles this correctly.
+        if slf._is_windows() {
+            let s = raw_str.as_ref();
+            let has_drive =
+                s.len() >= 2 && s.as_bytes()[0].is_ascii_alphabetic() && s.as_bytes()[1] == b':';
+            let has_root =
+                s.len() >= 3 && (s.chars().nth(2) == Some('\\') || s.chars().nth(2) == Some('/'));
+            if has_drive && !has_root {
+                let os_path = py.import("os.path")?;
+                let result: String = os_path.call_method1("abspath", (s,))?.extract()?;
+                return Self::_make_child(py, slf.as_ptr(), OsString::from(&result));
+            }
+        }
+
         // Use Python's os.getcwd() so tests can mock it
         let os_mod = py.import("os")?;
         let cwd: String = os_mod.call_method0("getcwd")?.extract()?;
 
         // When the raw path is ".", just return the cwd without trailing "/."
-        // This matches CPython's os.path.join(cwd, ".") = cwd
         let result = if raw_str.as_ref() == "." {
             OsString::from(&cwd)
         } else {
-            // Push components individually through PathBuf to normalize
-            // separators on Windows (where "a/b/c" must become "a\\b\\c").
             let mut combined = std::path::PathBuf::from(&cwd);
             for component in std::path::Path::new(raw).components() {
                 combined.push(component.as_os_str());

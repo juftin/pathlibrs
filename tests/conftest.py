@@ -227,6 +227,56 @@ try:
 
     os_helper.EnvironmentVarGuard.unset = _unset_multi
 
+    # ── Python < 3.11 compat: infinite_recursion ────────────────────────────
+    # CPython 3.10 raises RecursionError when sys.setrecursionlimit() is
+    # called with a value below the current call stack depth. On Python
+    # 3.11+, this was relaxed to a deferred limit. Patch the test helper
+    # so test_walk_above_recursion_limit can run on Python 3.10.
+    if sys.version_info < (3, 11) and hasattr(test.support, "infinite_recursion"):
+        from contextlib import contextmanager as _ir_cm
+
+        _orig_infinite_recursion = test.support.infinite_recursion
+
+        @_ir_cm
+        def _infinite_recursion_patched(max_depth=75):
+            original_depth = sys.getrecursionlimit()
+            try:
+                try:
+                    sys.setrecursionlimit(max_depth)
+                except RecursionError:
+                    pass
+                yield
+            finally:
+                sys.setrecursionlimit(original_depth)
+
+        test.support.infinite_recursion = _infinite_recursion_patched
+
+    # ── Shim subst_drive for Python < 3.14 ──────────────────────────────────
+    # CPython 3.14 added os_helper.subst_drive().  On Windows, provide a
+    # fallback using the subst command directly so test_absolute_windows
+    # can run on Python 3.10–3.13.
+    if not hasattr(os_helper, "subst_drive") and sys.platform == "win32":
+        from contextlib import contextmanager as _scm
+
+        @_scm
+        def _subst_drive(path):
+            import string as _string
+            import subprocess as _sp
+
+            for letter in _string.ascii_uppercase[::-1]:
+                drive = f"{letter}:"
+                if not os.path.exists(drive):
+                    break
+            else:
+                raise RuntimeError("No free drive letter for subst")
+            _sp.check_call(["subst", drive, path])
+            try:
+                yield drive
+            finally:
+                _sp.check_call(["subst", drive, "/d"])
+
+        os_helper.subst_drive = _subst_drive
+
     import test.support.import_helper as import_helper
 
     if not hasattr(import_helper, "ensure_lazy_imports"):
