@@ -519,11 +519,12 @@ impl PurePath {
     #[pyo3(signature = (uri))]
     fn from_uri(_cls: &Bound<'_, PyType>, uri: &str) -> PyResult<PyObject> {
         let _py = _cls.py();
-        let cls_name = _cls
-            .getattr("__name__")
-            .map(|n| n.extract::<String>().unwrap_or_default())
-            .unwrap_or_default();
-        let is_windows = cls_name.contains("Windows");
+        // Detect Windows flavour via parser name (ntpath=Windows, posixpath=POSIX).
+        let is_windows = _cls
+            .getattr("parser")
+            .and_then(|p| p.getattr("__name__"))
+            .map(|n| n.extract::<String>().unwrap_or_default() == "ntpath")
+            .unwrap_or(false);
         let path_str = parse_file_uri(uri, is_windows)?;
         Ok(_cls.call1((path_str,))?.unbind())
     }

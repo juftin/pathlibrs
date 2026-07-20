@@ -179,16 +179,27 @@ fn secs_since_epoch(ft: u64) -> f64 {
 /// Sets ``errno`` on the exception so CPython tests that check
 /// ``exception.errno == errno.ENOENT`` pass.
 fn io_err_to_pyerr(err: io::Error) -> PyErr {
-    let raw_os_error = err.raw_os_error();
     let msg = err.to_string();
     Python::with_gil(|py| {
-        let exc_type: Bound<'_, pyo3::types::PyType> = match err.kind() {
-            io::ErrorKind::NotFound => py.get_type::<pyo3::exceptions::PyFileNotFoundError>(),
-            io::ErrorKind::PermissionDenied => py.get_type::<pyo3::exceptions::PyPermissionError>(),
-            io::ErrorKind::AlreadyExists => py.get_type::<pyo3::exceptions::PyFileExistsError>(),
-            _ => py.get_type::<pyo3::exceptions::PyOSError>(),
+        let (exc_type, errno) = match err.kind() {
+            io::ErrorKind::NotFound => (
+                py.get_type::<pyo3::exceptions::PyFileNotFoundError>(),
+                libc::ENOENT,
+            ),
+            io::ErrorKind::PermissionDenied => (
+                py.get_type::<pyo3::exceptions::PyPermissionError>(),
+                libc::EACCES,
+            ),
+            io::ErrorKind::AlreadyExists => (
+                py.get_type::<pyo3::exceptions::PyFileExistsError>(),
+                libc::EEXIST,
+            ),
+            _ => (
+                py.get_type::<pyo3::exceptions::PyOSError>(),
+                err.raw_os_error().unwrap_or(0),
+            ),
         };
-        let errno_val: PyObject = raw_os_error.into_pyobject(py).unwrap().into_any().unbind();
+        let errno_val: PyObject = errno.into_pyobject(py).unwrap().into_any().unbind();
         PyErr::from_type(exc_type, (errno_val, msg))
     })
 }
@@ -427,8 +438,19 @@ pub fn resolve(path: &OsStr, strict: bool) -> PyResult<std::path::PathBuf> {
         })
     });
     match result {
-        Ok(p) => Ok(p),
+        Ok(p) => Ok(strip_extended_prefix(p)),
         Err(e) => Err(io_err_to_pyerr(e)),
+    }
+}
+
+/// Strip Windows extended-length prefix (``\\?\``) from a path.
+/// ``std::fs::canonicalize`` on Windows returns paths with this prefix.
+fn strip_extended_prefix(path: std::path::PathBuf) -> std::path::PathBuf {
+    let s = path.to_string_lossy();
+    if let Some(rest) = s.strip_prefix("\\\\?\\") {
+        std::path::PathBuf::from(rest)
+    } else {
+        path
     }
 }
 
