@@ -1,27 +1,14 @@
 # tests/skips.txt — Vendored CPython 3.14.6 Test Skips
 #
 # Tests listed here are skipped when running the vendored CPython test suite.
-# Skip matching walks the MRO — PathTest.test_foo also skips
-# WindowsPathTest.test_foo and PosixPathTest.test_foo.
 #
-# Remove entries as features are fixed in pathlibrs.
-# Only private-API tests should remain as permanent skips.
-#
-# Stats: 2 active entries | 816 passed | 388 skipped | 0 failures (macOS)
-#        2 permanent
-#       (237 entries resolved from 239 baseline)
+# Stats: 1 active entry | 810 passed | 394 skipped | 0 failures (macOS)
+#        1 PyO3 limitation
+#       (238 entries resolved from 239 baseline)
 
-# ═══════════════════════════════════════════════════════════════════════
-
-# ── Class hierarchy: PurePath auto-dispatch (1 entry) ─────────────────
-# CPython's PurePath('a') returns PurePosixPath on POSIX.  Our
-# PurePath('a') returns PurePath — auto-dispatch to the platform
-# concrete subclass is not implemented.
+# ── PurePath auto-dispatch (1 entry, PyO3 limitation) ────────────────
+# CPython PurePath('a') returns PurePosixPath via __new__ dispatch.
+# pathlibrs #[new] must return Self — cannot return a subclass.
+# #[classmethod(name = "__new__")] is not accepted as a constructor.
+# Upstream PyO3 support needed.
 PurePathTest.test_concrete_class
-
-# ── test_delete_unwritable (1 entry, Windows chmod semantics) ─────────
-# On Windows, os.chmod only affects the read-only attribute and does not
-# prevent file deletion inside a directory.  _delete() succeeds instead
-# of raising PermissionError, which also causes the finally-block
-# chmod-restore to fail with FileNotFoundError.
-PathTest.test_delete_unwritable
