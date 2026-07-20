@@ -6,6 +6,11 @@ on:
     pull_request:
         branches: [main]
 
+permissions:
+    contents: read
+    actions: write
+    pull-requests: write
+
 env:
     CARGO_TERM_COLOR: always
 
@@ -78,3 +83,57 @@ jobs:
               with:
                   name: wheels-${{ matrix.os }}
                   path: dist/
+
+    benchmarks:
+        name: benchmarks
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Install Rust toolchain
+              uses: dtolnay/rust-toolchain@stable
+
+            - uses: Swatinem/rust-cache@v2
+
+            - uses: actions/setup-python@v5
+              with:
+                  python-version: "3.14"
+
+            - name: Install uv
+              uses: astral-sh/setup-uv@v5
+
+            - name: Download baseline (PR only)
+              if: github.event_name == 'pull_request'
+              uses: dawidd6/action-download-artifact@v6
+              with:
+                  branch: main
+                  name: benchmark-results
+                  path: benchmarks/results
+                  if_no_artifact_found: warn
+
+            - name: Run benchmarks
+              id: bench
+              run: |
+                  if [ "${{ github.event_name }}" = "pull_request" ] && ls benchmarks/results/Linux-*/ 2>/dev/null; then
+                    echo "Comparing against main baseline..."
+                    make bench-compare > /tmp/bench-output.txt 2>&1 || true
+                    cat /tmp/bench-output.txt
+                  else
+                    echo "Saving new baseline..."
+                    make bench-save
+                  fi
+
+            - name: Generate summary table
+              if: always()
+              run: |
+                  JSON=$(find benchmarks/results -name "*.json" -not -name ".gitkeep" | sort -r | head -1)
+                  if [ -n "$JSON" ]; then
+                    uv run python scripts/benchmark_comment.py "$JSON" | tee "$GITHUB_STEP_SUMMARY"
+                  fi
+
+            - name: Save baseline (main only)
+              if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+              uses: actions/upload-artifact@v4
+              with:
+                  name: benchmark-results
+                  path: benchmarks/results/

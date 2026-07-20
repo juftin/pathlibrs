@@ -119,33 +119,39 @@ clean: ## Remove build artifacts (target/, dist/, caches).
 
 BENCH_DIR := benchmarks
 BENCH_RESULTS := $(BENCH_DIR)/results
-BENCH_BASELINE := $(BENCH_RESULTS)/baseline.json
+BENCH_BASELINE := $(BENCH_RESULTS)
+BENCH_FLAGS := --benchmark-warmup=on --benchmark-columns=min,max,mean,median,stddev,outliers,ops,rounds,iterations
+
+.PHONY: install-release
+install-release: setup ## Build and install pathlibrs in release mode (with LTO).
+	uv run maturin develop --release
 
 .PHONY: bench
-bench: install ## Run all benchmarks against pathlibrs and built-in pathlib.
-	uv run --no-sync pytest $(BENCH_DIR)/ -v --benchmark-only \
-		--benchmark-warmup=on \
-		--benchmark-columns=min,max,mean,median,stddev,outliers,ops,rounds,iterations
+bench: install-release ## Run benchmarks (release build) against pathlibrs and built-in pathlib.
+	uv run --no-sync pytest $(BENCH_DIR)/ -v --benchmark-only $(BENCH_FLAGS)
 
-.PHONY: bench-compare
-bench-compare: install ## Run benchmarks and compare against saved baseline.
-	@test -f $(BENCH_BASELINE) || { echo "No baseline found. Run 'make bench-save' first."; exit 1; }
-	uv run --no-sync pytest $(BENCH_DIR)/ -v --benchmark-only \
-		--benchmark-warmup=on \
-		--benchmark-compare \
-		--benchmark-compare-fail=min:10%,mean:10%,median:10% \
-		--benchmark-storage=$(BENCH_DIR)/results \
-		--benchmark-autosave
+.PHONY: bench-dev
+bench-dev: install ## Run benchmarks (debug build) for quick iteration.
+	uv run --no-sync pytest $(BENCH_DIR)/ -v --benchmark-only $(BENCH_FLAGS)
 
 .PHONY: bench-save
-bench-save: install ## Run benchmarks and save results as baseline for future comparison.
-	mkdir -p $(BENCH_DIR)/results
+bench-save: install-release ## Run release benchmarks and save results as baseline.
+	mkdir -p $(BENCH_RESULTS)
 	uv run --no-sync pytest $(BENCH_DIR)/ -v --benchmark-only \
-		--benchmark-warmup=on \
+		$(BENCH_FLAGS) \
 		--benchmark-save=baseline \
-		--benchmark-storage=$(BENCH_DIR)/results \
+		--benchmark-storage=$(BENCH_RESULTS) \
 		--benchmark-autosave
-	@echo "Baseline saved to $(BENCH_BASELINE)"
+
+.PHONY: bench-compare
+bench-compare: install-release ## Run benchmarks and compare against saved baseline (fails if >10% regression).
+	@ls $(BENCH_RESULTS)/*.json >/dev/null 2>&1 || { echo "No baseline found. Run 'make bench-save' first."; exit 1; }
+	uv run --no-sync pytest $(BENCH_DIR)/ -v --benchmark-only \
+		$(BENCH_FLAGS) \
+		--benchmark-compare \
+		--benchmark-compare-fail=min:10%,mean:10%,median:10% \
+		--benchmark-storage=$(BENCH_RESULTS) \
+		--benchmark-json=$(BENCH_RESULTS)/benchmark.json
 
 ##@ Help
 
