@@ -184,16 +184,14 @@ fn io_err_to_pyerr(err: io::Error) -> PyErr {
         let (exc_type, errno) = match err.kind() {
             io::ErrorKind::NotFound => (
                 py.get_type::<pyo3::exceptions::PyFileNotFoundError>(),
-                libc::ENOENT,
+                ENOENT,
             ),
-            io::ErrorKind::PermissionDenied => (
-                py.get_type::<pyo3::exceptions::PyPermissionError>(),
-                libc::EACCES,
-            ),
-            io::ErrorKind::AlreadyExists => (
-                py.get_type::<pyo3::exceptions::PyFileExistsError>(),
-                libc::EEXIST,
-            ),
+            io::ErrorKind::PermissionDenied => {
+                (py.get_type::<pyo3::exceptions::PyPermissionError>(), EACCES)
+            }
+            io::ErrorKind::AlreadyExists => {
+                (py.get_type::<pyo3::exceptions::PyFileExistsError>(), EEXIST)
+            }
             _ => (
                 py.get_type::<pyo3::exceptions::PyOSError>(),
                 err.raw_os_error().unwrap_or(0),
@@ -203,6 +201,11 @@ fn io_err_to_pyerr(err: io::Error) -> PyErr {
         PyErr::from_type(exc_type, (errno_val, msg))
     })
 }
+
+// POSIX errno constants (available on all platforms via libc)
+const ENOENT: i32 = 2;
+const EACCES: i32 = 13;
+const EEXIST: i32 = 17;
 
 /// Retrieve ``std::fs::Metadata``, releasing the GIL.
 ///
