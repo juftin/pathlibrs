@@ -2021,6 +2021,33 @@ pub(crate) fn join_path_segments(
     let mut parts: Vec<OsString> = Vec::new();
 
     for arg in args.iter() {
+        // When an arg is a PurePath-like object, convert to the target
+        // flavour's string representation before parsing.  This handles
+        // cross-flavour cases like PurePosixPath(PureWindowsPath(...)).
+        if arg.getattr("parts").is_ok() {
+            let path_str: String = if flavour == PathFlavour::Posix {
+                arg.call_method0("as_posix")?.extract()?
+            } else {
+                arg.str()?.to_string()
+            };
+            if path_str.is_empty() {
+                continue;
+            }
+            let parsed = crate::parsing::parse_path(OsStr::new(&path_str), flavour);
+            if parsed.drive.is_some() || parsed.root.is_some() {
+                if parsed.drive.is_some() {
+                    drive = parsed.drive;
+                }
+                if parsed.root.is_some() {
+                    root = parsed.root;
+                }
+                parts = parsed.parts;
+            } else {
+                parts.extend(parsed.parts);
+            }
+            continue;
+        }
+
         let s = _extract_path_str(&arg)?;
         if s.is_empty() {
             continue;

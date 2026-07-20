@@ -63,6 +63,24 @@ if not hasattr(unittest.TestCase, "assertIsSubclass"):
 
 sys.modules["pathlib"] = pathlibrs
 
+# ── Shim pathname2url(add_scheme=True) for Python < 3.14 ─────────────────────
+# CPython 3.14 added ``add_scheme`` kwarg to urllib.request.pathname2url.
+# The vendored test uses this kwarg; shim it for older Python versions.
+import urllib.request  # noqa: E402
+
+_orig_pathname2url = urllib.request.pathname2url
+
+
+def _pathname2url_shim(p, add_scheme=False):
+    """Shim that forwards to pathname2url but also accepts ``add_scheme``."""
+    result = _orig_pathname2url(p)
+    if add_scheme and not result.startswith("file:"):
+        result = "file:" + result
+    return result
+
+
+urllib.request.pathname2url = _pathname2url_shim
+
 
 # ── Register pathlib._local for Python 3.13 pickle compatibility ───────────
 # CPython's Lib/pathlib/_local.py exists so pathlib objects pickled under
@@ -118,6 +136,18 @@ try:
         os_helper.skip_unless_hardlink = lambda fn: fn
     if not hasattr(os_helper, "skip_if_dac_override"):
         os_helper.skip_if_dac_override = lambda fn: fn
+
+    # Shimming EnvironmentVarGuard.unset: CPython 3.14 added variadic args
+    # (``unset(self, envvar, /, *envvars)``).  Patch the older single-arg
+    # version so the vendored test can call ``unset(a, b, c)`` on any host.
+    _orig_unset = os_helper.EnvironmentVarGuard.unset
+
+    def _unset_multi(self, envvar, *envvars):
+        """Unset one or more environment variables."""
+        for ev in (envvar, *envvars):
+            _orig_unset(self, ev)
+
+    os_helper.EnvironmentVarGuard.unset = _unset_multi
 
     import test.support.import_helper as import_helper
 
@@ -233,5 +263,7 @@ def pytest_collection_modifyitems(config, items):
             "test_concrete_parser",
             "test_subclass_compat",
             "test_instance_check",
+            "test_passing_kwargs_errors",
+            "test_parse_windows_path",
         ):
             item.add_marker(pytest.mark.skip(reason="Not applicable with --windows-flavour"))
