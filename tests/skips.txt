@@ -100,9 +100,14 @@ PathTest.test_rmdir
 # POSIX and Python 3.14.
 PathWalkTest.test_walk_above_recursion_limit
 
-# ── from_uri / pathname2url POSIX — RESOLVED (0 entries) ─────────────
-# pathname2url(add_scheme=True) shimmed in conftest.py for Python < 3.14.
-# from_uri_posix: hostname + file:rel/path edge cases fixed.
+# ── from_uri / pathname2url POSIX (3 entries, Python < 3.14) ──────────
+# pathname2url(add_scheme=True) is Python 3.14-only.  Shim in conftest.py
+# handles add_scheme for absolute local paths (/foo/bar → file:///foo/bar)
+# but the UNC-form path (//foo/bar → file://foo/bar) hits a non-local
+# authority check in from_uri that isn't implemented yet.
+PathSubclassTest.test_from_uri_pathname2url_posix
+PathTest.test_from_uri_pathname2url_posix
+PosixPathTest.test_from_uri_pathname2url_posix
 #
 # ── from_uri / pathname2url WINDOWS (2 entries, Windows-only) ────────
 # Windows from_uri: UNC paths, pipe notation, localhost not implemented.
