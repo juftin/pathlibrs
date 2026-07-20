@@ -1893,6 +1893,15 @@ fn delete_recursive(path: &StdPath, ignore_errors: bool) -> Result<(), io::Error
         match std::fs::remove_file(path) {
             Ok(()) => Ok(()),
             Err(e) => {
+                // On Windows, remove_file fails for directory
+                // symlinks.  Fall back to remove_dir.
+                #[cfg(windows)]
+                if e.kind() == io::ErrorKind::PermissionDenied {
+                    match std::fs::remove_dir(path) {
+                        Ok(()) => return Ok(()),
+                        Err(_) => {}
+                    }
+                }
                 if ignore_errors {
                     Ok(())
                 } else {
