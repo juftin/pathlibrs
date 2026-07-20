@@ -537,16 +537,26 @@ impl PathInfo {
 }
 
 /// Non-strict resolution: resolve existing prefix, append rest.
+///
+/// On POSIX we use the bulk-canonicalize-and-pop approach because
+/// ``std::fs::canonicalize`` follows symlinks correctly.  On Windows
+/// ``canonicalize`` returns ``PermissionDenied`` for directory
+/// symlinks, so we walk component by component with ``read_link``.
+#[cfg(unix)]
 fn resolve_non_strict(path: &StdPath) -> Result<std::path::PathBuf, io::Error> {
+    resolve_non_strict_canonicalize(path)
+}
+
+#[cfg(not(unix))]
+fn resolve_non_strict(path: &StdPath) -> Result<std::path::PathBuf, io::Error> {
+    resolve_non_strict_readlink(path)
+}
+
+/// POSIX: bulk canonicalize, pop non-existent suffix, re-append.
+#[cfg(unix)]
+fn resolve_non_strict_canonicalize(path: &StdPath) -> Result<std::path::PathBuf, io::Error> {
     let mut components: Vec<&OsStr> = path.iter().collect();
     let is_absolute = path.is_absolute();
-    eprintln!(
-        "[resolve_non_strict] input='{}' abs={}",
-        path.display(),
-        is_absolute
-    );
-
-    // Track components we've popped (non-existent suffix).
     let mut popped: Vec<&OsStr> = Vec::new();
 
     while !components.is_empty() {
@@ -562,72 +572,170 @@ fn resolve_non_strict(path: &StdPath) -> Result<std::path::PathBuf, io::Error> {
 
         match std::fs::canonicalize(&test_path) {
             Ok(resolved) => {
-                eprintln!(
-                    "[resolve_non_strict] canonicalize OK: '{}' -> '{}', popped={:?}",
-                    test_path.display(),
-                    resolved.display(),
-                    popped
-                );
-                // Re-append the popped non-existent components.
-                // Popped components are stored in reverse order (last popped first),
-                // so iterate in reverse to restore original order.
                 let mut result = resolved;
                 for c in popped.iter().rev() {
                     result.push(c);
-                    eprintln!(
-                        "[resolve_non_strict] after push '{}': '{}'",
-                        c.to_string_lossy(),
-                        result.display()
-                    );
-                    // Try to resolve symlinks in this component.
-                    if let Ok(further) = std::fs::canonicalize(&result) {
-                        eprintln!(
-                            "[resolve_non_strict]   -> resolved via canonicalize: '{}'",
-                            further.display()
-                        );
-                        result = further;
-                    } else {
-                        eprintln!("[resolve_non_strict]   -> canonicalize failed, keeping");
-                    }
                 }
                 return Ok(result);
             }
             Err(e)
                 if e.kind() == io::ErrorKind::NotFound
                     || e.kind() == io::ErrorKind::PermissionDenied
-                    || e.kind() == io::ErrorKind::NotADirectory
-                    || is_eloop(&e) =>
+                    || e.kind() == io::ErrorKind::NotADirectory =>
             {
-                eprintln!(
-                    "[resolve_non_strict] canonicalize FAIL {:?}: '{}', popping last",
-                    e.kind(),
-                    test_path.display()
-                );
                 popped.push(components.pop().unwrap());
             }
-            Err(e) => {
-                eprintln!(
-                    "[resolve_non_strict] canonicalize FATAL {:?}: '{}'",
-                    e.kind(),
-                    test_path.display()
-                );
-                return Err(e);
+            Err(_e) => {
+                // ELOOP or other error — canonicalize couldn't resolve
+                // this prefix.  Pop and try shorter prefix like NotFound.
+                popped.push(components.pop().unwrap());
             }
         }
     }
 
-    // No existing prefix found — return cwd-joined or absolute path.
     let base = if is_absolute {
         std::path::PathBuf::from("/")
     } else {
         std::env::current_dir()?
     };
-    // Re-append all original components to the base.
     let mut result = base;
     for c in path.iter() {
         result.push(c);
     }
     Ok(result)
+}
+
+/// Windows: component-by-component resolve using read_link + symlink_metadata.
+/// ``std::fs::canonicalize`` returns ``PermissionDenied`` on Windows for
+/// directory symlinks, so we avoid it entirely.
+#[cfg_attr(unix, allow(dead_code))]
+fn resolve_non_strict_readlink(path: &StdPath) -> Result<std::path::PathBuf, io::Error> {
+    let is_absolute = path.is_absolute();
+
+    // Build the initial resolved prefix from the path root.
+    let mut resolved = if is_absolute {
+        let mut prefix = std::path::PathBuf::new();
+        let mut comps = path.components();
+        loop {
+            match comps.next() {
+                Some(std::path::Component::Prefix(p)) => prefix.push(p.as_os_str()),
+                Some(std::path::Component::RootDir) => {
+                    prefix.push("/");
+                    break;
+                }
+                _ => break,
+            }
+        }
+        if prefix.as_os_str().is_empty() {
+            std::path::PathBuf::from("/")
+        } else {
+            prefix
+        }
+    } else {
+        std::env::current_dir()?
+    };
+
+    // Collect remaining normal components as owned OsStrings.
+    let mut remaining: Vec<OsString> = path
+        .components()
+        .filter_map(|c| match c {
+            std::path::Component::Normal(n) => Some(n.to_os_string()),
+            std::path::Component::ParentDir => Some(OsString::from("..")),
+            std::path::Component::CurDir => Some(OsString::from(".")),
+            _ => None,
+        })
+        .collect();
+
+    // Resolve component by component, following symlinks via read_link
+    // instead of canonicalize (which fails on Windows for dir symlinks).
+    let mut symlinks_resolved: u32 = 0;
+    const MAX_SYMLINKS: u32 = 256;
+
+    while !remaining.is_empty() {
+        let name = remaining.remove(0);
+        let name_str = name.to_string_lossy();
+
+        if name_str == "." {
+            continue;
+        }
+        if name_str == ".." {
+            resolved.pop();
+            continue;
+        }
+
+        resolved.push(&name);
+        match std::fs::symlink_metadata(&resolved) {
+            Ok(meta) if meta.is_symlink() => {
+                symlinks_resolved += 1;
+                if symlinks_resolved > MAX_SYMLINKS {
+                    // Likely a symlink loop.  Rebuild the path from
+                    // the last stable prefix + the current symlink
+                    // name + remaining components.  This matches
+                    // CPython's non-strict behaviour: the looped
+                    // symlink is kept as an opaque component.
+                    resolved.pop(); // remove the symlink we just pushed
+                    let mut result = resolved;
+                    result.push(&name);
+                    for n in remaining {
+                        result.push(&n);
+                    }
+                    return Ok(result);
+                }
+                let target = match std::fs::read_link(&resolved) {
+                    Ok(t) => t,
+                    Err(_e) => {
+                        // read_link failed (ELOOP or other
+                        // error).  Keep the component as-is.
+                        continue;
+                    }
+                };
+                resolved.pop(); // remove the symlink name
+                if target.is_absolute() {
+                    resolved = target;
+                } else {
+                    // Insert relative target components at the
+                    // front of remaining so they are resolved
+                    // one at a time.
+                    let mut insert_pos = 0usize;
+                    for comp in target.components() {
+                        match comp {
+                            std::path::Component::ParentDir => {
+                                remaining.insert(insert_pos, OsString::from(".."));
+                                insert_pos += 1;
+                            }
+                            std::path::Component::CurDir => {}
+                            std::path::Component::Normal(n) => {
+                                remaining.insert(insert_pos, n.to_os_string());
+                                insert_pos += 1;
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+            }
+            Ok(_) => {
+                // Exists and not a symlink — continue.
+            }
+            Err(ref e) if e.kind() == io::ErrorKind::NotFound => {
+                // This component doesn't exist.  Append remaining
+                // components to the resolved path and return.
+                for n in remaining {
+                    resolved.push(&n);
+                }
+                return Ok(resolved);
+            }
+            Err(_e) => {
+                // Permission denied or other non-NotFound error.
+                // Non-strict mode: append remaining and return.
+                for n in remaining {
+                    resolved.push(&n);
+                }
+                return Ok(resolved);
+            }
+        }
+    }
+
+    Ok(resolved)
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -752,28 +860,19 @@ fn not_a_directory_error(msg: String) -> PyErr {
 /// Remove an empty directory at ``path``.
 pub fn rmdir(path: &OsStr) -> PyResult<()> {
     let path_buf = StdPath::new(path).to_path_buf();
-    eprintln!("[rmdir] attempting '{}'", path_buf.display());
     let result = Python::with_gil(|py| {
         py.allow_threads(|| {
             #[cfg(windows)]
             {
-                for attempt in 0..5 {
+                for _ in 0..5 {
                     match std::fs::remove_dir(&path_buf) {
-                        Ok(()) => {
-                            eprintln!("[rmdir] OK on attempt {}", attempt);
-                            return Ok(());
-                        }
+                        Ok(()) => return Ok(()),
                         Err(e) if e.kind() == io::ErrorKind::PermissionDenied => {
-                            eprintln!("[rmdir] PermissionDenied attempt {}, retrying", attempt);
                             std::thread::sleep(std::time::Duration::from_millis(10));
                         }
-                        Err(e) => {
-                            eprintln!("[rmdir] FAIL {:?}: {}", e.kind(), e);
-                            return Err(e);
-                        }
+                        Err(e) => return Err(e),
                     }
                 }
-                eprintln!("[rmdir] final attempt after retries");
                 std::fs::remove_dir(&path_buf)
             }
             #[cfg(not(windows))]
@@ -918,39 +1017,35 @@ pub fn touch(path: &OsStr, mode: u32, exist_ok: bool) -> PyResult<()> {
 /// Remove (unlink) a file or symlink.
 pub fn unlink(path: &OsStr, missing_ok: bool) -> PyResult<()> {
     let path_buf = StdPath::new(path).to_path_buf();
-    eprintln!("[unlink] attempting '{}'", path_buf.display());
     let result = Python::with_gil(|py| {
         py.allow_threads(|| -> Result<(), io::Error> {
             match std::fs::remove_file(&path_buf) {
-                Ok(()) => {
-                    eprintln!("[unlink] remove_file OK");
-                    Ok(())
-                }
+                Ok(()) => Ok(()),
                 Err(e) => {
-                    eprintln!("[unlink] remove_file FAIL {:?}: {}", e.kind(), e);
-                    // On Windows, remove_file fails for directory symlinks.
-                    // Fall back to remove_dir if the path is a directory.
+                    // On Windows, remove_file fails for directory symlinks
+                    // because DeleteFileW returns ACCESS_DENIED for paths
+                    // with FILE_ATTRIBUTE_DIRECTORY.  Check symlink_metadata
+                    // — not file_type from DirEntry — to correctly detect
+                    // directory symlinks (which may not have the directory
+                    // attribute in their reparse-point metadata).
                     #[cfg(windows)]
-                    if std::fs::symlink_metadata(&path_buf)
-                        .map(|m| m.is_dir())
-                        .unwrap_or(false)
                     {
-                        eprintln!("[unlink] fallback to remove_dir (is_dir=true)");
-                        return std::fs::remove_dir(&path_buf);
+                        let meta = std::fs::symlink_metadata(&path_buf)?;
+                        if meta.file_type().is_symlink() {
+                            return std::fs::remove_dir(&path_buf);
+                        }
+                        if meta.is_dir() {
+                            return std::fs::remove_dir(&path_buf);
+                        }
                     }
-                    eprintln!("[unlink] no fallback, returning error");
                     Err(e)
                 }
             }
         })
     });
     match result {
-        Ok(()) => {
-            eprintln!("[unlink] OK");
-            Ok(())
-        }
+        Ok(()) => Ok(()),
         Err(e) => {
-            eprintln!("[unlink] final error {:?}: {}", e.kind(), e);
             if missing_ok && e.kind() == io::ErrorKind::NotFound {
                 Ok(())
             } else {
@@ -1161,7 +1256,6 @@ pub struct DirEntry {
 /// Entries ``"."`` and ``".."`` are excluded.
 pub fn read_dir(path: &OsStr) -> PyResult<Vec<DirEntry>> {
     let path_buf = StdPath::new(path).to_path_buf();
-    eprintln!("[read_dir] opening '{}'", path_buf.display());
     let result = Python::with_gil(|py| {
         py.allow_threads(|| -> Result<Vec<DirEntry>, io::Error> {
             let mut entries = Vec::new();
@@ -1169,17 +1263,12 @@ pub fn read_dir(path: &OsStr) -> PyResult<Vec<DirEntry>> {
             for entry in dir {
                 let entry = entry?;
                 let name = entry.file_name();
+                // Skip "." and ".." (they're included by read_dir on some platforms)
                 if name == "." || name == ".." {
                     continue;
                 }
                 let ft = entry.file_type()?;
                 let full_path = entry.path();
-                eprintln!(
-                    "[read_dir] entry '{}' is_dir={} is_symlink={}",
-                    full_path.display(),
-                    ft.is_dir(),
-                    ft.is_symlink()
-                );
                 entries.push(DirEntry {
                     path: OsString::from(full_path.as_os_str()),
                     name,
@@ -1187,22 +1276,10 @@ pub fn read_dir(path: &OsStr) -> PyResult<Vec<DirEntry>> {
                     is_symlink: ft.is_symlink(),
                 });
             }
-            eprintln!("[read_dir] {} entries total", entries.len());
             Ok(entries)
         })
     });
     result.map_err(io_err_to_pyerr)
-}
-
-/// Check for symlink loop (ELOOP) error, platform-dependent.
-#[cfg(unix)]
-fn is_eloop(e: &std::io::Error) -> bool {
-    e.raw_os_error() == Some(libc::ELOOP)
-}
-
-#[cfg(not(unix))]
-fn is_eloop(_e: &std::io::Error) -> bool {
-    false
 }
 
 // ═══════════════════════════════════════════════════════════════════════
