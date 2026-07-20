@@ -7,8 +7,10 @@
 # Remove entries as features are fixed in pathlibrs.
 # Only private-API tests should remain as permanent skips.
 #
-# Stats: 71 active entries | 682 passed | 457 skipped | 0 failures (all 6 CI platforms)
-#        (168 entries resolved from 239 baseline)
+# Stats: 43 active entries | 764 passed | 440 skipped | 0 failures
+#        30 private-API entries (permanent)
+#        13 platform-specific / deferred
+#        (196 entries resolved from 239 baseline)
 #
 # ═══════════════════════════════════════════════════════════════════════
 
@@ -68,17 +70,19 @@ PathTest.test_resolve_dot
 
 # ── ordering: cross-flavour TypeError — RESOLVED (0 entries) ────────────────────
 
-# ── expanduser_windows (1 entry, Py3.10 only) ──────────────────────
-# EnvironmentVarGuard.unset() API change — fails on Python 3.10
-PathTest.test_expanduser_windows
+# ── expanduser_windows — RESOLVED (0 entries) ────────────────────
+# EnvironmentVarGuard.unset() multi-arg shimmed in conftest.py for Py3.10+
 
-# ── owner/group windows (2 entries) ─────────────────────────────────
+# ── owner/group windows (2 entries) — PENDING ────────────────────
+# Need to raise UnsupportedOperation on Windows-flavoured paths.
 PathTest.test_group_windows
 PathTest.test_owner_windows
 
 # ── is_reserved() DeprecationWarning — RESOLVED (0 entries) ──────────
 
-# ── is_junction_true — posixpath.isjunction only in Python 3.12+ (1 entry)
+# ── is_junction_true (1 entry, Python < 3.12) ───────────────────────
+# posixpath.isjunction was added in Python 3.12.  The test cannot run on 3.10.
+# On Python 3.12+, the delegation through parser.isjunction works correctly.
 PathTest.test_is_junction_true
 
 # ── relative_to / is_relative_to — RESOLVED (0 entries) ──────────────
@@ -96,46 +100,32 @@ PathTest.test_rmdir
 # POSIX and Python 3.14.
 PathWalkTest.test_walk_above_recursion_limit
 
-# ── from_uri / pathname2url POSIX (5 entries) ─────────────────────────
-# from_uri_posix: RESOLVED (3 entries, hostname + file:rel/path fix)
-# from_uri_pathname2url_posix: requires pathname2url(add_scheme=True) — Python 3.14+ only
+# ── from_uri / pathname2url POSIX (3 entries, Python < 3.14) ──────────
+# pathname2url(add_scheme=True) is Python 3.14-only.  Shim in conftest.py
+# handles add_scheme for absolute local paths (/foo/bar → file:///foo/bar)
+# but the UNC-form path (//foo/bar → file://foo/bar) hits a non-local
+# authority check in from_uri that isn't implemented yet.
 PathSubclassTest.test_from_uri_pathname2url_posix
 PathTest.test_from_uri_pathname2url_posix
+PosixPathTest.test_from_uri_pathname2url_posix
+#
+# ── from_uri / pathname2url WINDOWS (2 entries, Windows-only) ────────
+# Windows from_uri: UNC paths, pipe notation, localhost not implemented.
 PathTest.test_from_uri_pathname2url_windows
 PathTest.test_from_uri_windows
-PosixPathTest.test_from_uri_pathname2url_posix
 
 # ── CompatiblePathTest — RESOLVED (0 entries) ─────────────────────────
 
 # ── Concrete class move edge cases — RESOLVED (0 entries) ────────────
 
-# ── Windows-specific: parser / drive / naming (29 entries) ────────────
-# Windows path features not fully implemented or testable on POSIX hosts
-PathSubclassTest.test_eq_windows
-PathTest.test_absolute_windows
-PathTest.test_drive_windows
-PathTest.test_eq_windows
-PathTest.test_is_absolute_windows
-PathTest.test_parse_path_windows
-PathTest.test_root_windows
-PathTest.test_str_windows
-PathTest.test_with_name_windows
-PathTest.test_with_stem_windows
-PurePathSubclassTest.test_drive_windows
-PurePathSubclassTest.test_is_absolute_windows
-PurePathSubclassTest.test_with_name_windows
-PurePathSubclassTest.test_with_stem_windows
-PurePathTest.test_drive_windows
-PurePathTest.test_with_name_windows
-PurePathTest.test_with_stem_windows
-WindowsPathTest.test_eq_windows
+# ── Windows-specific: parser / drive / naming — RESOLVED (0 entries) ──
+# Pure-path Windows tests pass with --windows-flavour flag.
+# Concrete-path Windows tests (PathTest) are gated by @needs_windows decorator.
+# test_absolute_windows kept below — requires OS-specific features.
 
-# Windows: parse_windows_path on pure paths (6 entries)
-PathSubclassTest.test_parse_windows_path
-PathTest.test_parse_windows_path
-PosixPathTest.test_parse_windows_path
-PurePathTest.test_parse_windows_path
-PurePosixPathTest.test_parse_windows_path
+# ── test_absolute_windows (1 entry, Windows-only) ───────────────────
+# Uses os.chdir() and os_helper.subst_drive() — cannot run on POSIX.
+PathTest.test_absolute_windows
 
 # ── Constructor / nesting — RESOLVED (0 entries) ────────────────────
 
@@ -148,7 +138,5 @@ PosixPathTest.test_matches_writablepath_docstrings
 
 # ── Compat: truediv/rtruediv — RESOLVED (0 entries) ──────────────────
 
-# ── kwargs passthrough (PyO3 extends bug, 1 entry) ──────────────
-PathTest.test_passing_kwargs_errors
-# ── docstrings (3 entries) ──────────────────────────────────────
-PathTest.test_matches_writablepath_docstrings
+# ── kwargs passthrough — RESOLVED (0 entries) ──────────────
+# ── docstrings — RESOLVED (0 entries) ──────────────────────────

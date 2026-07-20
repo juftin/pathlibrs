@@ -16,7 +16,8 @@ pub mod pure;
 pub mod repr;
 
 use pyo3::prelude::*;
-use std::ffi::OsStr;
+use pyo3::types::PyDict;
+use std::ffi::{CString, OsStr};
 
 /// Cross-platform `OsStr::from_bytes` replacement.
 ///
@@ -111,5 +112,36 @@ fn pathlibrs(m: &Bound<'_, PyModule>) -> PyResult<()> {
     // Module metadata (added last so it's easy to verify module init ran to end)
     m.add("__version__", env!("CARGO_PKG_VERSION"))?;
 
+    // Wrap __init__ on all path classes to reject unknown keyword arguments.
+    _wrap_path_inits(py, m)?;
+
+    Ok(())
+}
+
+/// Wrap `__init__` on path classes to reject unknown kwargs.
+///
+/// PyO3 with `extends=PyString` does not forward kwargs to `#[new]`
+/// or `__init__`, so pure-Python class constructors silently accept
+/// invalid keyword arguments.  This monkey-patch restores the
+/// CPython behaviour of raising `TypeError`.
+fn _wrap_path_inits(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
+    let globals = PyDict::new(py);
+    globals.set_item("_module", m)?;
+    let lines = [
+        "def _init_wrapper(cls):",
+        "    orig_init = cls.__init__",
+        "    def __init__(self, *args, **kwargs):",
+        "        if kwargs:",
+        "            key = next(iter(kwargs))",
+        "            raise TypeError(cls.__name__ + '.__init__() got an unexpected keyword argument ' + repr(key))",
+        "        return orig_init(self, *args)",
+        "    return __init__",
+        "for _n in ('PurePath','PurePosixPath','PureWindowsPath','PosixPath','WindowsPath'):",
+        "    getattr(_module, _n).__init__ = _init_wrapper(getattr(_module, _n))",
+        "",
+    ];
+    let code = CString::new(lines.join("\n"))
+        .map_err(|e| pyo3::exceptions::PyValueError::new_err(format!("CString: {}", e)))?;
+    py.run(&code, Some(&globals), None)?;
     Ok(())
 }

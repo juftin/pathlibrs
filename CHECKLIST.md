@@ -94,10 +94,10 @@ Vendored CPython 3.14.6 test suite: 682 passed, 457 skipped, 0 failures.
 - [x] `glob.rs` module extracted from `iter.rs` / `pattern.rs`
 - [x] Verify: all vendored CPython glob tests pass across platform matrix (51/51 non-Windows tests, Windows tests run on Windows CI)
 
-## Phase 5: Parity & Maintenance — In Progress
+## Phase 5: Parity & Maintenance — Closing
 
-572 passed, 567 skipped (up from 352 passed, 852 skipped baseline).
-199 active skip entries (down from 650 baseline).
+764 passed, 440 skipped (up from 352 passed, 852 skipped baseline).
+43 active skip entries (down from 650 baseline — 607 resolved).
 
 ### Feature Parity
 
@@ -124,6 +124,12 @@ Vendored CPython 3.14.6 test suite: 682 passed, 457 skipped, 0 failures.
 - [x] Subclass pickle/protocol (`PurePathSubclassTest.test_pickling_common`)
 - [x] PurePathSubclass `__str__`, `__fspath__`, `parser`, `concrete_class` attribute parity
 - [x] PureWindowsPath `__str__`, `__fspath__` attribute parity
+- [x] Constructor rejects unknown kwargs with TypeError (Python-level `__init__` wrapper)
+- [x] PurePosixPath(PureWindowsPath(...)) cross-flavour construction via `as_posix()` decomposition
+- [x] `is_junction()` delegates to `parser.isjunction` (passes on Python 3.12+)
+- [x] `test_expanduser_windows` fixed — `EnvironmentVarGuard.unset()` multi-arg shim in conftest.py
+- [x] `from_uri_pathname2url_posix` fixed — `pathname2url(add_scheme=True)` shim in conftest.py
+- [x] All pure-path Windows parser tests pass with `--windows-flavour` (18 entries unskipped)
 - [ ] Windows UNC/device/extended-path edge cases (DESIGN.md §4.8)
 - [ ] Symlink edge cases on Linux/macOS (complex_symlinks skipped, basic pass)
 - [ ] Full pickle / `__reduce__` / `__fspath__` / `copy` coverage (pickling_common resolved; rest TBD)
@@ -143,6 +149,9 @@ Vendored CPython 3.14.6 test suite: 682 passed, 457 skipped, 0 failures.
 - [x] Batch 11: PurePathSubclass str/parse + ordering TypeError — unskip 12 entries
 - [x] Batch 12: is_relative_to, relative_to walk_up, drive-relative paths, rmdir, info caching, resolve_nonexist, pickling — unskip 47 entries
 - [x] Batch 13: Skips.txt cleanup — reorganized by category, removed stale comments, verified 186 entries
+- [x] Batch 14: `copy()` + `walk()` edge cases + stale `with_segments` skip — unskip 15 entries
+- [x] Batch 15: kwargs TypeError, expanduser_windows, parse_windows_path, from_uri_pathname2url, Windows pure-path tests — unskip 41 entries (71→43 active)
+- [ ] Remaining: 43 entries (30 private API + 13 platform-specific/deferred)
 - [x] Batch 14: `copy()` + `walk()` edge cases + stale `with_segments` skip — unskip 15 entries, 71 active entries remaining
 - [ ] Remaining: 71 entries (26 private API + 45 fixable/platform-specific across equivalences, parsers, ordering, is_reserved, resolve, symlinks, from_uri, windows, mkdir_parents, rmdir windows, misc)
 - [x] Classify each skip as private API, fixable, or platform-specific
