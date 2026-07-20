@@ -1809,6 +1809,11 @@ impl PurePath {
     fn delete(&self, ignore_errors: bool) -> PyResult<()> {
         crate::fs::delete_tree(self.inner.raw(), ignore_errors)
     }
+
+    /// Delete this file or directory tree (CPython private API alias).
+    fn _delete(&self) -> PyResult<()> {
+        crate::fs::delete_tree(self.inner.raw(), false)
+    }
 }
 
 // ═══════════════════════════════════════════════════════════════════════

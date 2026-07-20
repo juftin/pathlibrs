@@ -1,48 +1,11 @@
 # tests/skips.txt — Vendored CPython 3.14.6 Test Skips
 #
-# Tests listed here are skipped when running the vendored CPython test suite.
-# Skip matching walks the MRO — PathTest.test_foo also skips
-# WindowsPathTest.test_foo and PosixPathTest.test_foo.
-#
-# Remove entries as features are fixed in pathlibrs.
-# Only private-API tests should remain as permanent skips.
-#
-# Stats: 27 active entries | 795 passed | 409 skipped | 0 failures (macOS)
-#        27 private-API entries (permanent)
-#         0 platform-specific / deferred
-#       (212 entries resolved from 239 baseline)
+# Stats: 2 active entries | 810 passed | 394 skipped | 0 failures (macOS)
+#        2 blocked (PyO3 / Windows chmod)
+#       (237 entries resolved from 239 baseline)
 
-# ═══════════════════════════════════════════════════════════════════════
-
-# ── Private API: _delete() (26 entries, permanent) ────────────────────
-PathSubclassTest.test_delete_dir
-PathSubclassTest.test_delete_does_not_choke_on_failing_lstat
-PathSubclassTest.test_delete_file
-PathSubclassTest.test_delete_inner_symlink
-PathSubclassTest.test_delete_missing
-PathSubclassTest.test_delete_on_named_pipe
-PathSubclassTest.test_delete_symlink
-PathSubclassTest.test_delete_unwritable
-PathTest.test_delete_dir
-PathTest.test_delete_does_not_choke_on_failing_lstat
-PathTest.test_delete_file
-PathTest.test_delete_inner_symlink
-PathTest.test_delete_missing
-PathTest.test_delete_on_named_pipe
-PathTest.test_delete_symlink
-PathTest.test_delete_unwritable
-PosixPathTest.test_delete_dir
-PosixPathTest.test_delete_does_not_choke_on_failing_lstat
-PosixPathTest.test_delete_file
-PosixPathTest.test_delete_inner_symlink
-PosixPathTest.test_delete_missing
-PosixPathTest.test_delete_on_named_pipe
-PosixPathTest.test_delete_symlink
-PosixPathTest.test_delete_unwritable
-# Additional Windows-only delete entries:
-PathTest.test_delete_inner_junction
-PathTest.test_delete_outer_junction
-
-# ── Private API: Unpickling 3.13 (1 entry, permanent) ─────────────────
-# CPython 3.13 pickle format references pathlib._local.PurePosixPath
+# ── test_concrete_class — PyO3 #[new] cannot return subclass ──────────
 PurePathTest.test_concrete_class
+
+# ── test_delete_unwritable — Windows chmod cannot prevent file deletion
+PathTest.test_delete_unwritable

@@ -1887,11 +1887,20 @@ fn delete_recursive(path: &StdPath, ignore_errors: bool) -> Result<(), io::Error
         }
     };
 
-    if md.file_type().is_symlink() {
+    let ft = md.file_type();
+    if ft.is_symlink() {
         // Symlinks are removed without following
         match std::fs::remove_file(path) {
             Ok(()) => Ok(()),
             Err(e) => {
+                // On Windows, remove_file fails for directory
+                // symlinks.  Fall back to remove_dir.
+                #[cfg(windows)]
+                if e.kind() == io::ErrorKind::PermissionDenied {
+                    if let Ok(()) = std::fs::remove_dir(path) {
+                        return Ok(());
+                    }
+                }
                 if ignore_errors {
                     Ok(())
                 } else {
@@ -1900,14 +1909,36 @@ fn delete_recursive(path: &StdPath, ignore_errors: bool) -> Result<(), io::Error
             }
         }
     } else if md.is_dir() {
-        // Read and delete children
+        // On Windows, check for junctions (reparse points that are
+        // not symlinks).  Junctions should be removed without
+        // recursing into them — RemoveDirectoryW deletes the
+        // junction, not its target.
+        #[cfg(windows)]
+        {
+            use std::os::windows::fs::MetadataExt;
+            let attrs = md.file_attributes();
+            // FILE_ATTRIBUTE_REPARSE_POINT
+            if (attrs & 0x400) != 0 {
+                match std::fs::remove_dir(path) {
+                    Ok(()) => return Ok(()),
+                    Err(e) => {
+                        if ignore_errors {
+                            return Ok(());
+                        }
+                        return Err(e);
+                    }
+                }
+            }
+        }
+
+        // Normal directory: read and delete children
         match std::fs::read_dir(path) {
             Ok(entries) => {
                 for entry in entries {
                     match entry {
                         Ok(entry) => {
                             let entry_path = entry.path();
-                            let _ = delete_recursive(&entry_path, ignore_errors);
+                            delete_recursive(&entry_path, ignore_errors)?;
                         }
                         Err(e) => {
                             if !ignore_errors {
