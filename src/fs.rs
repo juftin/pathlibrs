@@ -667,6 +667,18 @@ fn resolve_non_strict_readlink(path: &StdPath) -> Result<std::path::PathBuf, io:
         match std::fs::symlink_metadata(&resolved) {
             Ok(meta) if meta.is_symlink() => {
                 symlinks_resolved += 1;
+                // Windows behaviour: if the next component
+                // is "..", they cancel without resolving
+                // the symlink (lexical ".." processing).
+                if remaining
+                    .first()
+                    .map(|n| n.to_string_lossy() == "..")
+                    .unwrap_or(false)
+                {
+                    resolved.pop(); // remove the symlink
+                    remaining.remove(0); // skip the ".."
+                    continue;
+                }
                 if symlinks_resolved > MAX_SYMLINKS {
                     // Likely a symlink loop.  Rebuild the path from
                     // the last stable prefix + the current symlink
