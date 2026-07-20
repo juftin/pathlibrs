@@ -109,6 +109,30 @@ for _attr in dir(pathlibrs):
         setattr(_local, _attr, getattr(pathlibrs, _attr))
 sys.modules["pathlib._local"] = _local
 
+# ── Shim isjunction for Python < 3.12 ────────────────────────────────────────
+# posixpath.isjunction and ntpath.isjunction were added in Python 3.12.
+# On older Pythons, the vendored test test_is_junction_true cannot
+# mock.patch.object(P.parser, "isjunction") because the attribute doesn't
+# exist.  Add a no-op that returns False (junctions are Windows-only).
+import posixpath as _posixpath  # noqa: E402
+import ntpath as _ntpath  # noqa: E402
+
+if not hasattr(_posixpath, "isjunction"):
+
+    def _isjunction_posix(path):  # noqa: N802
+        """Test whether a path is a junction."""
+        return False
+
+    _posixpath.isjunction = _isjunction_posix
+
+if not hasattr(_ntpath, "isjunction"):
+
+    def _isjunction_nt(path):  # noqa: N802
+        """Test whether a path is a junction."""
+        return False
+
+    _ntpath.isjunction = _isjunction_nt
+
 # ── Exclude modular ABC tests from discovery ────────────────────────────────
 # These test files import from CPython-private ``pathlib.types`` / ``pathlib._os``
 # which pathlibrs does not implement per DESIGN.md §11.5.
