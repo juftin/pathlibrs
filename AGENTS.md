@@ -371,7 +371,7 @@ This is identical to what CI does — no drift between local and remote verifica
 | Phase 2 | Filesystem Properties (stat, exists, is_dir, etc.)                         | Complete |
 | Phase 3 | Filesystem Mutations & I/O (mkdir, unlink, read/write, copy, move, delete) | Complete |
 | Phase 4 | Glob & Pattern Matching (glob, rglob)                                      | Complete |
-| Phase 5 | Parity & Maintenance (benchmarks, skips.txt audit, upstream tracking)      | Next     |
+| Phase 5 | Parity & Maintenance (benchmarks, skips.txt audit, upstream tracking)      | Closing  |
 
 Full design doc: `DESIGN.md`. Refer to it for architecture decisions, error handling strategy, and resolved design questions.
 
