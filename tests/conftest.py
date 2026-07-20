@@ -78,7 +78,8 @@ else:
     # exist.  Create a synthetic types module with a _WritablePath that
     # mirrors docstrings from the actual Path class, so the vendored
     # test_matches_writablepath_docstrings test still passes.
-    _synthetic_types = types.ModuleType("pathlibrs.types")
+    import types as _synthetic_types_mod  # noqa: E402, F811
+    _synthetic_types = _synthetic_types_mod.ModuleType("pathlibrs.types")
     _synthetic_types.__doc__ = "Shim for pathlib.types (injected by pathlibrs test harness)."
     # Create _WritablePath as a protocol-like object whose attributes
     # carry the same __doc__ strings as our Path class.
