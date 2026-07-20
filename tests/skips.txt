@@ -7,14 +7,21 @@
 # Remove entries as features are fixed in pathlibrs.
 # Only private-API tests should remain as permanent skips.
 #
-# Stats: 1 active entry | 819 passed | 384 skipped | 0 failures (macOS)
-#        1 permanent (class-hierarchy)
-#       (238 entries resolved from 239 baseline)
+# Stats: 2 active entries | 816 passed | 388 skipped | 0 failures (macOS)
+#        2 permanent
+#       (237 entries resolved from 239 baseline)
 
 # ═══════════════════════════════════════════════════════════════════════
 
-# ── Class hierarchy: PurePath does not auto-dispatch (1 entry) ────────
+# ── Class hierarchy: PurePath auto-dispatch (1 entry) ─────────────────
 # CPython's PurePath('a') returns PurePosixPath on POSIX.  Our
 # PurePath('a') returns PurePath — auto-dispatch to the platform
 # concrete subclass is not implemented.
 PurePathTest.test_concrete_class
+
+# ── test_delete_unwritable (1 entry, Windows chmod semantics) ─────────
+# On Windows, os.chmod only affects the read-only attribute and does not
+# prevent file deletion inside a directory.  _delete() succeeds instead
+# of raising PermissionError, which also causes the finally-block
+# chmod-restore to fail with FileNotFoundError.
+PathTest.test_delete_unwritable
