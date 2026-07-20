@@ -80,9 +80,10 @@ PathTest.test_owner_windows
 
 # ── is_reserved() DeprecationWarning — RESOLVED (0 entries) ──────────
 
-# ── is_junction_true — RESOLVED (0 entries) ────────────────────────
-# Delegates through parser.isjunction; passes on Python 3.12+ where posixpath.isjunction exists.
-# On Python 3.10, the test cannot run because posixpath lacks isjunction.
+# ── is_junction_true (1 entry, Python < 3.12) ───────────────────────
+# posixpath.isjunction was added in Python 3.12.  The test cannot run on 3.10.
+# On Python 3.12+, the delegation through parser.isjunction works correctly.
+PathTest.test_is_junction_true
 
 # ── relative_to / is_relative_to — RESOLVED (0 entries) ──────────────
 

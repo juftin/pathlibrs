@@ -67,6 +67,7 @@ sys.modules["pathlib"] = pathlibrs
 # CPython 3.14 added ``add_scheme`` kwarg to urllib.request.pathname2url.
 # The vendored test uses this kwarg; shim it for older Python versions.
 import urllib.request  # noqa: E402
+import os.path  # noqa: E402
 
 _orig_pathname2url = urllib.request.pathname2url
 
@@ -75,7 +76,12 @@ def _pathname2url_shim(p, add_scheme=False):
     """Shim that forwards to pathname2url but also accepts ``add_scheme``."""
     result = _orig_pathname2url(p)
     if add_scheme and not result.startswith("file:"):
-        result = "file:" + result
+        if result.startswith("//"):
+            result = "file:" + result
+        elif os.path.isabs(p):
+            result = "file://" + result
+        else:
+            result = "file:" + result
     return result
 
 
