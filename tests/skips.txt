@@ -7,10 +7,10 @@
 # Remove entries as features are fixed in pathlibrs.
 # Only private-API tests should remain as permanent skips.
 #
-# Stats: 29 active entries | 789 passed | 415 skipped | 0 failures (macOS)
+# Stats: 27 active entries | 795 passed | 409 skipped | 0 failures (macOS)
 #        27 private-API entries (permanent)
-#         2 platform-specific / deferred
-#       (210 entries resolved from 239 baseline)
+#         0 platform-specific / deferred
+#       (212 entries resolved from 239 baseline)
 
 # ═══════════════════════════════════════════════════════════════════════
 
@@ -46,17 +46,3 @@ PathTest.test_delete_outer_junction
 # ── Private API: Unpickling 3.13 (1 entry, permanent) ─────────────────
 # CPython 3.13 pickle format references pathlib._local.PurePosixPath
 PurePathTest.test_concrete_class
-
-# ── test_resolve_common (1 entry, Windows symlink chain) ──────────────
-# POSIX passes; on Windows, std::fs::canonicalize() cannot follow a
-# chain of directory symlinks where intermediate symlinks land in
-# different directories (e.g. dirA/linkX -> tmpdir, tmpdir/linkY ->
-# dirB).  Fix requires replacing bulk canonicalize with component-
-# by-component read_link + lstat resolution.  Needs Windows dev env.
-PathTest.test_resolve_common
-
-# ── test_rmdir (1 entry, Windows PermissionError) ─────────────────────
-# POSIX passes; on Windows, rmdir after iterdir+unlink raises
-# PermissionError (os error 5).  Retry loop does not help.  Needs
-# Windows dev environment.
-PathTest.test_rmdir
