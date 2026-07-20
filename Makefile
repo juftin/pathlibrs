@@ -115,6 +115,38 @@ clean: ## Remove build artifacts (target/, dist/, caches).
 	cargo clean
 	rm -rf dist/ build/ .pytest_cache/ __pycache__/ tests/__pycache__/
 
+##@ Benchmarks
+
+BENCH_DIR := benchmarks
+BENCH_RESULTS := $(BENCH_DIR)/results
+BENCH_BASELINE := $(BENCH_RESULTS)/baseline.json
+
+.PHONY: bench
+bench: install ## Run all benchmarks against pathlibrs and built-in pathlib.
+	uv run --no-sync pytest $(BENCH_DIR)/ -v --benchmark-only \
+		--benchmark-warmup=on \
+		--benchmark-columns=min,max,mean,median,stddev,outliers,ops,rounds,iterations
+
+.PHONY: bench-compare
+bench-compare: install ## Run benchmarks and compare against saved baseline.
+	@test -f $(BENCH_BASELINE) || { echo "No baseline found. Run 'make bench-save' first."; exit 1; }
+	uv run --no-sync pytest $(BENCH_DIR)/ -v --benchmark-only \
+		--benchmark-warmup=on \
+		--benchmark-compare \
+		--benchmark-compare-fail=min:10%,mean:10%,median:10% \
+		--benchmark-storage=$(BENCH_DIR)/results \
+		--benchmark-autosave
+
+.PHONY: bench-save
+bench-save: install ## Run benchmarks and save results as baseline for future comparison.
+	mkdir -p $(BENCH_DIR)/results
+	uv run --no-sync pytest $(BENCH_DIR)/ -v --benchmark-only \
+		--benchmark-warmup=on \
+		--benchmark-save=baseline \
+		--benchmark-storage=$(BENCH_DIR)/results \
+		--benchmark-autosave
+	@echo "Baseline saved to $(BENCH_BASELINE)"
+
 ##@ Help
 
 .PHONY: help
