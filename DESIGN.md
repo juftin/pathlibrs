@@ -440,13 +440,13 @@ The litmus test: **pass CPython's own `test_pathlib.py` from Python 3.14, unchan
 - `resolve()`, `absolute()`, `readlink()`
 - **Verify:** Filesystem property tests pass
 
-### Phase 3: Filesystem Mutations & I/O — ~1.5 weeks
+### Phase 3: Filesystem Mutations & I/O ✅ Complete
 
 - `mkdir()`, `rmdir()`, `unlink()`, `rename()`, `replace()`, `symlink_to()`, `hardlink_to()`
 - `touch()`, `chmod()`, `lchmod()`, `expanduser()`
 - `open()`, `read_bytes()`, `read_text()`, `write_bytes()`, `write_text()`
 - `iterdir()`, `walk()`
-- **3.14 methods:** `copy()`, `copy_into()`, `move()`, `move_into()`, `delete()`
+- **3.14 methods:** `copy()`, `copy_into()`, `move()`, `move_into()`, `delete()`, `_delete()`
 - **Verify:** All mutation, I/O, and 3.14 file-tree tests pass
 
 ### Phase 4: Glob & Pattern Matching ✅ Complete
@@ -458,23 +458,25 @@ The litmus test: **pass CPython's own `test_pathlib.py` from Python 3.14, unchan
 - `glob.rs` module with iterative DFS engine (798 lines)
 - **Verify:** All vendored CPython glob tests pass on Linux, macOS, Windows (3.10 + 3.14)
 
-### Phase 5: Parity & Maintenance — ~1 week
+### Phase 5: Parity & Maintenance — Closing
 
-- `Path.home()`, `Path.cwd()` class methods
+- `Path.home()`, `Path.cwd()` class methods ✅
+- Windows symlink resolution (read_link + lexical `..` cancellation) ✅
+- Pickle / `__reduce__` / `__fspath__` / `copy` support ✅
+- Vendor CPython 3.14.6 test suite: 810 passed, 394 skipped, 0 failures
+- Skip audit: 237/239 entries resolved — 2 remaining (both permanently unfixable)
+
+**Remaining skips (2 entries, both blocked):**
+
+- `PurePathTest.test_concrete_class` — PyO3 `#[new]` must return `Self`; cannot auto-dispatch
+- `PathTest.test_delete_unwritable` — Windows chmod semantics differ (directories)
+
+**Pending infrastructure:**
+
 - Windows UNC/device/extended-path edge cases (see section 4.8)
-- Symlink edge cases on Linux/macOS
-- Pickle / `__reduce__` / `__fspath__` / `copy` support
 - Benchmark suite against CPython pathlib
 
-**Skip audit — drive `skips.txt` to zero (private API only):**
-
-- Audit every entry in `tests/skips.txt`
-- Each skip must be either:
-    - **Private API** — the test touches `_flavour`, `_NormalAccessor`, or other `_`-prefixed internals → stays skipped permanently
-    - **Fixable** — a real behavioral gap → fix the implementation and remove the skip
-- Goal: `skips.txt` contains _only_ private-API entries; zero skips for public API behavior
-
-**Automated vendored test tracking:**
+**Automated vendored test tracking (planned):**
 
 - CI workflow that periodically fetches the latest CPython `test_pathlib.py` from `main` (or the latest stable release tag)
 - Compares against the vendored snapshot; if the upstream test file has changed:

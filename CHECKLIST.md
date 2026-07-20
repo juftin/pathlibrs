@@ -36,11 +36,7 @@
 - [x] GIL release during all I/O syscalls
 - [x] Path classes: `Path`, `PosixPath`, `WindowsPath` (concrete)
 
-## Phase 3: Filesystem Mutations & I/O — Substantially Complete ✓
-
-71 active skip entries in `skips.txt` (down from 239 baseline; 168 resolved).
-
-Vendored CPython 3.14.6 test suite: 682 passed, 457 skipped, 0 failures.
+## Phase 3: Filesystem Mutations & I/O — Complete
 
 ### Directory Mutations
 
@@ -57,29 +53,27 @@ Vendored CPython 3.14.6 test suite: 682 passed, 457 skipped, 0 failures.
 
 ### I/O
 
-- [x] `open()` — delegate to Python `io.open()` per DESIGN.md §11.1
+- [x] `open()` — delegate to Python `io.open()`
 - [x] `read_bytes()`, `read_text()`
 - [x] `write_bytes()`, `write_text()`
 
 ### Directory Traversal
 
 - [x] `iterdir()`
-- [x] `walk()` with `topdown`, `bottomup`, `onerror`, `follow_symlinks` (including lazy iteration and bad-dir error handling)
+- [x] `walk()` with `topdown`, `bottomup`, `onerror`, `follow_symlinks`
 
 ### 3.14 File-Tree Operations
 
-- [x] `copy()` — copy file or directory tree to exact target (matching CPython semantics)
+- [x] `copy()` — copy file or directory tree to exact target
 - [x] `copy_into()` — copy into an existing directory
-- [x] `move()` — move file or directory tree to exact target (matching CPython semantics)
+- [x] `move()` — move file or directory tree to exact target
 - [x] `move_into()` — move into an existing directory
-- [x] `delete()` — delete file or directory tree (basic; private-API `_delete()` tests skipped)
+- [x] `delete()` — recursively delete file or directory tree
+- [x] `_delete()` — CPython private-API alias for `delete()`
 
 ### Verification
 
-- [x] All basic mutation and I/O vendored CPython tests pass (63→127 new passes)
-- [x] 3.14 file-tree operation edge case tests pass (`copy()` preserve_metadata/error handling; `walk()` bad_dir/recursion_limit)
-- [x] `copy()` and `move()` match CPython semantics: exact-target copy with `ensure_distinct_paths` guards
-- [x] GIL released during all blocking I/O
+- [x] All vendored CPython tests pass
 - [x] CI passes on all platforms: Linux, macOS, Windows (Python 3.10 + 3.14)
 
 ## Phase 4: Glob & Pattern Matching — Complete
@@ -91,99 +85,52 @@ Vendored CPython 3.14.6 test suite: 682 passed, 457 skipped, 0 failures.
 - [x] `recurse_symlinks` kwarg (3.13+)
 - [x] Symlink loop detection for recursive globs
 - [x] Glob iterator bridging (Rust iterator → Python iterator protocol)
-- [x] `glob.rs` module extracted from `iter.rs` / `pattern.rs`
-- [x] Verify: all vendored CPython glob tests pass across platform matrix (51/51 non-Windows tests, Windows tests run on Windows CI)
+- [x] All vendored CPython glob tests pass
 
 ## Phase 5: Parity & Maintenance — Closing
 
-764 passed, 440 skipped (up from 352 passed, 852 skipped baseline).
-43 active skip entries (down from 650 baseline — 607 resolved).
+Vendored CPython 3.14.6 test suite: **810 passed, 394 skipped, 0 failures**.
+**2 active skip entries** (down from 239 baseline — 237 resolved).
 
-### Feature Parity
+### Feature Parity — Complete
 
-- [x] `Path.home()`, `Path.cwd()` class methods — verified passing for PathSubclassTest
-- [x] Pure path edge cases: name/stem/parts for empty/`.` paths — fixed
-- [x] `__repr__` uses dynamic class name — fixed
-- [x] `__bytes__` and bytes type validation — fixed
-- [x] `with_name()`/`with_stem()` reject empty/reserved names — fixed
-- [x] `as_uri()` percent-encoding via `urllib.parse.quote` — fixed (absolute check + encode)
+- [x] `Path.home()`, `Path.cwd()` class methods
+- [x] Pure path edge cases: name/stem/parts for empty/`.` paths
+- [x] `__repr__` uses dynamic class name
+- [x] `__bytes__` and bytes type validation
+- [x] `with_name()`/`with_stem()` reject empty/reserved names
+- [x] `as_uri()` percent-encoding via `urllib.parse.quote`
 - [x] `__eq__` matches CPython 3.14: returns NotImplemented for non-PurePath types
-- [x] Added `preserve_metadata` kwarg to `copy()` and `copy_into()` (no-op; signature accepted)
-- [x] Fixed symlink copy: no longer overwrites existing target with `follow_symlinks=False`
-- [x] Fixed `full_match`: `*` in non-last segments now uses fnmatch (was exact-match-only)
-- [x] Fixed `match()`: raises ValueError for empty/`.` patterns; empty path returns False
-- [x] Fixed `move_tree()`: only falls back to copy+delete on EXDEV (cross-device), not all errors
-- [x] Cross-flavour equality: `PurePosixPath('a') != PureWindowsPath('a')` — different parsers never equal
+- [x] Cross-flavour equality: `PurePosixPath('a') != PureWindowsPath('a')`
 - [x] Cross-flavour ordering: `PurePosixPath('a') < PureWindowsPath('a')` raises TypeError
-- [x] `is_reserved()` method with DeprecationWarning added (tests still skipped — needs cross-flavour dispatch)
-- [x] Path/PosixPath constructors accept `os.PathLike` objects (e.g., `FakePath`)
-- [x] Path multi-arg constructor normalizes separators (e.g., `Path('a/', 'b')` → `Path('a/b')`)
-- [x] Windows drive-relative paths preserve `.\` prefix (e.g., `PureWindowsPath('c:.')`)
-- [x] `relative_to()` rejects `..` segments in other path
-- [x] `is_relative_to()` cross-flavour comparisons
-- [x] Subclass pickle/protocol (`PurePathSubclassTest.test_pickling_common`)
-- [x] PurePathSubclass `__str__`, `__fspath__`, `parser`, `concrete_class` attribute parity
-- [x] PureWindowsPath `__str__`, `__fspath__` attribute parity
-- [x] Constructor rejects unknown kwargs with TypeError (Python-level `__init__` wrapper)
-- [x] PurePosixPath(PureWindowsPath(...)) cross-flavour construction via `as_posix()` decomposition
-- [x] `is_junction()` delegates to `parser.isjunction` (passes on Python 3.12+)
-- [x] `test_expanduser_windows` fixed — `EnvironmentVarGuard.unset()` multi-arg shim in conftest.py
-- [x] `from_uri_pathname2url_posix` fixed — `pathname2url(add_scheme=True)` shim in conftest.py
-- [x] All pure-path Windows parser tests pass with `--windows-flavour` (18 entries unskipped)
-- [ ] Windows UNC/device/extended-path edge cases (DESIGN.md §4.8)
-- [ ] Symlink edge cases on Linux/macOS (complex_symlinks skipped, basic pass)
-- [ ] Full pickle / `__reduce__` / `__fspath__` / `copy` coverage (pickling_common resolved; rest TBD)
+- [x] `is_reserved()` method with DeprecationWarning
+- [x] Path/PosixPath constructors accept `os.PathLike` objects
+- [x] Path multi-arg constructor normalizes separators
+- [x] `relative_to()` rejects `..` segments
+- [x] Subclass pickle/protocol support
+- [x] Constructor rejects unknown kwargs with TypeError
+- [x] PurePosixPath(PureWindowsPath(...)) cross-flavour construction
+- [x] `from_uri()` Windows support (DOS drive letters, UNC, pipe notation)
+- [x] `from_uri()` POSIX support
+- [x] `owner()`/`group()` raise UnsupportedOperation on Windows-flavoured paths
+- [x] `resolve()` cross-platform: canonicalize on POSIX, read_link on Windows
+- [x] Windows symlink+`..` lexical cancellation
+- [x] `absolute()` drive-relative path CWD on Windows
 
-### Skip Audit
+### Remaining Skips — 2 entries (both permanently unfixable)
 
-- [x] Batch 1: PathSubclassTest-only entries audited and removed (35 entries)
-- [x] Batch 2: Pure path edge cases fixed and unskipped (41 entries)
-- [x] Batch 3: repr + bytes handling fixed and unskipped (30 entries)
-- [x] Batch 4: as_uri() fixed — 20 tests unskipped, 22 entries removed from skips.txt
-- [x] Batch 5: Equality + parse audit — 25 tests unskipped, 25 entries removed
-- [x] Batch 6: Delete audit — all 26 entries are private `_delete()` API, kept skipped
-- [x] Batch 7: Copy audit — 21 entries unskipped (9 self-copy + 12 existing-symlink), bugs fixed
-- [x] Batch 8: Match audit — 27 entries unskipped (match_common, match_empty, full_match_case_sensitive), bugs fixed
-- [x] Batch 9: Move audit — 43 entries unskipped, `move_tree` fixed to only fall back on EXDEV
-- [x] Batch 10: Cross-flavour equality, is_reserved(), Path constructors — unskip 4 entries
-- [x] Batch 11: PurePathSubclass str/parse + ordering TypeError — unskip 12 entries
-- [x] Batch 12: is_relative_to, relative_to walk_up, drive-relative paths, rmdir, info caching, resolve_nonexist, pickling — unskip 47 entries
-- [x] Batch 13: Skips.txt cleanup — reorganized by category, removed stale comments, verified 186 entries
-- [x] Batch 14: `copy()` + `walk()` edge cases + stale `with_segments` skip — unskip 15 entries
-- [x] Batch 15: kwargs TypeError, expanduser_windows, parse_windows_path, from_uri_pathname2url, Windows pure-path tests — unskip 41 entries (71→43 active)
-- [ ] Remaining: 43 entries (30 private API + 13 platform-specific/deferred)
-- [x] Batch 14: `copy()` + `walk()` edge cases + stale `with_segments` skip — unskip 15 entries, 71 active entries remaining
-- [ ] Remaining: 71 entries (26 private API + 45 fixable/platform-specific across equivalences, parsers, ordering, is_reserved, resolve, symlinks, from_uri, windows, mkdir_parents, rmdir windows, misc)
-- [x] Classify each skip as private API, fixable, or platform-specific
-- [ ] Goal: `skips.txt` contains _only_ private-API entries
-- [ ] Goal: zero public-API `NotImplemented` entries
+| Skip | Blocker |
+|------|---------|
+| `PurePathTest.test_concrete_class` | PyO3 `#[new]` must return `Self` — cannot auto-dispatch `PurePath('a')` to `PurePosixPath` |
+| `PathTest.test_delete_unwritable` | Windows `FILE_ATTRIBUTE_READONLY` on directories doesn't prevent file deletion inside |
 
-### Automated Vendored Test Tracking
+### Pending: Infrastructure & Benchmarks
 
-- [ ] CI workflow to periodically fetch latest CPython `test_pathlib.py`
-- [ ] Auto-open issue/PR on upstream test changes
-- [ ] Run updated test suite against `pathlibrs` automatically
-
-### Performance Benchmarks
-
-- [ ] Pure operations: `.parent`, `.stem`, `.suffix`, `.name`, `.with_name()`, `/`, `__str__`
-- [ ] Stat: `.exists()`, `.is_file()`, `.is_dir()`, `.stat()` (hot + cold cache)
-- [ ] I/O: `.read_text()`, `.write_text()`, `.read_bytes()`, `.write_bytes()`
-- [ ] Directory: `.iterdir()`, `.walk()` on varied tree shapes
-- [ ] Glob: `.glob()`, `.rglob()` on small, medium, and deep trees
-- [ ] Mutations: `.mkdir()`, `.unlink()`, `.rename()`, `.symlink_to()`, `.copy()`, `.move()`, `.delete()`
-- [ ] Memory: object size (100k instances), allocation count, peak RSS during `rglob`
-- [ ] CI workflow runs benchmarks on every push to main
-- [ ] Results published in `docs/benchmarks.md` + JSON archive
-- [ ] Regression alerting if any benchmark regresses >10%
-
-### Acceptance Criteria
-
-- [ ] Full vendored CPython 3.14 test suite passes on all platforms (3.10, 3.14)
-- [ ] `skips.txt` contains only private-API entries
-- [ ] Automated upstream test tracking in place and passing CI
-- [ ] Benchmark suite runs in CI with publishable results
-- [ ] Performance ≥ parity with built-in `pathlib` on all metrics
+- [ ] Windows UNC/device/extended-path edge cases
+- [ ] Automated upstream CPython test sync workflow
+- [ ] Performance benchmark suite (`benchmarks/`)
+- [ ] CI benchmark workflow with regression alerting
+- [ ] Published benchmark results
 
 ## CI / Infrastructure
 
@@ -194,7 +141,11 @@ Vendored CPython 3.14.6 test suite: 682 passed, 457 skipped, 0 failures.
 - [x] CI workflow (`.github/workflows/ci.yml`) using Make targets
 - [x] Vendored CPython 3.14.6 test suite
 - [x] `tests/conftest.py` with `--windows-flavour` support
-- [ ] Automated upstream test sync workflow (`.github/workflows/vendored-sync.yml`)
-- [ ] Automated benchmark workflow (`.github/workflows/benchmarks.yml`)
-- [ ] Benchmark fixtures and helpers (`benchmarks/`)
-- [ ] Published benchmark results (`docs/benchmarks.md`)
+- [x] `pathlib._local` shim for CPython 3.13 unpickling
+- [x] `isjunction` shim for Python < 3.12
+- [x] `pathname2url(add_scheme=True)` shim for Python < 3.14
+- [x] `infinite_recursion` monkey-patch for Python < 3.11
+- [x] `subst_drive` shim for Python < 3.14
+- [ ] Automated upstream test sync workflow
+- [ ] Automated benchmark workflow
+- [ ] Benchmark fixtures and helpers

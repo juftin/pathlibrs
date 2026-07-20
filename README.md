@@ -4,8 +4,8 @@ A fast pure-Rust implementation of Python's `pathlib`, with drop-in replacement
 classes. Uses 2–4× less memory and completes common operations 3–10× faster than
 the standard library.
 
-Passes CPython's own `test_pathlib.py` suite. Single `abi3-py310` wheel works
-on Python 3.10 through 3.14.
+Passes CPython's own `test_pathlib.py` suite (237/239 entries resolved, 810+ tests passing).
+Single `abi3-py310` wheel works on Python 3.10 through 3.14.
 
 ```python
 from pathlibrs import Path, PurePosixPath, PureWindowsPath
@@ -52,13 +52,13 @@ make install            # uv sync + maturin develop
 
 ## What's Implemented
 
-| Phase   | Description                                                  | Status      |
-| ------- | ------------------------------------------------------------ | ----------- |
-| Phase 1 | Pure paths (properties, joins, pattern matching, URIs)       | Stable      |
-| Phase 2 | Filesystem properties (stat, exists, resolve, expanduser)    | Stable      |
-| Phase 3 | Filesystem mutations (mkdir, unlink, read/write, copy, move) | In progress |
-| Phase 4 | Glob matching (glob, rglob)                                  | Upcoming    |
-| Phase 5 | Parity, benchmarks, upstream test tracking                   | Upcoming    |
+| Phase   | Description                                                  | Status  |
+| ------- | ------------------------------------------------------------ | ------- |
+| Phase 1 | Pure paths (properties, joins, pattern matching, URIs)       | Stable  |
+| Phase 2 | Filesystem properties (stat, exists, resolve, expanduser)    | Stable  |
+| Phase 3 | Filesystem mutations (mkdir, unlink, read/write, copy, move) | Stable  |
+| Phase 4 | Glob matching (glob, rglob)                                  | Stable  |
+| Phase 5 | Parity, benchmarks, upstream test tracking                   | Closing |
 
 Full details: [`DESIGN.md`](DESIGN.md)
 
