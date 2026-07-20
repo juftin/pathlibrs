@@ -90,7 +90,11 @@ PathTest.test_mkdir_parents
 # ── rmdir (1 entry, Windows handle leak) ──────────────────────────
 PathTest.test_rmdir
 
-# ── walk() edge cases (0 entries resolved) ─────────────────────────────
+# ── walk() edge cases (1 entry) ───────────────────────────────────────
+# walk_above_recursion_limit: infinite_recursion() fails on Python 3.10
+# Windows (cannot set recursion limit to 40 at depth 42). Passes on
+# POSIX and Python 3.14.
+PathWalkTest.test_walk_above_recursion_limit
 
 # ── from_uri / pathname2url POSIX (5 entries) ─────────────────────────
 # from_uri_posix: RESOLVED (3 entries, hostname + file:rel/path fix)

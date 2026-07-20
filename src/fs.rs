@@ -1168,21 +1168,257 @@ pub fn copy_tree(
 
 /// Copy a regular file.
 ///
-/// Delegates to Python's ``shutil`` so that CPython's fast-copy error
-/// handling (``copy_file_range``, ``sendfile``, ``fcopyfile``) is exercised
-/// and the vendored ``test_copy_error_handling`` test passes.
+/// Uses CPython ``pathlib._os.copyfileobj`` fast-copy order so that
+/// ``test_copy_error_handling`` (which monkey-patches ``fcntl.ioctl``,
+/// ``posix._fcopyfile``, ``os.copy_file_range``, ``os.sendfile``) passes.
+/// When ``preserve_metadata`` is true, also copies metadata via
+/// ``shutil.copystat``.
 fn copy_file(src: &StdPath, dst: &StdPath, preserve_metadata: bool) -> PyResult<()> {
     Python::with_gil(|py| {
-        let shutil = py.import("shutil")?;
         let src_str = src.to_string_lossy();
         let dst_str = dst.to_string_lossy();
+        // Open source and destination like CPython pathlib._copy_from_file.
+        let builtins = py.import("builtins")?;
+        let src_f = builtins.call_method1("open", (&*src_str, "rb"))?;
+        let dst_f = builtins.call_method1("open", (&*dst_str, "wb"))?;
+        // Run CPython-compatible fast-copy path.
+        copyfileobj_py(py, &src_f, &dst_f)?;
+        src_f.call_method0("close")?;
+        dst_f.call_method0("close")?;
         if preserve_metadata {
-            shutil.call_method1("copy2", (&*src_str, &*dst_str))?;
-        } else {
-            shutil.call_method1("copyfile", (&*src_str, &*dst_str))?;
+            let shutil = py.import("shutil")?;
+            shutil.call_method1("copystat", (&*src_str, &*dst_str))?;
         }
         Ok(())
     })
+}
+
+/// CPython ``pathlib._os.copyfileobj`` — try fast OS copy methods in order,
+/// falling back to read/write for non-fatal errors only.
+fn copyfileobj_py(
+    py: Python<'_>,
+    source_f: &Bound<'_, PyAny>,
+    target_f: &Bound<'_, PyAny>,
+) -> PyResult<()> {
+    use pyo3::exceptions::PyOSError;
+    use pyo3::types::PyModule;
+
+    let source_fd: i32 = match source_f.call_method0("fileno") {
+        Ok(fd) => fd.extract()?,
+        Err(_) => {
+            // Fall through to generic read/write.
+            return copyfileobj_generic(py, source_f, target_f);
+        }
+    };
+    let target_fd: i32 = match target_f.call_method0("fileno") {
+        Ok(fd) => fd.extract()?,
+        Err(_) => {
+            return copyfileobj_generic(py, source_f, target_f);
+        }
+    };
+
+    // errno constants for fallback checks.
+    let errno_mod = py.import("errno")?;
+    let ebadf: i32 = errno_mod.getattr("EBADF")?.extract().unwrap_or(9);
+    let eopnotsupp: i32 = errno_mod
+        .getattr("EOPNOTSUPP")
+        .ok()
+        .and_then(|v| v.extract().ok())
+        .unwrap_or(95);
+    let etxtbsy: i32 = errno_mod
+        .getattr("ETXTBSY")
+        .ok()
+        .and_then(|v| v.extract().ok())
+        .unwrap_or(26);
+    let exdev: i32 = errno_mod.getattr("EXDEV")?.extract().unwrap_or(18);
+    let einval: i32 = errno_mod.getattr("EINVAL")?.extract().unwrap_or(22);
+    let enotsup: i32 = errno_mod
+        .getattr("ENOTSUP")
+        .ok()
+        .and_then(|v| v.extract().ok())
+        .unwrap_or(45);
+    let enotsock: i32 = errno_mod.getattr("ENOTSOCK")?.extract().unwrap_or(88);
+
+    // 1. fcntl.ioctl FICLONE (Linux CoW)
+    if let Ok(fcntl) = py.import("fcntl") {
+        if let Ok(ficlone) = fcntl.getattr("FICLONE") {
+            match fcntl.call_method1("ioctl", (target_fd, ficlone, source_fd)) {
+                Ok(_) => return Ok(()),
+                Err(e) if e.is_instance_of::<PyOSError>(py) => {
+                    let errno = e
+                        .value(py)
+                        .getattr("errno")
+                        .ok()
+                        .and_then(|v| v.extract::<i32>().ok());
+                    if let Some(err) = errno {
+                        if err != ebadf && err != eopnotsupp && err != etxtbsy && err != exdev {
+                            // Annotate filenames like CPython and re-raise.
+                            annotate_oserror(py, &e, source_f, target_f)?;
+                            return Err(e);
+                        }
+                    }
+                }
+                Err(e) => return Err(e),
+            }
+        }
+    }
+
+    // 2. posix._fcopyfile (macOS)
+    if let Ok(posix) = py.import("posix") {
+        if let Ok(fcopyfile) = posix.getattr("_fcopyfile") {
+            if let Ok(copyfile_data) = posix.getattr("_COPYFILE_DATA") {
+                match fcopyfile.call1((source_fd, target_fd, copyfile_data)) {
+                    Ok(_) => return Ok(()),
+                    Err(e) if e.is_instance_of::<PyOSError>(py) => {
+                        let errno = e
+                            .value(py)
+                            .getattr("errno")
+                            .ok()
+                            .and_then(|v| v.extract::<i32>().ok());
+                        if let Some(err) = errno {
+                            if err != einval && err != enotsup {
+                                annotate_oserror(py, &e, source_f, target_f)?;
+                                return Err(e);
+                            }
+                        }
+                    }
+                    Err(e) => return Err(e),
+                }
+            }
+        }
+    }
+
+    // 3. os.copy_file_range (Linux)
+    let os_mod = py.import("os")?;
+    if os_mod.hasattr("copy_file_range")? {
+        let blocksize = get_copy_blocksize(py, source_fd)?;
+        let mut offset: i64 = 0;
+        loop {
+            match os_mod.call_method(
+                "copy_file_range",
+                (source_fd, target_fd, blocksize),
+                Some(&{
+                    let kw = pyo3::types::PyDict::new(py);
+                    kw.set_item("offset_dst", offset)?;
+                    kw
+                }),
+            ) {
+                Ok(sent) => {
+                    let sent: i64 = sent.extract()?;
+                    if sent == 0 {
+                        return Ok(()); // EOF
+                    }
+                    offset += sent;
+                }
+                Err(e) if e.is_instance_of::<PyOSError>(py) => {
+                    let errno = e
+                        .value(py)
+                        .getattr("errno")
+                        .ok()
+                        .and_then(|v| v.extract::<i32>().ok());
+                    if let Some(err) = errno {
+                        if err != etxtbsy && err != exdev {
+                            annotate_oserror(py, &e, source_f, target_f)?;
+                            return Err(e);
+                        }
+                    }
+                    // Non-fatal: fall through to next method.
+                    break;
+                }
+                Err(e) => return Err(e),
+            }
+        }
+    }
+
+    // 4. os.sendfile (Linux)
+    if os_mod.hasattr("sendfile")? {
+        let blocksize = get_copy_blocksize(py, source_fd)?;
+        let mut offset: i64 = 0;
+        loop {
+            match os_mod.call_method1("sendfile", (target_fd, source_fd, offset, blocksize)) {
+                Ok(sent) => {
+                    let sent: i64 = sent.extract()?;
+                    if sent == 0 {
+                        return Ok(()); // EOF
+                    }
+                    offset += sent;
+                }
+                Err(e) if e.is_instance_of::<PyOSError>(py) => {
+                    let errno = e
+                        .value(py)
+                        .getattr("errno")
+                        .ok()
+                        .and_then(|v| v.extract::<i32>().ok());
+                    if let Some(err) = errno {
+                        if err != enotsock {
+                            annotate_oserror(py, &e, source_f, target_f)?;
+                            return Err(e);
+                        }
+                    }
+                    // Non-fatal: fall through to generic.
+                    break;
+                }
+                Err(e) => return Err(e),
+            }
+        }
+    }
+
+    // Last resort: read/write loop.
+    let _ = PyModule::import(py, "os"); // keep import path consistent
+    copyfileobj_generic(py, source_f, target_f)
+}
+
+/// Annotate OSError with source/target filenames like CPython pathlib.
+fn annotate_oserror(
+    py: Python<'_>,
+    err: &PyErr,
+    source_f: &Bound<'_, PyAny>,
+    target_f: &Bound<'_, PyAny>,
+) -> PyResult<()> {
+    let val = err.value(py);
+    if let Ok(name) = source_f.getattr("name") {
+        let _ = val.setattr("filename", name);
+    }
+    if let Ok(name) = target_f.getattr("name") {
+        let _ = val.setattr("filename2", name);
+    }
+    Ok(())
+}
+
+/// Determine blocksize for fastcopying (CPython pathlib._os._get_copy_blocksize).
+fn get_copy_blocksize(py: Python<'_>, infd: i32) -> PyResult<i64> {
+    let os_mod = py.import("os")?;
+    let st = os_mod.call_method1("fstat", (infd,))?;
+    let size: i64 = st.getattr("st_size")?.extract().unwrap_or(0);
+    let mut blocksize = size.max(2_i64.pow(23)); // min 8 MiB
+                                                 // On 32-bit truncate to 1 GiB.
+    let maxsize: i64 = py
+        .import("sys")?
+        .getattr("maxsize")?
+        .extract()
+        .unwrap_or(i64::MAX);
+    if maxsize < 2_i64.pow(32) {
+        blocksize = blocksize.min(2_i64.pow(30));
+    }
+    Ok(blocksize)
+}
+
+/// Generic read/write file copy fallback.
+fn copyfileobj_generic(
+    _py: Python<'_>,
+    source_f: &Bound<'_, PyAny>,
+    target_f: &Bound<'_, PyAny>,
+) -> PyResult<()> {
+    loop {
+        let buf = source_f.call_method1("read", (1024 * 1024,))?;
+        // Empty bytes/str means EOF.
+        if buf.is_truthy()? {
+            target_f.call_method1("write", (buf,))?;
+        } else {
+            break;
+        }
+    }
+    Ok(())
 }
 
 /// Copy a symbolic link.
