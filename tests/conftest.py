@@ -25,6 +25,15 @@ import unittest
 import pathlibrs
 import pytest
 
+# Capture the real pathlib.types before pathlib is aliased to pathlibrs.
+# The vendored test test_matches_writablepath_docstrings accesses
+# pathlib.types._WritablePath, which resolves to pathlibrs.types.
+# pathlib.types exists only as an importable subpackage in Python 3.12+.
+try:
+    import pathlib.types as _real_pathlib_types
+except ImportError:
+    _real_pathlib_types = None
+
 # ── Python < 3.12 compat: assertStartsWith / assertEndsWith ───────────────
 # Added in Python 3.12's unittest.TestCase. The vendored CPython 3.14 tests
 # use these methods, so backport them for older Python versions.
@@ -62,6 +71,39 @@ if not hasattr(unittest.TestCase, "assertIsSubclass"):
     unittest.TestCase.assertIsSubclass = _assert_is_subclass
 
 sys.modules["pathlib"] = pathlibrs
+if _real_pathlib_types is not None:
+    pathlibrs.types = _real_pathlib_types
+else:
+    # Python < 3.12: pathlib is not a package, so pathlib.types doesn't
+    # exist.  Create a synthetic types module with a _WritablePath that
+    # mirrors docstrings from the actual Path class, so the vendored
+    # test_matches_writablepath_docstrings test still passes.
+    import types as _synthetic_types_mod  # noqa: E402, F811
+    _synthetic_types = _synthetic_types_mod.ModuleType("pathlibrs.types")
+    _synthetic_types.__doc__ = "Shim for pathlib.types (injected by pathlibrs test harness)."
+    # Create _WritablePath as a protocol-like object whose attributes
+    # carry the same __doc__ strings as our Path class.
+    _wp_methods = [
+        "anchor", "full_match", "joinpath", "mkdir", "name", "parent",
+        "parents", "parser", "parts", "stem", "suffix", "suffixes",
+        "symlink_to", "with_name", "with_segments", "with_stem",
+        "with_suffix", "write_bytes", "write_text",
+    ]
+
+    class _WritablePathShim:
+        """Shim for _WritablePath protocol (Python < 3.12)."""
+
+    _wp = _WritablePathShim
+    for _m in _wp_methods:
+        _attr = getattr(pathlibrs.Path, _m, None)
+        _doc = getattr(_attr, "__doc__", None) if _attr is not None else None
+
+        class _Descriptor:
+            __doc__ = _doc
+
+        setattr(_wp, _m, _Descriptor)
+    _synthetic_types._WritablePath = _wp
+    pathlibrs.types = _synthetic_types
 
 # ── Shim pathname2url(add_scheme=True) for Python < 3.14 ─────────────────────
 # CPython 3.14 added ``add_scheme`` kwarg to urllib.request.pathname2url.
@@ -74,7 +116,13 @@ _orig_pathname2url = urllib.request.pathname2url
 
 def _pathname2url_shim(p, add_scheme=False):
     """Shim that forwards to pathname2url but also accepts ``add_scheme``."""
-    result = _orig_pathname2url(p)
+    # On Python < 3.14, pathname2url does not prepend // for UNC paths
+    # (e.g., //foo/bar should become ////foo/bar before adding file:).
+    # CPython 3.14's pathname2url does this automatically via splitroot().
+    if p.startswith("//") and not _orig_pathname2url(p).startswith("////"):
+        result = "//" + _orig_pathname2url(p)
+    else:
+        result = _orig_pathname2url(p)
     if add_scheme and not result.startswith("file:"):
         if result.startswith("//"):
             result = "file:" + result
@@ -102,6 +150,30 @@ for _attr in dir(pathlibrs):
     if not _attr.startswith("_"):
         setattr(_local, _attr, getattr(pathlibrs, _attr))
 sys.modules["pathlib._local"] = _local
+
+# ── Shim isjunction for Python < 3.12 ────────────────────────────────────────
+# posixpath.isjunction and ntpath.isjunction were added in Python 3.12.
+# On older Pythons, the vendored test test_is_junction_true cannot
+# mock.patch.object(P.parser, "isjunction") because the attribute doesn't
+# exist.  Add a no-op that returns False (junctions are Windows-only).
+import posixpath as _posixpath  # noqa: E402
+import ntpath as _ntpath  # noqa: E402
+
+if not hasattr(_posixpath, "isjunction"):
+
+    def _isjunction_posix(path):  # noqa: N802
+        """Test whether a path is a junction."""
+        return False
+
+    _posixpath.isjunction = _isjunction_posix
+
+if not hasattr(_ntpath, "isjunction"):
+
+    def _isjunction_nt(path):  # noqa: N802
+        """Test whether a path is a junction."""
+        return False
+
+    _ntpath.isjunction = _isjunction_nt
 
 # ── Exclude modular ABC tests from discovery ────────────────────────────────
 # These test files import from CPython-private ``pathlib.types`` / ``pathlib._os``
