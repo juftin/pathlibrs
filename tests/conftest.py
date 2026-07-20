@@ -25,6 +25,11 @@ import unittest
 import pathlibrs
 import pytest
 
+# Capture the real pathlib.types before pathlib is aliased to pathlibrs.
+# The vendored test test_matches_writablepath_docstrings accesses
+# pathlib.types._WritablePath, which resolves to pathlibrs.types.
+import pathlib.types as _real_pathlib_types
+
 # ── Python < 3.12 compat: assertStartsWith / assertEndsWith ───────────────
 # Added in Python 3.12's unittest.TestCase. The vendored CPython 3.14 tests
 # use these methods, so backport them for older Python versions.
@@ -62,6 +67,7 @@ if not hasattr(unittest.TestCase, "assertIsSubclass"):
     unittest.TestCase.assertIsSubclass = _assert_is_subclass
 
 sys.modules["pathlib"] = pathlibrs
+pathlibrs.types = _real_pathlib_types
 
 # ── Shim pathname2url(add_scheme=True) for Python < 3.14 ─────────────────────
 # CPython 3.14 added ``add_scheme`` kwarg to urllib.request.pathname2url.

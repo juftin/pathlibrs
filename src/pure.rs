@@ -214,6 +214,7 @@ impl PurePath {
             .unwrap_or_default()
     }
 
+    /// The concatenation of the drive and root, or ''.
     #[getter]
     fn anchor(&self) -> String {
         self._anchor_str()
@@ -228,11 +229,17 @@ impl PurePath {
         p.parts.last().map(|s| s.to_string_lossy().into_owned())
     }
 
+    /// The final path component, if any.
     #[getter]
     fn name(&self) -> String {
         self._name_option().unwrap_or_default()
     }
 
+    ///
+    /// The final component's last suffix, if any.
+    ///
+    /// This includes the leading period. For example: '.txt'
+    ///
     #[getter]
     fn suffix(&self) -> String {
         match self._name_option() {
@@ -243,6 +250,11 @@ impl PurePath {
         }
     }
 
+    ///
+    /// A list of the final component's suffixes, if any.
+    ///
+    /// These include the leading periods. For example: ['.tar', '.gz']
+    ///
     #[getter]
     fn suffixes(&self) -> Vec<String> {
         match self._name_option() {
@@ -254,6 +266,7 @@ impl PurePath {
         }
     }
 
+    /// The final path component, minus its last suffix.
     #[getter]
     fn stem(&self) -> String {
         match self._name_option() {
@@ -264,6 +277,7 @@ impl PurePath {
         }
     }
 
+    /// The logical parent of the path.
     #[getter]
     fn parent<'py>(slf: PyRef<'py, Self>) -> PyResult<PyObject> {
         let py = slf.py();
@@ -272,6 +286,7 @@ impl PurePath {
         PurePath::_make_child(py, ptr, parent_raw)
     }
 
+    /// A sequence of this path's logical parents.
     #[getter]
     fn parents<'py>(slf: PyRef<'py, Self>) -> PyResult<PyObject> {
         let py = slf.py();
@@ -285,6 +300,8 @@ impl PurePath {
         Ok(bound.into_any().unbind())
     }
 
+    /// An object providing sequence-like access to the
+    /// components in the filesystem path.
     #[getter]
     fn parts<'py>(slf: PyRef<'py, Self>, py: Python<'py>) -> PyResult<PyObject> {
         let p = slf.inner.parsed(slf.flavour);
@@ -323,6 +340,11 @@ impl PurePath {
 
     // -- methods -------------------------------------------------------
 
+    /// Combine this path with one or several arguments, and return a
+    /// new path representing either a subpath (if all arguments are relative
+    /// paths) or a totally different path (if one of the arguments is
+    /// anchored).
+    ///
     #[pyo3(signature = (*args))]
     fn joinpath<'py>(slf: PyRef<'py, Self>, args: &Bound<'py, PyAny>) -> PyResult<PyObject> {
         let py = slf.py();
@@ -348,6 +370,7 @@ impl PurePath {
         PurePath::_make_child(py, ptr, result)
     }
 
+    /// Return a new path with the file name changed.
     fn with_name<'py>(slf: PyRef<'py, Self>, name: &str) -> PyResult<PyObject> {
         if slf._name_option().is_none() {
             return Err(pyo3::exceptions::PyValueError::new_err(format!(
@@ -381,6 +404,7 @@ impl PurePath {
         PurePath::_make_child(py, ptr, new_raw)
     }
 
+    /// Return a new path with the stem changed.
     fn with_stem<'py>(slf: PyRef<'py, Self>, stem: &str) -> PyResult<PyObject> {
         if slf._name_option().is_none() {
             return Err(pyo3::exceptions::PyValueError::new_err(format!(
@@ -396,6 +420,10 @@ impl PurePath {
         PurePath::with_name(slf, &new_name)
     }
 
+    /// Return a new path with the file suffix changed.  If the path
+    /// has no suffix, add given suffix.  If the given suffix is an empty
+    /// string, remove the suffix from the path.
+    ///
     fn with_suffix<'py>(slf: PyRef<'py, Self>, suffix: &str) -> PyResult<PyObject> {
         let name = slf._name_option().unwrap_or_default();
         let old_stem = stem_from_name(OsStr::new(&name))
@@ -464,10 +492,10 @@ impl PurePath {
         Ok(result.into_any().unbind())
     }
 
-    /// ``with_segments(*pathsegments)`` — class method.
+    /// Construct a new path object from any number of path-like objects.
+    /// Subclasses may override this method to customize how new path objects
+    /// are created from methods like `iterdir()`.
     ///
-    /// Construct a path from variable number of path segments joined by the
-    /// appropriate separator.
     #[classmethod]
     #[pyo3(signature = (*pathsegments))]
     fn with_segments(
@@ -744,10 +772,10 @@ impl PurePath {
         ))
     }
 
-    /// ``full_match(pattern, *, case_sensitive=None)``
     ///
-    /// Like ``match()`` but the pattern must match the *entire* path.
-    /// A relative pattern like ``"*.py"`` will NOT match ``"/a/b/foo.py"``.
+    /// Return True if this path matches the given glob-style pattern. The
+    /// pattern is matched against the entire path.
+    ///
     #[pyo3(name = "full_match")]
     #[pyo3(signature = (pattern, *, case_sensitive = None))]
     fn full_match_(&self, pattern: &str, case_sensitive: Option<bool>) -> PyResult<bool> {
@@ -879,12 +907,18 @@ impl PurePath {
     /// Return the user name of the file owner.
     #[pyo3(signature = (*, follow_symlinks = true))]
     fn owner(&self, follow_symlinks: bool) -> PyResult<String> {
+        if self._is_windows() {
+            return Err(unsupported_msg("Path.owner()"));
+        }
         crate::fs::owner(self.inner.raw(), follow_symlinks)
     }
 
     /// Return the group name of the file.
     #[pyo3(signature = (*, follow_symlinks = true))]
     fn group(&self, follow_symlinks: bool) -> PyResult<String> {
+        if self._is_windows() {
+            return Err(unsupported_msg("Path.group()"));
+        }
         crate::fs::group(self.inner.raw(), follow_symlinks)
     }
 
@@ -1339,7 +1373,9 @@ impl PurePath {
 
     // -- Phase 3: Directory mutations -----------------------------------
 
-    /// Create a directory at this path.
+    ///
+    /// Create a new directory at this given path.
+    ///
     #[pyo3(signature = (mode = 0o777, parents = false, exist_ok = false))]
     fn mkdir(&self, mode: u32, parents: bool, exist_ok: bool) -> PyResult<()> {
         crate::fs::mkdir(self.inner.raw(), mode, parents, exist_ok)
@@ -1393,9 +1429,10 @@ impl PurePath {
 
     // -- Phase 3: Link creation -----------------------------------------
 
-    /// Create a symbolic link pointing to this path.
     ///
-    /// In CPython, symlink_to(target) creates a symlink at self pointing to target.
+    /// Make this path a symlink pointing to the target path.
+    /// Note the order of arguments (link, target) is the reverse of os.symlink.
+    ///
     #[pyo3(signature = (target, target_is_directory = false))]
     fn symlink_to(&self, target: &Bound<'_, PyAny>, target_is_directory: bool) -> PyResult<()> {
         let target_str = _extract_path_str(target)?;
@@ -1462,12 +1499,16 @@ impl PurePath {
         crate::fs::read_text(self.inner.raw(), encoding, errors)
     }
 
-    /// Write bytes to this file.
+    ///
+    /// Open the file in bytes mode, write to it, and close the file.
+    ///
     fn write_bytes(&self, data: Vec<u8>) -> PyResult<()> {
         crate::fs::write_bytes(self.inner.raw(), &data)
     }
 
-    /// Write text to this file.
+    ///
+    /// Open the file in text mode, write to it, and close the file.
+    ///
     #[pyo3(signature = (data, encoding = None, errors = None, newline = None))]
     fn write_text(
         &self,
@@ -2400,4 +2441,18 @@ fn parse_file_uri(uri: &str) -> PyResult<String> {
     } else {
         Ok(format!("/{path_part}"))
     }
+}
+
+/// Create a PyErr for UnsupportedOperation with the given method name message.
+fn unsupported_msg(method: &str) -> pyo3::PyErr {
+    Python::with_gil(|py| {
+        let pathlibrs = py
+            .import("pathlibrs")
+            .expect("pathlibrs module should be importable");
+        let exc = pathlibrs
+            .getattr("UnsupportedOperation")
+            .expect("UnsupportedOperation should be defined");
+        let msg = format!("{method} is unsupported on this system");
+        PyErr::from_value(exc.call1((msg,)).unwrap())
+    })
 }
