@@ -116,7 +116,13 @@ _orig_pathname2url = urllib.request.pathname2url
 
 def _pathname2url_shim(p, add_scheme=False):
     """Shim that forwards to pathname2url but also accepts ``add_scheme``."""
-    result = _orig_pathname2url(p)
+    # On Python < 3.14, pathname2url does not prepend // for UNC paths
+    # (e.g., //foo/bar should become ////foo/bar before adding file:).
+    # CPython 3.14's pathname2url does this automatically via splitroot().
+    if p.startswith("//") and not _orig_pathname2url(p).startswith("////"):
+        result = "//" + _orig_pathname2url(p)
+    else:
+        result = _orig_pathname2url(p)
     if add_scheme and not result.startswith("file:"):
         if result.startswith("//"):
             result = "file:" + result
