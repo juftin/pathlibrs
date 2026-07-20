@@ -7,11 +7,11 @@
 # Remove entries as features are fixed in pathlibrs.
 # Only private-API tests should remain as permanent skips.
 #
-# Stats: 32 active entries | 789 passed | 415 skipped | 0 failures (macOS)
+# Stats: 29 active entries | 792 passed | 411 skipped | 0 failures (macOS)
 #        27 private-API entries (permanent)
-#         5 platform-specific / deferred
-#       (207 entries resolved from 239 baseline)
-#
+#         2 platform-specific / deferred
+#       (210 entries resolved from 239 baseline)
+
 # ═══════════════════════════════════════════════════════════════════════
 
 # ── Private API: _delete() (26 entries, permanent) ────────────────────
@@ -47,21 +47,6 @@ PathTest.test_delete_outer_junction
 # CPython 3.13 pickle format references pathlib._local.PurePosixPath
 PurePathTest.test_concrete_class
 
-# ── resolve() (1 entry, Windows-only) ─────────────────────────────────
-# POSIX passes; Windows resolve of relative symlinks (linkX→linkX/inside)
-# returns wrong intermediate path instead of the fully-resolved target.
-PathTest.test_resolve_common
-
-# ── rmdir (1 entry, Windows handle leak) ──────────────────────────────
-# POSIX passes; on Windows, iterdir() holds a directory handle open
-# preventing immediate rmdir().
-PathTest.test_rmdir
-
-# ── walk() edge cases (1 entry, Python 3.10 + Windows) ───────────────
-# infinite_recursion(40) cannot set recursion limit at depth 42 on
-# Python 3.10 (passes on 3.14). Windows 3.10 CI runner fails.
-PathWalkTest.test_walk_above_recursion_limit
-
 # ── test_absolute_windows (1 entry, Windows-only) ───────────────────
-# Uses os.chdir() and os_helper.subst_drive() — cannot run on POSIX.
+# Uses os_helper.subst_drive() — cannot run on POSIX.
 PathTest.test_absolute_windows
