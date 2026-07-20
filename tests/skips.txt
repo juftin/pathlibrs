@@ -7,7 +7,7 @@
 # Remove entries as features are fixed in pathlibrs.
 # Only private-API tests should remain as permanent skips.
 #
-# Stats: 30 active entries | 791 passed | 412 skipped | 0 failures (macOS)
+# Stats: 30 active entries | 783 passed | 421 skipped | 0 failures (macOS)
 #        27 private-API entries (permanent)
 #         3 platform-specific / deferred
 #       (209 entries resolved from 239 baseline)
@@ -47,9 +47,16 @@ PathTest.test_delete_outer_junction
 # CPython 3.13 pickle format references pathlib._local.PurePosixPath
 PurePathTest.test_concrete_class
 
-# ── rmdir (1 entry, Windows handle leak) ──────────────────────────────
-# POSIX passes; on Windows, rmdir raises PermissionError (os error 5)
-# after iterdir+unlink. Likely a Windows symlink/junction unlink issue.
+# ── test_resolve_common (1 entry, Windows symlink resolve) ────────────
+# POSIX passes; on Windows, resolve() does not follow symlinks inside
+# popped components.  Fix requires component-by-component symlink
+# resolution (read_link + lstat) to replace the bulk canonicalize
+# approach.  Needs a Windows dev environment to test.
+PathTest.test_resolve_common
+
+# ── test_rmdir (1 entry, Windows handle leak) ─────────────────────────
+# POSIX passes; on Windows, rmdir after iterdir+unlink raises
+# PermissionError (os error 5).  Needs a Windows dev environment.
 PathTest.test_rmdir
 
 # ── test_absolute_windows (1 entry, Windows-only) ───────────────────
