@@ -73,6 +73,36 @@ if not hasattr(unittest.TestCase, "assertIsSubclass"):
 sys.modules["pathlib"] = pathlibrs
 if _real_pathlib_types is not None:
     pathlibrs.types = _real_pathlib_types
+else:
+    # Python < 3.12: pathlib is not a package, so pathlib.types doesn't
+    # exist.  Create a synthetic types module with a _WritablePath that
+    # mirrors docstrings from the actual Path class, so the vendored
+    # test_matches_writablepath_docstrings test still passes.
+    _synthetic_types = types.ModuleType("pathlibrs.types")
+    _synthetic_types.__doc__ = "Shim for pathlib.types (injected by pathlibrs test harness)."
+    # Create _WritablePath as a protocol-like object whose attributes
+    # carry the same __doc__ strings as our Path class.
+    _wp_methods = [
+        "anchor", "full_match", "joinpath", "mkdir", "name", "parent",
+        "parents", "parser", "parts", "stem", "suffix", "suffixes",
+        "symlink_to", "with_name", "with_segments", "with_stem",
+        "with_suffix", "write_bytes", "write_text",
+    ]
+
+    class _WritablePathShim:
+        """Shim for _WritablePath protocol (Python < 3.12)."""
+
+    _wp = _WritablePathShim
+    for _m in _wp_methods:
+        _attr = getattr(pathlibrs.Path, _m, None)
+        _doc = getattr(_attr, "__doc__", None) if _attr is not None else None
+
+        class _Descriptor:
+            __doc__ = _doc
+
+        setattr(_wp, _m, _Descriptor)
+    _synthetic_types._WritablePath = _wp
+    pathlibrs.types = _synthetic_types
 
 # ── Shim pathname2url(add_scheme=True) for Python < 3.14 ─────────────────────
 # CPython 3.14 added ``add_scheme`` kwarg to urllib.request.pathname2url.
