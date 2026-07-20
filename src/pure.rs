@@ -879,12 +879,18 @@ impl PurePath {
     /// Return the user name of the file owner.
     #[pyo3(signature = (*, follow_symlinks = true))]
     fn owner(&self, follow_symlinks: bool) -> PyResult<String> {
+        if self._is_windows() {
+            return Err(unsupported_msg("Path.owner()"));
+        }
         crate::fs::owner(self.inner.raw(), follow_symlinks)
     }
 
     /// Return the group name of the file.
     #[pyo3(signature = (*, follow_symlinks = true))]
     fn group(&self, follow_symlinks: bool) -> PyResult<String> {
+        if self._is_windows() {
+            return Err(unsupported_msg("Path.group()"));
+        }
         crate::fs::group(self.inner.raw(), follow_symlinks)
     }
 
@@ -2400,4 +2406,18 @@ fn parse_file_uri(uri: &str) -> PyResult<String> {
     } else {
         Ok(format!("/{path_part}"))
     }
+}
+
+/// Create a PyErr for UnsupportedOperation with the given method name message.
+fn unsupported_msg(method: &str) -> pyo3::PyErr {
+    Python::with_gil(|py| {
+        let pathlibrs = py
+            .import("pathlibrs")
+            .expect("pathlibrs module should be importable");
+        let exc = pathlibrs
+            .getattr("UnsupportedOperation")
+            .expect("UnsupportedOperation should be defined");
+        let msg = format!("{method} is unsupported on this system");
+        PyErr::from_value(exc.call1((msg,)).unwrap())
+    })
 }
