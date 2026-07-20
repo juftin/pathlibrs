@@ -563,6 +563,12 @@ fn resolve_non_strict(path: &StdPath) -> Result<std::path::PathBuf, io::Error> {
                 let mut result = resolved;
                 for c in popped.iter().rev() {
                     result.push(c);
+                    // Try to resolve symlinks in this component.
+                    // canonicalize may fail (NotFound / PermissionDenied /
+                    // NotADirectory / ELOOP) — that's fine in non-strict mode.
+                    if let Ok(further) = std::fs::canonicalize(&result) {
+                        result = further;
+                    }
                 }
                 return Ok(result);
             }
@@ -714,11 +720,28 @@ fn not_a_directory_error(msg: String) -> PyErr {
 /// Remove an empty directory at ``path``.
 pub fn rmdir(path: &OsStr) -> PyResult<()> {
     let path_buf = StdPath::new(path).to_path_buf();
-    let result = Python::with_gil(|py| py.allow_threads(|| std::fs::remove_dir(&path_buf)));
-    match result {
-        Ok(()) => Ok(()),
-        Err(e) => Err(io_err_to_pyerr(e)),
-    }
+    let result = Python::with_gil(|py| {
+        py.allow_threads(|| {
+            #[cfg(windows)]
+            {
+                for _ in 0..5 {
+                    match std::fs::remove_dir(&path_buf) {
+                        Ok(()) => return Ok(()),
+                        Err(e) if e.kind() == io::ErrorKind::PermissionDenied => {
+                            std::thread::sleep(std::time::Duration::from_millis(10));
+                        }
+                        Err(e) => return Err(e),
+                    }
+                }
+                std::fs::remove_dir(&path_buf)
+            }
+            #[cfg(not(windows))]
+            {
+                std::fs::remove_dir(&path_buf)
+            }
+        })
+    });
+    result.map_err(io_err_to_pyerr)
 }
 
 /// Change file mode (permissions).

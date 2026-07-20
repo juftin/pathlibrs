@@ -7,10 +7,10 @@
 # Remove entries as features are fixed in pathlibrs.
 # Only private-API tests should remain as permanent skips.
 #
-# Stats: 30 active entries | 783 passed | 421 skipped | 0 failures (macOS)
+# Stats: 29 active entries | 789 passed | 415 skipped | 0 failures (macOS)
 #        27 private-API entries (permanent)
-#         3 platform-specific / deferred
-#       (209 entries resolved from 239 baseline)
+#         2 platform-specific / deferred
+#       (210 entries resolved from 239 baseline)
 
 # ═══════════════════════════════════════════════════════════════════════
 
@@ -47,18 +47,16 @@ PathTest.test_delete_outer_junction
 # CPython 3.13 pickle format references pathlib._local.PurePosixPath
 PurePathTest.test_concrete_class
 
-# ── test_resolve_common (1 entry, Windows symlink resolve) ────────────
-# POSIX passes; on Windows, resolve() does not follow symlinks inside
-# popped components.  Fix requires component-by-component symlink
-# resolution (read_link + lstat) to replace the bulk canonicalize
-# approach.  Needs a Windows dev environment to test.
+# ── test_resolve_common (1 entry, Windows symlink chain) ──────────────
+# POSIX passes; on Windows, std::fs::canonicalize() cannot follow a
+# chain of directory symlinks where intermediate symlinks land in
+# different directories (e.g. dirA/linkX -> tmpdir, tmpdir/linkY ->
+# dirB).  Fix requires replacing bulk canonicalize with component-
+# by-component read_link + lstat resolution.  Needs Windows dev env.
 PathTest.test_resolve_common
 
-# ── test_rmdir (1 entry, Windows handle leak) ─────────────────────────
+# ── test_rmdir (1 entry, Windows PermissionError) ─────────────────────
 # POSIX passes; on Windows, rmdir after iterdir+unlink raises
-# PermissionError (os error 5).  Needs a Windows dev environment.
+# PermissionError (os error 5).  Retry loop does not help.  Needs
+# Windows dev environment.
 PathTest.test_rmdir
-
-# ── test_absolute_windows (1 entry, Windows-only) ───────────────────
-# Uses os_helper.subst_drive() — cannot run on POSIX.
-PathTest.test_absolute_windows
