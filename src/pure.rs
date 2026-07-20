@@ -519,7 +519,12 @@ impl PurePath {
     #[pyo3(signature = (uri))]
     fn from_uri(_cls: &Bound<'_, PyType>, uri: &str) -> PyResult<PyObject> {
         let _py = _cls.py();
-        let path_str = parse_file_uri(uri)?;
+        let cls_name = _cls
+            .getattr("__name__")
+            .map(|n| n.extract::<String>().unwrap_or_default())
+            .unwrap_or_default();
+        let is_windows = cls_name.contains("Windows");
+        let path_str = parse_file_uri(uri, is_windows)?;
         Ok(_cls.call1((path_str,))?.unbind())
     }
 
@@ -2376,7 +2381,7 @@ fn is_local_hostname(_authority: &str) -> bool {
 /// - ``file:relative/path`` (POSIX)
 /// - ``file:///C:/path`` (Windows drive letter)
 /// - ``file://host/path`` (non-localhost host → error)
-fn parse_file_uri(uri: &str) -> PyResult<String> {
+fn parse_file_uri(uri: &str, is_windows: bool) -> PyResult<String> {
     // Strip the "file:" prefix
     let rest = uri
         .strip_prefix("file:")
@@ -2385,11 +2390,31 @@ fn parse_file_uri(uri: &str) -> PyResult<String> {
             pyo3::exceptions::PyValueError::new_err(format!("URI '{uri}' is not a file: URI"))
         })?;
 
-    // Check for authority (//)
+    // Windows drive letter without authority: file:c:/path or file:c|/path
+    if rest.len() >= 2
+        && rest.as_bytes()[0].is_ascii_alphabetic()
+        && (rest.as_bytes()[1] == b':' || rest.as_bytes()[1] == b'|')
+    {
+        let drive = rest.as_bytes()[0] as char;
+        let rest_path = if rest.len() > 2 { &rest[2..] } else { "" };
+        return Ok(format!("{drive}:{rest_path}"));
+    }
+
+    // Single-slash drive letter: file:/c|/path → c:/path
+    if rest.len() >= 3
+        && rest.as_bytes()[0] == b'/'
+        && rest.as_bytes()[1].is_ascii_alphabetic()
+        && (rest.as_bytes()[2] == b':' || rest.as_bytes()[2] == b'|')
+    {
+        let drive = rest.as_bytes()[1] as char;
+        let rest_path = if rest.len() > 3 { &rest[3..] } else { "" };
+        return Ok(format!("{drive}:{rest_path}"));
+    }
+
+    // Must have an authority (//) or be an absolute POSIX path
     let authority_rest = match rest.strip_prefix("//") {
         Some(ar) => ar,
         None => {
-            // file:/absolute/path → absolute path; file:relative → invalid
             if !rest.starts_with('/') {
                 return Err(pyo3::exceptions::PyValueError::new_err(format!(
                     "non-local file: URI not supported: '{uri}'"
@@ -2399,47 +2424,62 @@ fn parse_file_uri(uri: &str) -> PyResult<String> {
         }
     };
 
-    // Find the first / after the authority
+    // Split authority from path
     let (authority, path_part) = match authority_rest.find('/') {
         Some(idx) => {
             let (auth, path) = authority_rest.split_at(idx);
-            (auth, &path[1..]) // skip the /
+            (auth, &path[1..])
         }
-        None => {
-            // file://hostname → no path
-            (authority_rest, "")
-        }
+        None => (authority_rest, ""),
     };
 
-    // Accept empty authority, "localhost", or the local machine's hostname.
-    // CPython's url2pathname matches against socket.gethostname().
+    // Empty authority or localhost → local file
     let is_local = authority.is_empty()
         || authority.eq_ignore_ascii_case("localhost")
         || is_local_hostname(authority);
-    if !is_local {
+    if is_local {
+        if path_part.is_empty() {
+            return Ok("/".to_string());
+        }
+        // Windows drive letter after local authority: /C:/path or /C|/path
+        if path_part.len() >= 3
+            && path_part.as_bytes()[0].is_ascii_alphabetic()
+            && (path_part.as_bytes()[1] == b':' || path_part.as_bytes()[1] == b'|')
+            && path_part.as_bytes()[2] == b'/'
+        {
+            let drive = path_part.as_bytes()[0] as char;
+            let rest_path = &path_part[3..];
+            if rest_path.is_empty() {
+                return Ok(format!("{drive}:\\"));
+            } else {
+                return Ok(format!("{drive}:\\{rest_path}"));
+            }
+        }
+        // When authority is empty and path_part has a leading / that isn't
+        // a drive letter, treat as UNC (//server/path).
+        // file:////server/path → authority="" + path="/server/path" → //server/path
+        if authority.is_empty() && path_part.starts_with('/') {
+            if path_part.starts_with("//") {
+                return Ok(path_part.to_string());
+            }
+            return Ok(format!("/{path_part}"));
+        }
+        if path_part.starts_with('/') {
+            return Ok(path_part.to_string());
+        }
+        return Ok(format!("/{path_part}"));
+    }
+
+    // Non-local authority → UNC path on Windows, ValueError on POSIX
+    if !is_windows {
         return Err(pyo3::exceptions::PyValueError::new_err(format!(
             "non-local file: URI not supported: '{uri}'"
         )));
     }
     if path_part.is_empty() {
-        return Ok("/".to_string());
-    }
-
-    // Windows drive letter: /C:/path or /C|/path
-    if path_part.len() >= 3
-        && path_part.as_bytes()[0].is_ascii_alphabetic()
-        && (path_part.as_bytes()[1] == b':' || path_part.as_bytes()[1] == b'|')
-        && path_part.as_bytes()[2] == b'/'
-    {
-        let drive = path_part.as_bytes()[0] as char;
-        let rest_path = &path_part[3..];
-        if rest_path.is_empty() {
-            Ok(format!("{drive}:\\"))
-        } else {
-            Ok(format!("{drive}:\\{rest_path}"))
-        }
+        Ok(format!("//{authority}"))
     } else {
-        Ok(format!("/{path_part}"))
+        Ok(format!("//{authority}/{path_part}"))
     }
 }
 
