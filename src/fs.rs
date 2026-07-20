@@ -1897,9 +1897,8 @@ fn delete_recursive(path: &StdPath, ignore_errors: bool) -> Result<(), io::Error
                 // symlinks.  Fall back to remove_dir.
                 #[cfg(windows)]
                 if e.kind() == io::ErrorKind::PermissionDenied {
-                    match std::fs::remove_dir(path) {
-                        Ok(()) => return Ok(()),
-                        Err(_) => {}
+                    if let Ok(()) = std::fs::remove_dir(path) {
+                        return Ok(());
                     }
                 }
                 if ignore_errors {
