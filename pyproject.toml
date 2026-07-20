@@ -32,6 +32,7 @@ bindings = "pyo3"
 [tool.ruff]
 target-version = "py310"
 line-length = 100
+exclude = ["tests/vendored/"]
 
 [tool.ruff.lint]
 select = ["E", "W", "F", "I", "N", "UP", "B", "SIM"]

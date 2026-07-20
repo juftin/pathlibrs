@@ -7,8 +7,8 @@
 # Remove entries as features are fixed in pathlibrs.
 # Only private-API tests should remain as permanent skips.
 #
-# Stats: 116 active entries | 723 passed | 481 skipped | 0 failures (all 6 CI platforms)
-#        (123 entries resolved from 239 baseline)
+# Stats: 71 active entries | 682 passed | 457 skipped | 0 failures (all 6 CI platforms)
+#        (168 entries resolved from 239 baseline)
 #
 # ═══════════════════════════════════════════════════════════════════════
 
@@ -47,21 +47,9 @@ PurePathTest.test_concrete_class
 
 # ── NotImplemented / UnsupportedOperation — RESOLVED (0 entries) ─────
 
-# ── copy(): preserve_metadata not implemented (8 entries) ─────────────
-PathSubclassTest.test_copy_dir_preserve_metadata
-PathSubclassTest.test_copy_link_preserve_metadata
-PathTest.test_copy_dir_preserve_metadata
-PathTest.test_copy_link_preserve_metadata
-PosixPathTest.test_copy_dir_preserve_metadata
-PosixPathTest.test_copy_link_preserve_metadata
+# ── copy(): preserve_metadata not implemented (0 entries resolved) ─────
 
-# ── copy(): permission / error handling (6 entries) ───────────────────
-PathSubclassTest.test_copy_dir_no_read_permission
-PathSubclassTest.test_copy_error_handling
-PathTest.test_copy_dir_no_read_permission
-PathTest.test_copy_error_handling
-PosixPathTest.test_copy_dir_no_read_permission
-PosixPathTest.test_copy_error_handling
+# ── copy(): permission / error handling (0 entries resolved) ────────────
 
 # ── symlinks: complex (3 entries, Windows-only) ──────────────────────
 # POSIX passes; Windows has //?/D: prefix mismatch
@@ -102,10 +90,10 @@ PathTest.test_mkdir_parents
 # ── rmdir (1 entry, Windows handle leak) ──────────────────────────
 PathTest.test_rmdir
 
-# ── walk() edge cases (2 entries) ───────────────────────────────────────
-# walk_bad_dir: eager walk processes subdirs before yielding root (CPython is lazy)
-# walk_above_recursion_limit: recursion limit issue on Python 3.10 Windows
-PathWalkTest.test_walk_bad_dir
+# ── walk() edge cases (1 entry) ───────────────────────────────────────
+# walk_above_recursion_limit: infinite_recursion() fails on Python 3.10
+# Windows (cannot set recursion limit to 40 at depth 42). Passes on
+# POSIX and Python 3.14.
 PathWalkTest.test_walk_above_recursion_limit
 
 # ── from_uri / pathname2url POSIX (5 entries) ─────────────────────────
@@ -162,7 +150,5 @@ PosixPathTest.test_matches_writablepath_docstrings
 
 # ── kwargs passthrough (PyO3 extends bug, 1 entry) ──────────────
 PathTest.test_passing_kwargs_errors
-# ── with_segments kwargs (needs PR #23 merged, 1 entry) ─────────
-PathTest.test_with_segments
 # ── docstrings (3 entries) ──────────────────────────────────────
 PathTest.test_matches_writablepath_docstrings
