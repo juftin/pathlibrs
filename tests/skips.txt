@@ -1,14 +1,11 @@
 # tests/skips.txt — Vendored CPython 3.14.6 Test Skips
 #
-# Tests listed here are skipped when running the vendored CPython test suite.
-#
-# Stats: 1 active entry | 810 passed | 394 skipped | 0 failures (macOS)
-#        1 PyO3 limitation
-#       (238 entries resolved from 239 baseline)
+# Stats: 2 active entries | 810 passed | 394 skipped | 0 failures (macOS)
+#        2 blocked (PyO3 / Windows chmod)
+#       (237 entries resolved from 239 baseline)
 
-# ── PurePath auto-dispatch (1 entry, PyO3 limitation) ────────────────
-# CPython PurePath('a') returns PurePosixPath via __new__ dispatch.
-# pathlibrs #[new] must return Self — cannot return a subclass.
-# #[classmethod(name = "__new__")] is not accepted as a constructor.
-# Upstream PyO3 support needed.
+# ── test_concrete_class — PyO3 #[new] cannot return subclass ──────────
 PurePathTest.test_concrete_class
+
+# ── test_delete_unwritable — Windows chmod cannot prevent file deletion
+PathTest.test_delete_unwritable
