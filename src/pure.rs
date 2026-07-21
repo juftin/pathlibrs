@@ -31,7 +31,7 @@ pub fn init_purepath_type(obj: PyObject) {
 // ═══════════════════════════════════════════════════════════════════════
 
 /// Base class for pure (non-IO) path objects.
-#[pyclass(subclass, module = "pathlibrs")]
+#[pyclass(subclass, freelist = 256, module = "pathlibrs")]
 pub struct PurePath {
     pub(crate) inner: PathRepr,
     pub(crate) flavour: PathFlavour,
