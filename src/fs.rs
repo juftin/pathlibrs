@@ -1203,13 +1203,12 @@ pub fn read_text(path: &OsStr, encoding: Option<&str>, errors: Option<&str>) -> 
 }
 
 /// Write bytes to a file, creating it if it doesn't exist.
-pub fn write_bytes(path: &OsStr, data: &[u8]) -> PyResult<()> {
+pub fn write_bytes(path: &OsStr, data: Vec<u8>) -> PyResult<()> {
     let path_buf = StdPath::new(path).to_path_buf();
-    let data_buf = data.to_vec();
     let result = Python::with_gil(|py| {
         py.allow_threads(|| -> Result<(), io::Error> {
             let mut f = std::fs::File::create(&path_buf)?;
-            f.write_all(&data_buf)?;
+            f.write_all(&data)?;
             Ok(())
         })
     });
@@ -1258,7 +1257,7 @@ pub fn write_text(
         encoded
     };
 
-    write_bytes(path, &final_bytes)
+    write_bytes(path, final_bytes)
 }
 
 // ═══════════════════════════════════════════════════════════════════════

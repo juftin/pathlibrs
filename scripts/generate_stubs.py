@@ -14,7 +14,6 @@ import inspect
 import textwrap
 from pathlib import Path
 
-
 CLASS_HEADERS = {
     "PurePath": "class PurePath:",
     "PurePosixPath": "class PurePosixPath(PurePath):",

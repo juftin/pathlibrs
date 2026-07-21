@@ -218,3 +218,54 @@ impl GlobIter {
         ))
     }
 }
+
+/// Lazy iterator over the results of ``Path.iterdir()``.
+///
+/// Yields one child path per ``__next__`` call instead of pre-collecting
+/// all results into a list.
+#[pyclass(module = "pathlibrs")]
+pub struct IterdirIter {
+    base: OsString,
+    names: Vec<OsString>,
+    pos: usize,
+    source: PyObject,
+}
+
+impl IterdirIter {
+    /// Create a new IterdirIter from a base path and directory entry names.
+    pub fn new(base: OsString, names: Vec<OsString>, source: PyObject) -> Self {
+        Self {
+            base,
+            names,
+            pos: 0,
+            source,
+        }
+    }
+}
+
+#[pymethods]
+impl IterdirIter {
+    fn __iter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> {
+        slf
+    }
+
+    fn __next__(&mut self, py: Python<'_>) -> PyResult<Option<PyObject>> {
+        if self.pos >= self.names.len() {
+            return Ok(None);
+        }
+        let name = &self.names[self.pos];
+        self.pos += 1;
+        let mut buf = Vec::with_capacity(self.base.len() + 1 + name.len());
+        buf.extend_from_slice(self.base.as_encoded_bytes());
+        buf.push(b'/');
+        buf.extend_from_slice(name.as_encoded_bytes());
+        let child_path = crate::from_os_bytes(&buf).to_os_string();
+        let arg = PyString::new(py, &child_path.to_string_lossy());
+        Ok(Some(
+            self.source
+                .bind(py)
+                .call_method1("with_segments", (arg,))?
+                .unbind(),
+        ))
+    }
+}

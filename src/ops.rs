@@ -14,6 +14,132 @@ pub fn is_sep(b: u8, is_windows: bool) -> bool {
     }
 }
 
+/// Find the byte offset where the anchor (drive + root) ends.
+///
+/// This is a fast, allocation-free scan of the raw bytes.  Returns the
+/// anchor end position and whether the path has a root.
+#[inline]
+pub fn quick_anchor_end(bytes: &[u8], is_windows: bool) -> (usize, bool) {
+    if bytes.is_empty() {
+        return (0, false);
+    }
+    if is_windows {
+        quick_anchor_end_windows(bytes)
+    } else {
+        quick_anchor_end_posix(bytes)
+    }
+}
+
+fn quick_anchor_end_posix(bytes: &[u8]) -> (usize, bool) {
+    if bytes[0] == b'/' {
+        let leading = bytes.iter().take_while(|&&b| b == b'/').count();
+        if leading == 2 {
+            (2, true) // "//" root
+        } else {
+            (1, true) // "/" root
+        }
+    } else {
+        (0, false)
+    }
+}
+
+fn quick_anchor_end_windows(bytes: &[u8]) -> (usize, bool) {
+    let len = bytes.len();
+    // Extended-length prefix: \\?\ or \\.\
+    if len >= 4
+        && is_sep(bytes[0], true)
+        && is_sep(bytes[1], true)
+        && (bytes[2] == b'?' || bytes[2] == b'.')
+        && is_sep(bytes[3], true)
+    {
+        return (find_win_anchor_end(bytes, 4), true);
+    }
+    // UNC: \\server\share
+    if len >= 2 && is_sep(bytes[0], true) && is_sep(bytes[1], true) {
+        return (find_win_unc_anchor_end(bytes), true);
+    }
+    // Drive letter: C: or C:\
+    if len >= 2 && bytes[0].is_ascii_alphabetic() && bytes[1] == b':' {
+        if len > 2 && is_sep(bytes[2], true) {
+            return (3, true);
+        }
+        return (2, false);
+    }
+    // Root-only: \ or /
+    if is_sep(bytes[0], true) {
+        return (1, true);
+    }
+    (0, false)
+}
+
+fn find_win_anchor_end(bytes: &[u8], prefix_len: usize) -> usize {
+    let rem = &bytes[prefix_len..];
+    if rem.is_empty() {
+        return prefix_len;
+    }
+    // \\?\UNC\server\share
+    if rem.len() >= 3 && rem[0] == b'U' && rem[1] == b'N' && rem[2] == b'C' {
+        let after_unc = if rem.len() > 3 && is_sep(rem[3], true) {
+            &rem[4..]
+        } else {
+            return prefix_len + 3;
+        };
+        if after_unc.is_empty() {
+            return bytes.len();
+        }
+        let mut pos = prefix_len + 4;
+        while pos < bytes.len() && !is_sep(bytes[pos], true) {
+            pos += 1;
+        }
+        if pos < bytes.len() {
+            pos += 1; // skip sep after server
+        }
+        while pos < bytes.len() && !is_sep(bytes[pos], true) {
+            pos += 1;
+        }
+        return pos.min(bytes.len());
+    }
+    // \\?\C:\ or \\.\C:\
+    if rem.len() >= 2 && rem[0].is_ascii_alphabetic() && rem[1] == b':' {
+        if rem.len() > 2 && is_sep(rem[2], true) {
+            return prefix_len + 3;
+        }
+        return prefix_len + 2;
+    }
+    // Extended prefix with device name: find trailing sep
+    let mut pos = bytes.len();
+    while pos > 0 && is_sep(bytes[pos - 1], true) {
+        pos -= 1;
+    }
+    if pos < bytes.len() {
+        pos + 1 // anchor ends after trailing sep
+    } else {
+        bytes.len()
+    }
+}
+
+fn find_win_unc_anchor_end(bytes: &[u8]) -> usize {
+    let len = bytes.len();
+    let after = &bytes[2..];
+    if after.is_empty() {
+        return 2;
+    }
+    // Find server name
+    let mut pos = 2;
+    while pos < len && !is_sep(bytes[pos], true) {
+        pos += 1;
+    }
+    if pos >= len {
+        return len; // \\server — no share
+    }
+    pos += 1; // skip separator after server
+              // Find share
+    while pos < len && !is_sep(bytes[pos], true) {
+        pos += 1;
+    }
+    pos.min(len)
+}
+
 /// Extract the **final path component** (the "name") from a byte slice.
 ///
 /// Returns [`None`] if there is no name (e.g. the path ends at the root
@@ -179,6 +305,66 @@ pub fn split_parent_name(
             Some((anchor_end, Some(anchor_end)))
         }
     }
+}
+
+/// Return parent path bytes by finding the last separator after the anchor.
+///
+/// Returns `None` when there is no parent (root-only or anchor-only path).
+pub fn parent_bytes(bytes: &[u8], is_windows: bool) -> Option<&[u8]> {
+    let (anchor_end, _) = quick_anchor_end(bytes, is_windows);
+    let tail = &bytes[anchor_end..];
+
+    if tail.is_empty() {
+        // Only anchor — if root exists, it is its own parent
+        if anchor_end > 0 {
+            return Some(&bytes[..anchor_end]);
+        }
+        return Some(b".");
+    }
+
+    let end = trim_trailing_seps(tail, is_windows);
+    let tail = &tail[..end];
+
+    if tail.is_empty() {
+        // All trailing separators — parent is anchor
+        if anchor_end > 0 {
+            return Some(&bytes[..anchor_end]);
+        }
+        return Some(b".");
+    }
+
+    match tail.iter().rposition(|&b| is_sep(b, is_windows)) {
+        Some(last_sep_pos) => {
+            // The separator is at position last_sep_pos within tail.
+            // The parent portion is tail[..last_sep_pos] + anchor.
+            if last_sep_pos == 0 {
+                // Parent is just the anchor
+                if anchor_end > 0 {
+                    Some(&bytes[..anchor_end])
+                } else {
+                    Some(b".")
+                }
+            } else {
+                let parent_end = anchor_end + last_sep_pos;
+                Some(&bytes[..parent_end])
+            }
+        }
+        None => {
+            // Only one part after anchor — parent is anchor
+            if anchor_end > 0 {
+                Some(&bytes[..anchor_end])
+            } else {
+                Some(b".")
+            }
+        }
+    }
+}
+
+/// Return name component bytes from raw path bytes.
+pub fn name_bytes(bytes: &[u8], is_windows: bool) -> Option<&[u8]> {
+    let (anchor_end, _) = quick_anchor_end(bytes, is_windows);
+    let opts_name = name_from_bytes(bytes, anchor_end, is_windows);
+    opts_name.map(|s| s.as_encoded_bytes())
 }
 
 // ---------------------------------------------------------------------------
