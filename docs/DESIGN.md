@@ -633,7 +633,7 @@ pathlibrs/
 │   ├── test_mutation_ops.py    # mkdir/copy/move/delete benchmarks
 │   ├── test_memory.py          # allocation/overhead benchmarks
 │   └── results/                # *.json benchmark data (gitignored)
-├── pathlibrs/
+├── stubs/
 │   ├── __init__.pyi            # PEP 561 type stubs
 │   └── py.typed                # PEP 561 marker
 ├── scripts/
@@ -797,7 +797,7 @@ attribute-surface mismatch).
 ### 11.8 Typing Support
 
 pathlibrs provides a hand-crafted PEP 561 ``.pyi`` stub file
-(``pathlibrs/__init__.pyi``) that mirrors
+(``stubs/__init__.pyi``) that mirrors
 the full CPython 3.14 ``pathlib`` typing surface:
 
 - All 6 classes with complete method signatures, parameter names,
