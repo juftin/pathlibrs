@@ -83,9 +83,9 @@ impl PurePath {
     /// Construct a new path object of the same Python type as `slf_ptr`.
     ///
     /// Uses a cached type check: when the instance type matches the known
-    /// ``PurePath`` type (the common benchmark case), construction happens
-    /// entirely in Rust without any Python round-trip.  For subclasses,
-    /// falls back to ``with_segments`` which is the CPython-compatible path.
+    /// ``PurePath`` type, calls ``cls(new_raw)`` directly — one Python
+    /// round-trip instead of the ``with_segments`` chain.  For subclasses,
+    /// falls back to ``with_segments`` which preserves custom state.
     fn _make_child(
         py: Python<'_>,
         slf_ptr: *mut pyo3::ffi::PyObject,
@@ -94,12 +94,12 @@ impl PurePath {
         let slf_bound = unsafe { pyo3::Bound::<'_, pyo3::PyAny>::from_borrowed_ptr(py, slf_ptr) };
 
         // Fast path: if self is exactly a PurePath (the common non-subclassed case),
-        // construct directly in Rust without any Python round-trip.
+        // call cls(new_raw) — one FFI call instead of with_segments method dispatch.
         if let Some(cached) = PUREPATH_TYPE.get() {
             if let Ok(cached_bound) = cached.bind(py).downcast::<PyType>() {
                 if slf_bound.get_type().is(cached_bound) {
-                    let slf_ref: &Self = unsafe { &*(slf_ptr as *const Self) };
-                    return Self::_make_child_fast(py, slf_ref.flavour, new_raw);
+                    let raw_str = new_raw.to_string_lossy().into_owned();
+                    return Ok(slf_bound.get_type().call1((raw_str,))?.unbind());
                 }
             }
         }
@@ -314,7 +314,12 @@ impl PurePath {
                     buf.extend_from_slice(name.as_bytes());
                     crate::from_os_bytes(&buf).to_os_string()
                 } else {
-                    OsString::from(name)
+                    // No anchor, single part → parent is "."
+                    let mut buf = Vec::with_capacity(2 + name.len());
+                    buf.push(b'.');
+                    buf.push(sep);
+                    buf.extend_from_slice(name.as_bytes());
+                    crate::from_os_bytes(&buf).to_os_string()
                 }
             }
         }
