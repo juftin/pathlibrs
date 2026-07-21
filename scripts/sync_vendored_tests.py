@@ -42,7 +42,6 @@ LOCALLY_MODIFIED = {
 }
 
 
-
 def _sha256(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
@@ -91,10 +90,7 @@ def discover_latest_stable_tag() -> str:
 
 
 def _build_base_url(ref: str) -> str:
-    return (
-        f"https://raw.githubusercontent.com/python/cpython"
-        f"/{ref}/Lib/test/test_pathlib"
-    )
+    return f"https://raw.githubusercontent.com/python/cpython/{ref}/Lib/test/test_pathlib"
 
 
 def sync(vendor_dir: Path, base_url: str, *, write: bool) -> int:
@@ -140,9 +136,7 @@ def sync(vendor_dir: Path, base_url: str, *, write: bool) -> int:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Sync vendored CPython test files from upstream."
-    )
+    parser = argparse.ArgumentParser(description="Sync vendored CPython test files from upstream.")
     parser.add_argument(
         "--ref",
         help="CPython git ref to sync from (default: latest stable release tag).",
@@ -187,10 +181,7 @@ def main() -> None:
     elif args.write:
         print(f"{changed} file(s) synced from CPython {ref}.")
     else:
-        print(
-            f"{changed} file(s) have upstream changes. "
-            f"Run with --write to sync from {ref}."
-        )
+        print(f"{changed} file(s) have upstream changes. Run with --write to sync from {ref}.")
 
     sys.exit(0 if changed == 0 else 1)
 

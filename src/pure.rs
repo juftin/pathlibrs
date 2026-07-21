@@ -194,6 +194,7 @@ impl PurePath {
 
     // -- properties ----------------------------------------------------
 
+    /// The drive prefix (letter or UNC path), if any.
     #[getter]
     fn drive(&self) -> String {
         self.inner
@@ -204,6 +205,7 @@ impl PurePath {
             .unwrap_or_default()
     }
 
+    /// The root of the path, if any.
     #[getter]
     fn root(&self) -> String {
         self.inner
@@ -530,6 +532,12 @@ impl PurePath {
     }
 
     #[pyo3(signature = (other, *, walk_up = false))]
+    /// Return the relative path to another path identified by the passed
+    /// arguments.  If the operation is not possible (because this is not
+    /// related to the other path), raise ValueError.
+    ///
+    /// The *walk_up* parameter controls whether ``..`` components may be
+    /// used to resolve the path.
     fn relative_to<'py>(
         slf: PyRef<'py, Self>,
         other: &Bound<'py, PyAny>,
@@ -642,6 +650,7 @@ impl PurePath {
         }
     }
 
+    /// Return True if the path is relative to another path or False.
     fn is_relative_to(&self, other: &Bound<'_, PyAny>) -> PyResult<bool> {
         let other_str = _extract_path_str(other)?;
         let other_parsed = crate::parsing::parse_path(OsStr::new(&other_str), self.flavour);
@@ -664,6 +673,8 @@ impl PurePath {
         Ok(true)
     }
 
+    /// Return the string representation of the path with forward (/)
+    /// slashes.
     fn as_posix(&self) -> String {
         let raw = self.inner.raw().as_encoded_bytes();
         let mut result = Vec::with_capacity(raw.len());
@@ -673,6 +684,7 @@ impl PurePath {
         String::from_utf8_lossy(&result).into_owned()
     }
 
+    /// Return the path as a URI.
     fn as_uri(&self) -> PyResult<String> {
         // Emit DeprecationWarning — PurePath.as_uri() is deprecated
         // in favor of concrete Path.as_uri() (CPython compat).
@@ -731,6 +743,10 @@ impl PurePath {
         })
     }
 
+    /// Return True if this path matches the given pattern. If the pattern
+    /// is relative, matching is done from the right; otherwise, the entire
+    /// path is matched. The recursive wildcard ``**`` is *not* supported
+    /// by this method (it is treated as the ``*`` operator).
     #[pyo3(name = "match")]
     #[pyo3(signature = (pattern, *, case_sensitive = None))]
     fn match_(&self, pattern: &str, case_sensitive: Option<bool>) -> PyResult<bool> {
@@ -1373,6 +1389,8 @@ impl PurePath {
         self.__str__()
     }
 
+    /// Return the bytes representation of the path.  This is only
+    /// recommended to use under Unix.
     fn __bytes__(&self) -> PyResult<PyObject> {
         // Use os.fsencode(str(self)) — CPython behaviour.
         // __str__ normalises separators to OS-native form (\ on Windows).
@@ -2015,6 +2033,7 @@ impl WalkIter {
 // PurePosixPath
 // ═══════════════════════════════════════════════════════════════════════
 
+/// Pure path subtype for POSIX systems.
 #[pyclass(subclass, extends=PurePath, module = "pathlibrs")]
 pub struct PurePosixPath;
 
@@ -2036,6 +2055,7 @@ impl PurePosixPath {
 // PureWindowsPath
 // ═══════════════════════════════════════════════════════════════════════
 
+/// Pure path subtype for Windows systems.
 #[pyclass(subclass, extends=PurePath, module = "pathlibrs")]
 pub struct PureWindowsPath;
 

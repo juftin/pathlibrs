@@ -21,6 +21,7 @@ install: setup ## Build and install pathlibrs in development mode (maturin devel
 rebuild: ## Force full rebuild and reinstall (clean Rust build + develop).
 	cargo build
 	uv run maturin develop
+	cp target/debug/libpathlibrs.* $(shell uv run python -c 'import pathlibrs; print(pathlibrs.__file__.replace("__init__.py",""))')pathlibrs.abi3.so 2>/dev/null || true
 
 .PHONY: dev
 dev: install ## Alias for install.
