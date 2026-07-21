@@ -16,11 +16,18 @@ setup: ## Install Python dev dependencies (uv sync --group dev).
 .PHONY: install
 install: setup ## Build and install pathlibrs in development mode (maturin develop).
 	uv run maturin develop
+	@PKG_DIR=$$(uv run python -c "import pathlibrs; import os; print(os.path.dirname(pathlibrs.__file__))" 2>/dev/null); \
+	if [ -n "$$PKG_DIR" ]; then \
+		cp pathlibrs-stubs/pathlibrs/__init__.pyi "$$PKG_DIR/__init__.pyi"; \
+		cp pathlibrs-stubs/pathlibrs/py.typed "$$PKG_DIR/py.typed"; \
+		echo "  Type stubs installed"; \
+	fi
 
 .PHONY: rebuild
 rebuild: ## Force full rebuild and reinstall (clean Rust build + develop).
 	cargo build
 	uv run maturin develop
+	cp target/debug/libpathlibrs.* $(shell uv run python -c 'import pathlibrs; print(pathlibrs.__file__.replace("__init__.py",""))')pathlibrs.abi3.so 2>/dev/null || true
 
 .PHONY: dev
 dev: install ## Alias for install.
@@ -152,6 +159,16 @@ bench-compare: install-release ## Run benchmarks and compare against saved basel
 		--benchmark-compare-fail=min:10%,mean:10%,median:10% \
 		--benchmark-storage=$(BENCH_RESULTS) \
 		--benchmark-json=$(BENCH_RESULTS)/benchmark.json
+
+##@ Sync
+
+.PHONY: sync-vendored
+sync-vendored: ## Check for upstream CPython test changes (diff-only, no write).
+	uv run python scripts/sync_vendored_tests.py
+
+.PHONY: sync-vendored-write
+sync-vendored-write: ## Download and write the latest CPython vendored test files.
+	uv run python scripts/sync_vendored_tests.py --write
 
 ##@ Help
 

@@ -1,0 +1,78 @@
+name: Sync Vendored Tests
+
+on:
+  schedule:
+    - cron: "0 6 * * 1" # 06:00 UTC every Monday
+  workflow_dispatch:
+  push:
+    paths:
+      - scripts/sync_vendored_tests.py
+      - .github/workflows/sync-vendored.yml
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  sync:
+    name: sync-vendored
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: false
+
+      - name: Discover latest CPython release tag
+        id: tag
+        run: |
+          TAG=$(uv run python scripts/sync_vendored_tests.py --discover-latest-tag)
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+
+      - name: Check for upstream changes
+        id: sync
+        continue-on-error: true
+        run: |
+          uv run python scripts/sync_vendored_tests.py --ref "${{ steps.tag.outputs.tag }}"
+
+      - name: Check if test_pathlib.py changed
+        id: diff
+        run: |
+          TAG="${{ steps.tag.outputs.tag }}"
+          UPSTREAM=$(curl -sSf "https://raw.githubusercontent.com/python/cpython/${TAG}/Lib/test/test_pathlib/test_pathlib.py")
+          LOCAL=$(cat tests/vendored/test_pathlib.py)
+
+          if [ "$UPSTREAM" = "$LOCAL" ]; then
+            echo "test_pathlib.py unchanged — nothing to sync"
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "test_pathlib.py has upstream changes"
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Sync vendored files
+        if: steps.diff.outputs.changed == 'true'
+        run: |
+          uv run python scripts/sync_vendored_tests.py --ref "${{ steps.tag.outputs.tag }}" --write
+
+      - name: Create pull request
+        if: steps.diff.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@v7
+        with:
+          commit-message: "🔄 (vendored): Sync tests from CPython ${{ steps.tag.outputs.tag }}"
+          title: "🔄 (vendored): Sync tests from CPython ${{ steps.tag.outputs.tag }}"
+          body: |
+            Automated sync of vendored CPython test files from
+            [cpython@${{ steps.tag.outputs.tag }}](https://github.com/python/cpython/tree/${{ steps.tag.outputs.tag }}/Lib/test/test_pathlib).
+
+            ### Next steps
+            - [ ] Run `make test-python` to check for regressions
+            - [ ] Run `make test-windows` to check Windows path parsing
+            - [ ] Add any new private-API tests to `tests/skips.txt`
+            - [ ] Update `conftest.py` shims if needed for new Python version features
+          branch: sync/vendored-${{ steps.tag.outputs.tag }}
+          base: main
+          labels: vendored-sync
+          delete-branch: true

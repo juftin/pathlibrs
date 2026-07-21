@@ -28,36 +28,52 @@ thread_local! {
 #[pyclass(name = "stat_result", module = "pathlibrs")]
 #[derive(Debug, Clone)]
 pub struct StatResult {
+    /// Protection mode (including file type bits).
     #[pyo3(get)]
     pub st_mode: u32,
+    /// Inode number.
     #[pyo3(get)]
     pub st_ino: u64,
+    /// Device ID.
     #[pyo3(get)]
     pub st_dev: u64,
+    /// Number of hard links.
     #[pyo3(get)]
     pub st_nlink: u64,
+    /// User ID of owner.
     #[pyo3(get)]
     pub st_uid: u32,
+    /// Group ID of owner.
     #[pyo3(get)]
     pub st_gid: u32,
+    /// Total size in bytes.
     #[pyo3(get)]
     pub st_size: u64,
+    /// Time of last access in seconds.
     #[pyo3(get)]
     pub st_atime: f64,
+    /// Time of last modification in seconds.
     #[pyo3(get)]
     pub st_mtime: f64,
+    /// Time of last status change in seconds.
     #[pyo3(get)]
     pub st_ctime: f64,
+    /// Time of last access in nanoseconds.
     #[pyo3(get)]
     pub st_atime_ns: u64,
+    /// Time of last modification in nanoseconds.
     #[pyo3(get)]
     pub st_mtime_ns: u64,
+    /// Time of last status change in nanoseconds.
     #[pyo3(get)]
     pub st_ctime_ns: u64,
+    /// Optimal I/O block size.
     #[pyo3(get)]
     pub st_blksize: u64,
+    /// Number of 512-byte blocks allocated.
     #[pyo3(get)]
     pub st_blocks: u64,
+    /// Device type (if inode device).
     #[pyo3(get)]
     pub st_rdev: u64,
 }
