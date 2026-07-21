@@ -16,6 +16,12 @@ setup: ## Install Python dev dependencies (uv sync --group dev).
 .PHONY: install
 install: setup ## Build and install pathlibrs in development mode (maturin develop).
 	uv run maturin develop
+	@PKG_DIR=$$(uv run python -c "import pathlibrs; import os; print(os.path.dirname(pathlibrs.__file__))" 2>/dev/null); \
+	if [ -n "$$PKG_DIR" ]; then \
+		cp pathlibrs-stubs/pathlibrs/__init__.pyi "$$PKG_DIR/__init__.pyi"; \
+		cp pathlibrs-stubs/pathlibrs/py.typed "$$PKG_DIR/py.typed"; \
+		echo "  Type stubs installed"; \
+	fi
 
 .PHONY: rebuild
 rebuild: ## Force full rebuild and reinstall (clean Rust build + develop).
