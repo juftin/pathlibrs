@@ -148,4 +148,59 @@ Vendored CPython 3.14.6 test suite: **810 passed, 394 skipped, 0 failures**.
 - [x] `pathname2url(add_scheme=True)` shim for Python < 3.14
 - [x] `infinite_recursion` monkey-patch for Python < 3.11
 - [x] `subst_drive` shim for Python < 3.14
-- [ ] Automated upstream test sync workflow
+- [x] Automated upstream test sync workflow
+
+## Phase 6: Performance Optimization
+
+Detailed plan in [`OPTIMIZATION.md`](./OPTIMIZATION.md).
+
+Current benchmark state: **14 faster, 21 slower, 4 at parity** (39 benchmarks).
+
+Goal: **0 benchmarks slower than pathlib**.
+
+### Step 1: Infrastructure (prep for Wins 1-3)
+
+- [ ] Replace `Mutex<Option<Py<PathInfo>>>` with `OnceLock<Py<PathInfo>>`
+- [ ] Add `str_cache: OnceLock<String>` to `PathRepr` + cached `__str__`
+- [ ] Pre-size all `Vec<u8>` path builders with `with_capacity`
+
+### Step 2: `_make_child_fast` — Rust-native construction
+
+- [ ] Fast Rust construction with subclass-override detection
+- [ ] Wire into `__truediv__`, `__rtruediv__`, `joinpath`
+- [ ] Wire into `parent`, `with_name`, `with_stem`, `with_suffix`
+- [ ] Wire into `relative_to`, `absolute`, `resolve`, `readlink`
+- [ ] Wire into FS ops (`rename`, `replace`, `copy`, `copy_into`, `move_`, `move_into`, `iterdir`)
+      Targeted: `truediv` (3.23→1.2×), `parent` (2.03→1.2×), `joinpath` (2.51→1.2×)
+
+### Step 3: Shallow Parsing — avoid full parse when not needed
+
+- [ ] `quick_anchor_end()` for POSIX and Windows
+- [ ] `parent_bytes()` working on raw `&[u8]`
+- [ ] `name_bytes()` working on raw `&[u8]`
+- [ ] Refactor property getters (`parent`, `name`, `stem`, `suffix`, `suffixes`) to fast path
+- [ ] Refactor mutators (`with_name`, `with_stem`, `with_suffix`) to fast path
+- [ ] Refactor `truediv`, `joinpath` to skip parse entirely
+      Targeted: `truediv` (1.2→1.0×), `parent` (1.2→1.0×), `joinpath` (1.2→1.0×)
+
+### Step 4: Allocation Squash — inline short paths
+
+- [ ] Implement `CompactOsString` with 30-byte inline buffer
+- [ ] Swap `PathRepr.raw` from `OsString` to `CompactOsString`
+- [ ] Inline `ParsedPath` into `PathRepr` (remove `Box`)
+      Targeted: `construct_and_discard` (2.98→1.1×), `sizeof` (2.20→1.0×)
+
+### Step 5: Iterators & Glob
+
+- [ ] Lazy `iterdir` iterator class with `__next__`
+      Targeted: `iterdir` (2.17→1.0×)
+- [ ] Brace-alternatives in pattern AST + single-scan glob walk
+      Targeted: `glob("{py,txt}")` (4.94→1.3×)
+
+### Step 6: Polish
+
+- [ ] `write_bytes` remove `data.to_vec()` copy
+- [ ] `read_text`/`write_text` UTF-8 fast path
+- [ ] Cached `parts` tuple in `PathRepr`
+- [ ] Cached name/stem/suffix/suffixes in `ParsedPath`
+      Targeted: `parts` (1.43→1.0×), `str` (1.71→1.0×), `write_bytes` (1.43→1.0×)
