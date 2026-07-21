@@ -75,9 +75,12 @@ def generate_stubs(output_dir: Path) -> None:
 
     stub_lines = []
     stub_lines.append(
-        '"""Type stub for pathlibrs.' + '\n' + textwrap.dedent("""\
+        '"""Type stub for pathlibrs.'
+        + "\n"
+        + textwrap.dedent("""\
         This file is auto-generated. Do not edit manually.
-        """) + '"""'
+        """)
+        + '"""'
     )
     stub_lines.append("")
 
@@ -105,12 +108,17 @@ def generate_stubs(output_dir: Path) -> None:
 
             if _is_property(cls, name):
                 doc = getattr(type(cls).__dict__.get(name), "__doc__", None)
-                doc_str = f'  # {doc.split(chr(10))[0]}' if doc else ""
-                members.append((name, f"    @property{chr(10)}    def {name}(self) -> ...: ...{doc_str}{chr(10)}"))
+                doc_str = f"  # {doc.split(chr(10))[0]}" if doc else ""
+                members.append(
+                    (
+                        name,
+                        f"    @property{chr(10)}    def {name}(self) -> ...: ...{doc_str}{chr(10)}",
+                    )
+                )
             elif callable(attr):
                 sig = _format_signature(attr)
                 doc = getattr(attr, "__doc__", None)
-                doc_str = f'    {chr(10)}'.join(
+                doc_str = f"    {chr(10)}".join(
                     f"    # {line}" for line in (doc or "").split("\n")[:1] if line.strip()
                 )
                 if doc_str:

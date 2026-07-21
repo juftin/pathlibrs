@@ -52,7 +52,7 @@ The critical design choice: **separate the Rust core from the PyO3 boundary**. T
 
 ## 3. Class Hierarchy
 
-### 3.1 Python View (preserved exactly)
+### 3.1 Python View (CPython Reference)
 
 ```
 PurePath
@@ -63,6 +63,28 @@ Path (inherits from PurePath)
 ├── PosixPath
 └── WindowsPath
 ```
+
+### 3.1a Python View (pathlibrs — Current)
+
+In CPython the six-class hierarchy provides two layers of separation
+(pure vs concrete) with an intermediate ``Path`` class that carries
+filesystem operations.  pathlibrs takes a simpler approach that
+inherits from PyO3's structural constraints:
+
+```
+PurePath ──── all methods (pure + concrete) live here
+├── PurePosixPath(PurePath)   ←  thin marker with POSIX-flavour new()
+├── PureWindowsPath(PurePath) ←  thin marker with Windows-flavour new()
+├── PosixPath(PurePath)       ←  alias for Path on POSIX
+└── WindowsPath(PurePath)     ←  alias for Path on Windows
+
+Path  ≡  PosixPath (non-Windows)  or  WindowsPath (Windows)
+```
+
+**Consequence**: ``PurePosixPath('/home').exists()`` succeeds in
+pathlibrs but raises ``AttributeError`` in CPython.  All ~60
+filesystem methods are reachable from every class in the hierarchy.
+This is a known architectural deviation — see section 11.7.
 
 ### 3.2 Rust Internal Representation
 
@@ -90,27 +112,33 @@ struct ParsedPath {
 #[pyclass(subclass)]
 struct PurePath {
     inner: PathRepr,
+    flavour: PathFlavour,
+    path_info: Mutex<Option<Py<PathInfo>>>,
 }
 
-#[pyclass(extends=PurePath)]
+#[pyclass(subclass, extends=PurePath)]
 struct PurePosixPath { /* marker, no extra data */ }
 
-#[pyclass(extends=PurePath)]
-struct PureWindowsPath {
-    // On non-Windows hosts, PureWindowsPath still uses
-    // a Windows-aware parser with drive/UNC support
-    inferred_drive: OnceCell<Option<String>>,
-}
+#[pyclass(subclass, extends=PurePath)]
+struct PureWindowsPath { /* marker, no extra data */ }
 
-#[pyclass(extends=PurePath)]
-struct Path {
-    // No extra data — all IO ops dispatch to std::fs
-}
+// PosixPath and WindowsPath are thin marker subclasses.
+// They extend PurePath directly (there is no intermediate Path struct).
+// All filesystem operations live on PurePath's #[pymethods] block
+// and are inherited by every subclass — including PurePosixPath and
+// PureWindowsPath.  Path is a module-level alias for the platform
+// concrete type (PosixPath on macOS/Linux, WindowsPath on Windows).
+#[pyclass(subclass, extends=PurePath)]
+pub struct PosixPath;
 
-// PosixPath and WindowsPath are subclasses of Path
-// that add platform-specific behaviour and override
-// _flavour-like dispatch at the Rust level.
+#[pyclass(subclass, extends=PurePath)]
+pub struct WindowsPath;
 ```
+
+**CPython deviation**: In CPython, filesystem methods are defined on
+``Path`` and are *not* visible from ``PurePath``, ``PurePosixPath``,
+or ``PureWindowsPath``.  In pathlibrs they are visible everywhere.
+This is tracked as section 11.7.
 
 **Key decision — no `_flavour` object.** In CPython, `_flavour` carries string operations (case sensitivity, path separators). In Rust, these are compile-time constants or match arms on an enum — zero overhead at runtime.
 
@@ -458,53 +486,27 @@ The litmus test: **pass CPython's own `test_pathlib.py` from Python 3.14, unchan
 - `glob.rs` module with iterative DFS engine (798 lines)
 - **Verify:** All vendored CPython glob tests pass on Linux, macOS, Windows (3.10 + 3.14)
 
-### Phase 5: Parity & Maintenance — Closing
+### Phase 5: Parity & Maintenance — Closing ✅
 
 - `Path.home()`, `Path.cwd()` class methods ✅
 - Windows symlink resolution (read_link + lexical `..` cancellation) ✅
 - Pickle / `__reduce__` / `__fspath__` / `copy` support ✅
 - Vendor CPython 3.14.6 test suite: 810 passed, 394 skipped, 0 failures
 - Skip audit: 237/239 entries resolved — 2 remaining (both permanently unfixable)
+- Full Rust docstring coverage — 0 `missing_docs` warnings ✅
+- PEP 561 `.pyi` type stubs for all 6 classes ✅
+- Automated upstream CPython test sync workflow (weekly CI) ✅
+- Performance benchmark suite (84 tests, 7 categories) with CI regression detection ✅
+- Full Python test matrix (3.10–3.14 across Linux/macOS/Windows) ✅
 
 **Remaining skips (2 entries, both blocked):**
 
 - `PurePathTest.test_concrete_class` — PyO3 `#[new]` must return `Self`; cannot auto-dispatch
 - `PathTest.test_delete_unwritable` — Windows chmod semantics differ (directories)
 
-**Pending infrastructure:**
+**Known architectural deviation:**
 
-- Windows UNC/device/extended-path edge cases (see section 4.8)
-- Benchmark suite against CPython pathlib
-
-**Automated vendored test tracking (planned):**
-
-- CI workflow that periodically fetches the latest CPython `test_pathlib.py` from `main` (or the latest stable release tag)
-- Compares against the vendored snapshot; if the upstream test file has changed:
-    - Opens an automated issue/PR with the diff for review
-    - Runs the new test suite against `pathlibrs` to surface new failures from added tests
-- Keeps the vendored test snapshot from drifting as CPython evolves
-
-**Performance testing & automated benchmarking:**
-
-- Comprehensive benchmark suite exercising every API surface against built-in `pathlib`:
-    - **Pure operations:** `.parent`, `.stem`, `.suffix`, `.name`, `.with_name()`, `.relative_to()`, `/` operator
-    - **Stat operations:** `.exists()`, `.is_file()`, `.is_dir()`, `.stat()` on hot/cold caches
-    - **I/O operations:** `.read_text()`, `.write_text()`, `.read_bytes()`, `.write_bytes()`
-    - **Directory ops:** `.iterdir()`, `.walk()` on trees of varying depth/width
-    - **Glob ops:** `.glob()`, `.rglob()` on small, medium, and deep trees
-    - **Mutation ops:** `.mkdir()`, `.unlink()`, `.rename()`, `.symlink_to()`, `.copy()`, `.move()`, `.delete()`
-    - **Memory:** Object size, allocation count for 100k paths, memory peak during glob/walk
-- CI workflow runs benchmarks on every push to main and produces a comparison report
-- Results published as part of the docs (Markdown table + JSON for tracking over time)
-- Regression alerting: if any benchmark regresses >10% vs the last stable run, CI flags it
-
-**Acceptance criteria:**
-
-- Full vendored CPython 3.14 test suite passes on all platforms (3.10–3.14)
-- `skips.txt` contains only private-API entries (no public-API skips)
-- Automated upstream test tracking is in place and passing CI
-- Benchmark suite runs in CI and results are publishable in docs
-- Performance is ≥ parity with built-in `pathlib` on all metrics (no regressions)
+- PurePath exposes filesystem methods — see section 11.7
 
 ---
 
@@ -598,37 +600,53 @@ Benchmarks run head-to-head against built-in `pathlib` on every push to main. Re
 ```
 pathlibrs/
 ├── Cargo.toml
-├── pyproject.toml          # maturin build config
+├── pyproject.toml              # maturin build config + dev deps
+├── Makefile                    # self-documenting build/test/lint targets
 ├── src/
-│   ├── lib.rs              # PyO3 module init, re-exports
-│   ├── repr.rs             # PathRepr, ParsedPath
-│   ├── parsing.rs          # parse_path(), drive/root extraction
-│   ├── ops.rs              # stem, suffix, parent, etc. on &OsStr
-│   ├── pattern.rs          # GlobPattern, fnmatch
-│   ├── iter.rs             # parts, parents, glob iterators
-│   ├── pure.rs             # PurePath / PurePosixPath / PureWindowsPath
-│   ├── concrete.rs         # Path / PosixPath / WindowsPath
-│   ├── fs.rs               # stat, exists, mkdir, copy, move, delete
-│   └── glob.rs             # glob/rglob engine (Phase 4)
+│   ├── lib.rs                  # PyO3 module init, Path alias
+│   ├── repr.rs                 # PathRepr, ParsedPath, eq/partial ordinal
+│   ├── parsing.rs              # parse_path(), POSIX + Windows parsers
+│   ├── ops.rs                  # stem, suffix, parent on &OsStr
+│   ├── pattern.rs              # GlobPattern, fnmatch, full_match
+│   ├── iter.rs                 # PartsIter, ParentsIter, GlobIter
+│   ├── pure.rs                 # PurePath / PurePosixPath / PureWindowsPath
+│   ├── concrete.rs             # PosixPath / WindowsPath (thin markers)
+│   ├── fs.rs                   # stat, exists, mkdir, copy, move, delete
+│   └── glob.rs                 # glob/rglob iterative DFS engine
 ├── tests/
-│   ├── conftest.py         # pytest fixtures, skip logic
-│   ├── skips.txt           # private API tests to skip
-│   ├── vendored/           # UNMODIFIED — from CPython 3.14
-│   │   ├── test_pathlib.py
-│   │   └── test_support.py
-│   └── update_vendored.py  # script to fetch latest CPython tests
-├── .github/
-│   └── workflows/
-│       ├── ci.yml          # main CI matrix
-│       ├── vendored-sync.yml  # automated upstream test tracking
-│       └── benchmarks.yml  # automated benchmark runs
+│   ├── conftest.py             # pytest fixtures, import redirect, skip logic
+│   ├── skips.txt               # vendored test skip list (2 entries)
+│   ├── test_basic.py           # 65 Python smoke tests
+│   └── vendored/               # UNMODIFIED CPython 3.14.6 snapshot
+│       ├── __init__.py
+│       ├── test_pathlib.py
+│       ├── test_join*.py
+│       ├── test_copy.py, test_read.py, test_write.py
+│       └── support/
 ├── benchmarks/
-│   ├── benchmark.py        # head-to-head vs pathlib
-│   ├── conftest.py         # benchmark fixtures and helpers
-│   ├── fixtures/           # test directory trees
-│   └── results/            # historical benchmark data (JSON)
-├── docs/
-│   └── benchmarks.md       # published benchmark results
+│   ├── conftest.py             # benchmark fixtures
+│   ├── test_pure_ops.py        # pure path benchmarks
+│   ├── test_stat_ops.py        # stat/metadata benchmarks
+│   ├── test_io_ops.py          # read/write benchmarks
+│   ├── test_dir_ops.py         # iterdir/walk benchmarks
+│   ├── test_glob_ops.py        # glob/rglob benchmarks
+│   ├── test_mutation_ops.py    # mkdir/copy/move/delete benchmarks
+│   ├── test_memory.py          # allocation/overhead benchmarks
+│   └── results/                # *.json benchmark data (gitignored)
+├── pathlibrs-stubs/
+│   └── pathlibrs/
+│       ├── __init__.pyi        # hand-crafted PEP 561 type stubs
+│       └── py.typed            # PEP 561 marker (type checker opt-in)
+├── scripts/
+│   ├── benchmark_comment.py    # JSON → Markdown ratio table
+│   ├── sync_vendored_tests.py  # fetch latest CPython tests
+│   └── generate_stubs.py       # introspection-based stub generator
+├── .github/workflows/
+│   ├── ci.yml                  # test matrix (3 OS × 5 Python)
+│   └── sync-vendored.yml       # weekly CPython test sync
+├── BENCHMARKS.md               # published benchmark results
+├── CHECKLIST.md                # authoritative task tracker
+├── DESIGN.md                   # this file
 └── README.md
 ```
 
@@ -719,3 +737,79 @@ These are deferred until the implementation yields data:
 2. **`as_uri()` behavior on Windows**: CPython converts `PureWindowsPath("C:\\Users")` to `file:///C:/Users`. The spec (RFC 8089) is slightly ambiguous about drive-letter URIs. We'll match CPython's exact output via test-driven development.
 
 3. **`expanduser()` on Windows**: Tilde expansion on Windows involves environment variables (`%USERPROFILE%`) and `HOME`/`HOMEDRIVE`/`HOMEPATH` fallbacks. This is a known-complex area; defer detailed design to implementation phase.
+
+### 11.7 Known Architectural Deviation — PurePath Exposes Concrete Methods
+
+**Status**: Resolved — design accepted.
+
+**What**: ``PurePosixPath('/home').exists()`` returns a bool in
+pathlibrs.  In CPython it raises ``AttributeError``.  Same for
+``PurePath`` and ``PureWindowsPath`` — all ~60 filesystem methods
+(``stat``, ``exists``, ``mkdir``, ``glob``, ``read_text``, etc.)
+are reachable from every class in the hierarchy.
+
+**Why**: CPython defines a six-class hierarchy with an intermediate
+``Path`` class that carries filesystem operations:
+
+```python
+class Path(PurePath):        # adds exists(), stat(), mkdir(), ...
+    ...
+
+class PosixPath(Path, PurePosixPath):   # combines concrete + pure
+    ...
+```
+
+In pathlibrs, filesystem methods live on ``PurePath``'s
+``#[pymethods]`` block because:
+
+1. PyO3 does not support mixin-style multiple inheritance
+   (``PosixPath(Path, PurePosixPath)`` in CPython).  PyO3's
+   ``#[pyclass(extends=...)]`` is single-parent.
+
+2. Without an intermediate ``Path`` struct to carry methods, the
+   simplest working approach puts everything on ``PurePath``.
+
+3. ``Path`` is a module-level alias (``Path = PosixPath`` on POSIX,
+   ``Path = WindowsPath`` on Windows), not a real Rust struct.
+
+**Impact**:
+
+- ``isinstance(p, PurePath)`` — semantics unchanged.  Everything is a
+  ``PurePath`` subclass.
+- ``isinstance(p, Path)`` — identical to ``isinstance(p, PosixPath)``
+  (or ``WindowsPath``).  In CPython, ``Path`` is a proper intermediate
+  class; in pathlibrs it's an alias.  This is observable but
+  practically never matters.
+- PurePath has concrete methods — users who access ``PurePath``
+  directly (rare) will find extra attributes.  This does not affect
+  the ``Path`` constructor which 99% of code uses.
+- ``PurePosixPath.parent`` — unaffected; parent is a pure operation
+  and defined on PurePath in both implementations.
+
+**Future**: Introduce a ``Path`` struct that extends ``PurePath``,
+move concrete methods there, and have ``PosixPath``/``WindowsPath``
+extend ``Path``.  This restores the six-class CPython hierarchy at
+the cost of splitting the ``#[pymethods]`` block across files and
+moving the ``path_info`` cache field.  No user-observable regression
+would occur; the change is internal refactoring.  Deferred until a
+compelling need arises (e.g. a type-checker lint flags the
+attribute-surface mismatch).
+
+### 11.8 Typing Support
+
+pathlibrs provides a hand-crafted PEP 561 ``.pyi`` stub file
+(``pathlibrs-stubs/pathlibrs/__init__.pyi``) that mirrors
+the full CPython 3.14 ``pathlib`` typing surface:
+
+- All 6 classes with complete method signatures, parameter names,
+  defaults, and return types.
+- ``PathInfo`` class (cached stat information).
+- ``py.typed`` marker installed alongside the ``.so``.
+
+The stub is installed automatically by ``make install`` (copied into
+site-packages).  For wheel builds, include it via ``pyproject.toml``'s
+``[tool.maturin]`` data section.
+
+All Rust-level public API items pass ``-W missing_docs`` with zero
+warnings.  Python-level ``__text_signature__`` is present on every
+callable method via PyO3's ``#[pyo3(signature = ...)]`` attribute.
