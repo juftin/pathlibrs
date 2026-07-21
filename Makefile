@@ -115,6 +115,44 @@ clean: ## Remove build artifacts (target/, dist/, caches).
 	cargo clean
 	rm -rf dist/ build/ .pytest_cache/ __pycache__/ tests/__pycache__/
 
+##@ Benchmarks
+
+BENCH_DIR := benchmarks
+BENCH_RESULTS := $(BENCH_DIR)/results
+BENCH_BASELINE := $(BENCH_RESULTS)
+BENCH_FLAGS := --benchmark-warmup=on --benchmark-columns=min,max,mean,median,stddev,outliers,ops,rounds,iterations
+
+.PHONY: install-release
+install-release: setup ## Build and install pathlibrs in release mode (with LTO).
+	uv run maturin develop --release
+
+.PHONY: bench
+bench: install-release ## Run benchmarks (release build) against pathlibrs and built-in pathlib.
+	uv run --no-sync pytest $(BENCH_DIR)/ -v --benchmark-only $(BENCH_FLAGS)
+
+.PHONY: bench-dev
+bench-dev: install ## Run benchmarks (debug build) for quick iteration.
+	uv run --no-sync pytest $(BENCH_DIR)/ -v --benchmark-only $(BENCH_FLAGS)
+
+.PHONY: bench-save
+bench-save: install-release ## Run release benchmarks and save results as baseline.
+	mkdir -p $(BENCH_RESULTS)
+	uv run --no-sync pytest $(BENCH_DIR)/ -v --benchmark-only \
+		$(BENCH_FLAGS) \
+		--benchmark-save=baseline \
+		--benchmark-storage=$(BENCH_RESULTS) \
+		--benchmark-autosave
+
+.PHONY: bench-compare
+bench-compare: install-release ## Run benchmarks and compare against saved baseline (fails if >10% regression).
+	@ls $(BENCH_RESULTS)/*.json >/dev/null 2>&1 || { echo "No baseline found. Run 'make bench-save' first."; exit 1; }
+	uv run --no-sync pytest $(BENCH_DIR)/ -v --benchmark-only \
+		$(BENCH_FLAGS) \
+		--benchmark-compare \
+		--benchmark-compare-fail=min:10%,mean:10%,median:10% \
+		--benchmark-storage=$(BENCH_RESULTS) \
+		--benchmark-json=$(BENCH_RESULTS)/benchmark.json
+
 ##@ Help
 
 .PHONY: help

@@ -41,9 +41,16 @@ select = ["E", "W", "F", "I", "N", "UP", "B", "SIM"]
 python_files = ["test_*.py"]
 testpaths = ["tests"]
 
+[tool.pytest-benchmark]
+enabled = true
+storage = "benchmarks/results"
+save = "latest"
+fail_if_no_benchmarks = true
+
 [dependency-groups]
 dev = [
   "maturin>=1.8,<2",
   "pytest>=8",
-  "ruff>=0.8"
+  "pytest-benchmark>=5.2.3",
+  "ruff>=0.8",
 ]

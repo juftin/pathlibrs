@@ -79,15 +79,31 @@ else:
     # mirrors docstrings from the actual Path class, so the vendored
     # test_matches_writablepath_docstrings test still passes.
     import types as _synthetic_types_mod  # noqa: E402, F811
+
     _synthetic_types = _synthetic_types_mod.ModuleType("pathlibrs.types")
     _synthetic_types.__doc__ = "Shim for pathlib.types (injected by pathlibrs test harness)."
     # Create _WritablePath as a protocol-like object whose attributes
     # carry the same __doc__ strings as our Path class.
     _wp_methods = [
-        "anchor", "full_match", "joinpath", "mkdir", "name", "parent",
-        "parents", "parser", "parts", "stem", "suffix", "suffixes",
-        "symlink_to", "with_name", "with_segments", "with_stem",
-        "with_suffix", "write_bytes", "write_text",
+        "anchor",
+        "full_match",
+        "joinpath",
+        "mkdir",
+        "name",
+        "parent",
+        "parents",
+        "parser",
+        "parts",
+        "stem",
+        "suffix",
+        "suffixes",
+        "symlink_to",
+        "with_name",
+        "with_segments",
+        "with_stem",
+        "with_suffix",
+        "write_bytes",
+        "write_text",
     ]
 
     class _WritablePathShim:

@@ -128,7 +128,8 @@ Vendored CPython 3.14.6 test suite: **810 passed, 394 skipped, 0 failures**.
 
 - [ ] Windows UNC/device/extended-path edge cases
 - [ ] Automated upstream CPython test sync workflow
-- [ ] Performance benchmark suite (`benchmarks/`)
+- [x] Performance benchmark suite (`benchmarks/`) — 84 tests, 7 categories
+- [ ] Release-mode benchmarks (current `make bench` builds debug via `maturin develop`)
 - [ ] CI benchmark workflow with regression alerting
 - [ ] Published benchmark results
 
