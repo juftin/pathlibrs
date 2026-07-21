@@ -383,7 +383,7 @@ medians of calibration rounds.*
 | | `rglob("*")` (all) | 11.7 ms | 12.0 ms | parity |
 | | `glob("*.py")` | 932 μs | 1.5 ms | 1.64× slower |
 
-Full results: [`BENCHMARKS.md`](BENCHMARKS.md)
+Full results: [`BENCHMARKS.md`](docs/BENCHMARKS.md)
 
 Key findings:
 - **Stat operations** — 1.3–1.4× faster via GIL release during syscalls
@@ -450,6 +450,6 @@ Python callers (from pathlibrs import Path)
 └──────────────────────────────────────────┘
 ```
 
-Full design: [`DESIGN.md`](DESIGN.md) &middot; Task tracker:
-[`CHECKLIST.md`](CHECKLIST.md) &middot; Dev setup:
+Full design: [`DESIGN.md`](docs/DESIGN.md) &middot; Task tracker:
+[`CHECKLIST.md`](docs/CHECKLIST.md) &middot; Dev setup:
 [`AGENTS.md`](AGENTS.md)

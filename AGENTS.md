@@ -373,18 +373,18 @@ This is identical to what CI does — no drift between local and remote verifica
 | Phase 4 | Glob & Pattern Matching (glob, rglob)                                      | Complete |
 | Phase 5 | Parity & Maintenance (benchmarks, skips.txt audit, upstream tracking)      | Closing  |
 
-Full design doc: `DESIGN.md`. Refer to it for architecture decisions, error handling strategy, and resolved design questions.
+Full design doc: `docs/DESIGN.md`. Refer to it for architecture decisions, error handling strategy, and resolved design questions.
 
 ## Working with the Checklist
 
-`CHECKLIST.md` is the authoritative task tracker for this project. Agents must:
+`docs/CHECKLIST.md` is the authoritative task tracker for this project. Agents must:
 
-- **Before starting work** — read `CHECKLIST.md` to understand what phase is active,
+- **Before starting work** — read `docs/CHECKLIST.md` to understand what phase is active,
   what's already done, and what's next.
-- **When completing an item** — check it off in `CHECKLIST.md` by changing
+- **When completing an item** — check it off in `docs/CHECKLIST.md` by changing
   `- [ ]` to `- [x]`. Update the skip count in the Phase 3 header if new
   vendored tests are passing.
-- **When discovering new work** — add it to `CHECKLIST.md` under the appropriate
+- **When discovering new work** — add it to `docs/CHECKLIST.md` under the appropriate
   phase rather than keeping it in conversation context.
 - **Before claiming a phase is complete** — verify every unchecked item in that
   phase is addressed and the skip count is zero for public API tests.
