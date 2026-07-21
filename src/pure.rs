@@ -85,7 +85,7 @@ impl PurePath {
     /// Uses a cached type check: when the instance type matches the known
     /// ``PurePath`` type (the common benchmark case), construction happens
     /// entirely in Rust without any Python round-trip.  For subclasses,
-    /// falls back to ``cls(new_raw)`` which preserves the Python type.
+    /// falls back to ``with_segments`` which is the CPython-compatible path.
     fn _make_child(
         py: Python<'_>,
         slf_ptr: *mut pyo3::ffi::PyObject,
@@ -104,9 +104,12 @@ impl PurePath {
             }
         }
 
-        // Fallback: Python round-trip to preserve subclass type
+        // Fallback: use Python with_segments so that subclasses that override
+        // it (e.g., test_with_segments session_id) preserve custom state.
         let raw_str = new_raw.to_string_lossy().into_owned();
-        Ok(slf_bound.get_type().call1((raw_str,))?.unbind())
+        Ok(slf_bound
+            .call_method1("with_segments", (raw_str,))?
+            .unbind())
     }
 
     #[inline]
@@ -255,8 +258,14 @@ impl PurePath {
 
     fn _fast_name_bytes(&self) -> Option<&OsStr> {
         let raw = self.inner.raw().as_encoded_bytes();
+        // "." paths have no name component (matching CPython's has_name logic).
+        if raw.is_empty() || raw == b"." {
+            return None;
+        }
         let (anchor_end, _) = ops::quick_anchor_end(raw, self._is_windows());
-        ops::name_from_bytes(raw, anchor_end, self._is_windows())
+        let result = ops::name_from_bytes(raw, anchor_end, self._is_windows());
+        // The sole component "." after anchor means no name (e.g. "/." or "./.").
+        result.filter(|n| n.as_encoded_bytes() != b".")
     }
 
     fn _with_name_raw(&self, name: &str) -> OsString {
@@ -270,7 +279,7 @@ impl PurePath {
         let end = ops::trim_trailing_seps(tail, is_win);
         let tail = &tail[..end];
 
-        if tail.is_empty() {
+        if tail.is_empty() || tail == b"." {
             // No current name, just append
             let mut buf = Vec::with_capacity(raw.len() + 1 + name.len());
             buf.extend_from_slice(raw);
@@ -285,6 +294,9 @@ impl PurePath {
         match tail.iter().rposition(|&b| ops::is_sep(b, is_win)) {
             Some(pos) => {
                 let parent_end = anchor_end + pos;
+                if parent_end == 0 {
+                    return OsString::from(name);
+                }
                 let mut buf = Vec::with_capacity(parent_end + 1 + name.len());
                 buf.extend_from_slice(&raw[..parent_end]);
                 buf.push(sep);
