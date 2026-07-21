@@ -124,8 +124,8 @@ else:
 # ── Shim pathname2url(add_scheme=True) for Python < 3.14 ─────────────────────
 # CPython 3.14 added ``add_scheme`` kwarg to urllib.request.pathname2url.
 # The vendored test uses this kwarg; shim it for older Python versions.
-import urllib.request  # noqa: E402
 import os.path  # noqa: E402
+import urllib.request  # noqa: E402
 
 _orig_pathname2url = urllib.request.pathname2url
 
@@ -172,8 +172,8 @@ sys.modules["pathlib._local"] = _local
 # On older Pythons, the vendored test test_is_junction_true cannot
 # mock.patch.object(P.parser, "isjunction") because the attribute doesn't
 # exist.  Add a no-op that returns False (junctions are Windows-only).
-import posixpath as _posixpath  # noqa: E402
 import ntpath as _ntpath  # noqa: E402
+import posixpath as _posixpath  # noqa: E402
 
 if not hasattr(_posixpath, "isjunction"):
 

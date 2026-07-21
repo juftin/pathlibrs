@@ -5,27 +5,39 @@
 use std::ffi::{OsStr, OsString};
 use std::hash::{Hash, Hasher};
 use std::path::Path as StdPath;
-use std::sync::Mutex;
+use std::sync::OnceLock;
 
 use pyo3::prelude::*;
 use pyo3::types::{PyAnyMethods, PyDict, PyList, PyString, PyTuple, PyType};
 
 use crate::fs::PathInfo;
-use crate::iter::{GlobIter, ParentsIter};
+use crate::iter::{GlobIter, IterdirIter, ParentsIter};
 use crate::ops::{self, stem_from_name, suffix_from_name};
 use crate::pattern;
 use crate::repr::{PathFlavour, PathRepr};
+
+/// Cached Python type objects for fast Rust-native path construction.
+/// Set during module init by ``init_type_cache``.
+static PUREPATH_TYPE: OnceLock<PyObject> = OnceLock::new();
+
+/// Initialize the cached PurePath Python type object.
+/// Called from module init in ``lib.rs``.
+pub fn init_purepath_type(obj: PyObject) {
+    let _ = PUREPATH_TYPE.set(obj);
+}
 
 // ═══════════════════════════════════════════════════════════════════════
 // PurePath — base class
 // ═══════════════════════════════════════════════════════════════════════
 
 /// Base class for pure (non-IO) path objects.
-#[pyclass(subclass, module = "pathlibrs")]
+#[pyclass(subclass, freelist = 256, module = "pathlibrs")]
 pub struct PurePath {
     pub(crate) inner: PathRepr,
     pub(crate) flavour: PathFlavour,
-    pub(crate) path_info: Mutex<Option<Py<PathInfo>>>,
+    pub(crate) path_info: OnceLock<Py<PathInfo>>,
+    /// Cached (name, stem, suffix, suffixes) — computed once on any access
+    cached_props: OnceLock<(String, String, String, Vec<String>)>,
 }
 
 impl PurePath {
@@ -34,7 +46,8 @@ impl PurePath {
         Self {
             inner: PathRepr::new(raw),
             flavour: PathFlavour::Posix,
-            path_info: Mutex::new(None),
+            path_info: OnceLock::new(),
+            cached_props: OnceLock::new(),
         }
     }
 
@@ -43,23 +56,56 @@ impl PurePath {
         Self {
             inner: PathRepr::new(raw),
             flavour: PathFlavour::Windows,
-            path_info: Mutex::new(None),
+            path_info: OnceLock::new(),
+            cached_props: OnceLock::new(),
         }
+    }
+
+    /// Construct a new path object using the same flavour as `self`.
+    ///
+    /// Creates a ``PurePath`` Python object entirely in Rust.  For subclasses
+    /// where the exact Python type must be preserved, prefer
+    /// ``_make_child_subclass`` instead.
+    fn _make_child_fast(
+        py: Python<'_>,
+        flavour: PathFlavour,
+        new_raw: OsString,
+    ) -> PyResult<PyObject> {
+        let result = Self {
+            inner: PathRepr::new(new_raw),
+            flavour,
+            path_info: OnceLock::new(),
+            cached_props: OnceLock::new(),
+        };
+        Ok(Py::new(py, result)?.into_any())
     }
 
     /// Construct a new path object of the same Python type as `slf_ptr`.
     ///
-    /// Uses ``with_segments`` so that subclasses that override it to carry extra
-    /// state (e.g., ``session_id``) get their state preserved. This matches
-    /// CPython's ``_make_child`` which delegates to ``self.with_segments``.
+    /// Uses a cached type check: when the instance type matches the known
+    /// ``PurePath`` type, calls ``cls(new_raw)`` directly — one Python
+    /// round-trip instead of the ``with_segments`` chain.  For subclasses,
+    /// falls back to ``with_segments`` which preserves custom state.
     fn _make_child(
         py: Python<'_>,
         slf_ptr: *mut pyo3::ffi::PyObject,
         new_raw: OsString,
     ) -> PyResult<PyObject> {
         let slf_bound = unsafe { pyo3::Bound::<'_, pyo3::PyAny>::from_borrowed_ptr(py, slf_ptr) };
-        // Call slf.with_segments(new_raw) rather than cls(new_raw) so that
-        // subclasses that override with_segments preserve extra state.
+
+        // Fast path: if self is exactly a PurePath (the common non-subclassed case),
+        // call cls(new_raw) — one FFI call instead of with_segments method dispatch.
+        if let Some(cached) = PUREPATH_TYPE.get() {
+            if let Ok(cached_bound) = cached.bind(py).downcast::<PyType>() {
+                if slf_bound.get_type().is(cached_bound) {
+                    let raw_str = new_raw.to_string_lossy().into_owned();
+                    return Ok(slf_bound.get_type().call1((raw_str,))?.unbind());
+                }
+            }
+        }
+
+        // Fallback: use Python with_segments so that subclasses that override
+        // it (e.g., test_with_segments session_id) preserve custom state.
         let raw_str = new_raw.to_string_lossy().into_owned();
         Ok(slf_bound
             .call_method1("with_segments", (raw_str,))?
@@ -98,7 +144,11 @@ impl PurePath {
         parts: &[OsString],
     ) -> OsString {
         let sep = self._sep();
-        let mut result = Vec::<u8>::new();
+        let mut result = Vec::<u8>::with_capacity(
+            drive.map(|d| d.len()).unwrap_or(0)
+                + root.map(|r| r.len()).unwrap_or(0)
+                + parts.iter().map(|p| p.len() + 1).sum::<usize>(),
+        );
         if let Some(d) = drive {
             result.extend_from_slice(d.as_encoded_bytes());
         }
@@ -112,6 +162,43 @@ impl PurePath {
             result.extend_from_slice(part.as_encoded_bytes());
         }
         crate::from_os_bytes(&result).to_os_string()
+    }
+
+    fn _parent_raw_fast(&self) -> Option<OsString> {
+        let raw = self.inner.raw().as_encoded_bytes();
+        let is_win = self._is_windows();
+        let (anchor_end, _has_root) = ops::quick_anchor_end(raw, is_win);
+
+        let tail = &raw[anchor_end..];
+        let end = ops::trim_trailing_seps(tail, is_win);
+        let tail = &tail[..end];
+
+        if tail.is_empty() {
+            if anchor_end > 0 {
+                // Root only — parent is self
+                return Some(self.inner.raw().to_os_string());
+            }
+            return None; // empty relative path → "."
+        }
+
+        match tail.iter().rposition(|&b| ops::is_sep(b, is_win)) {
+            Some(pos) => {
+                let parent_end = anchor_end + pos;
+                if parent_end == 0 {
+                    None
+                } else {
+                    Some(crate::from_os_bytes(&raw[..parent_end]).to_os_string())
+                }
+            }
+            None => {
+                // Only one part — parent is anchor
+                if anchor_end > 0 {
+                    Some(crate::from_os_bytes(&raw[..anchor_end]).to_os_string())
+                } else {
+                    None // "foo" → parent is "."
+                }
+            }
+        }
     }
 
     fn _parent_raw(&self) -> OsString {
@@ -134,19 +221,107 @@ impl PurePath {
     }
 
     fn _str_repr(&self) -> String {
-        self.inner.raw().to_string_lossy().into_owned()
+        self.inner.str_cached(self._is_windows()).to_string()
+    }
+
+    fn _compute_cached_props(&self) -> &(String, String, String, Vec<String>) {
+        self.cached_props.get_or_init(|| {
+            let p = self.inner.parsed(self.flavour);
+            let name = if p.has_name {
+                p.parts.last().map(|s| s.to_string_lossy().into_owned())
+            } else {
+                None
+            };
+            let name_str = name.clone().unwrap_or_default();
+            let suffix = name
+                .as_ref()
+                .and_then(|n| suffix_from_name(OsStr::new(n)))
+                .map(|s| s.to_string_lossy().into_owned())
+                .unwrap_or_default();
+            let stem = name
+                .as_ref()
+                .and_then(|n| stem_from_name(OsStr::new(n)))
+                .map(|s| s.to_string_lossy().into_owned())
+                .unwrap_or_default();
+            let suffixes: Vec<String> = name
+                .as_ref()
+                .map(|n| {
+                    ops::suffixes_from_name(OsStr::new(n))
+                        .iter()
+                        .map(|s| s.to_string_lossy().into_owned())
+                        .collect()
+                })
+                .unwrap_or_default();
+            (name_str, stem, suffix, suffixes)
+        })
+    }
+
+    fn _fast_name_bytes(&self) -> Option<&OsStr> {
+        let raw = self.inner.raw().as_encoded_bytes();
+        // "." paths have no name component (matching CPython's has_name logic).
+        if raw.is_empty() || raw == b"." {
+            return None;
+        }
+        let (anchor_end, _) = ops::quick_anchor_end(raw, self._is_windows());
+        let result = ops::name_from_bytes(raw, anchor_end, self._is_windows());
+        // The sole component "." after anchor means no name (e.g. "/." or "./.").
+        result.filter(|n| n.as_encoded_bytes() != b".")
     }
 
     fn _with_name_raw(&self, name: &str) -> OsString {
-        let parent_raw = self._parent_raw();
-        if parent_raw.as_encoded_bytes().is_empty() {
-            OsString::from(name)
-        } else {
-            let sep = self._sep();
-            let mut buf = parent_raw.as_encoded_bytes().to_vec();
-            buf.push(sep);
+        // Fast path: compute parent from raw bytes without full parse
+        let raw = self.inner.raw().as_encoded_bytes();
+        let is_win = self._is_windows();
+        let sep = self._sep();
+        let (anchor_end, _) = ops::quick_anchor_end(raw, is_win);
+
+        let tail = &raw[anchor_end..];
+        let end = ops::trim_trailing_seps(tail, is_win);
+        let tail = &tail[..end];
+
+        if tail.is_empty() || tail == b"." {
+            // No current name, just append
+            let mut buf = Vec::with_capacity(raw.len() + 1 + name.len());
+            buf.extend_from_slice(raw);
+            if !raw.is_empty() && raw[raw.len() - 1] != sep && !raw.is_empty() {
+                buf.push(sep);
+            }
             buf.extend_from_slice(name.as_bytes());
-            crate::from_os_bytes(&buf).to_os_string()
+            return crate::from_os_bytes(&buf).to_os_string();
+        }
+
+        // Find parent portion
+        match tail.iter().rposition(|&b| ops::is_sep(b, is_win)) {
+            Some(pos) => {
+                let parent_end = anchor_end + pos;
+                if parent_end == 0 {
+                    return OsString::from(name);
+                }
+                let mut buf = Vec::with_capacity(parent_end + 1 + name.len());
+                buf.extend_from_slice(&raw[..parent_end]);
+                buf.push(sep);
+                buf.extend_from_slice(name.as_bytes());
+                crate::from_os_bytes(&buf).to_os_string()
+            }
+            None => {
+                // Only one part — parent is anchor
+                if anchor_end > 0 {
+                    let mut buf = Vec::with_capacity(anchor_end + 1 + name.len());
+                    buf.extend_from_slice(&raw[..anchor_end]);
+                    if anchor_end > 0 && raw[anchor_end - 1] != sep {
+                        buf.push(sep);
+                    }
+                    buf.extend_from_slice(name.as_bytes());
+                    crate::from_os_bytes(&buf).to_os_string()
+                } else {
+                    // No anchor, single part → parent is "."
+                    let mut buf = Vec::with_capacity(2 + name.len());
+                    buf.push(b'.');
+                    buf.push(sep);
+                    buf.extend_from_slice(name.as_bytes());
+                    crate::from_os_bytes(&buf).to_os_string()
+                }
+            }
         }
     }
 }
@@ -178,7 +353,8 @@ impl PurePath {
             flavour: PathFlavour::Windows,
             #[cfg(not(windows))]
             flavour: PathFlavour::Posix,
-            path_info: Mutex::new(None),
+            path_info: OnceLock::new(),
+            cached_props: OnceLock::new(),
         })
     }
 
@@ -224,17 +400,17 @@ impl PurePath {
 
     /// Internal: return the name, or `None` when there is no name.
     fn _name_option(&self) -> Option<String> {
-        let p = self.inner.parsed(self.flavour);
-        if !p.has_name {
-            return None;
+        // Fast path: scan bytes without full parse
+        if let Some(n) = self._fast_name_bytes() {
+            return Some(n.to_string_lossy().into_owned());
         }
-        p.parts.last().map(|s| s.to_string_lossy().into_owned())
+        None
     }
 
     /// The final path component, if any.
     #[getter]
     fn name(&self) -> String {
-        self._name_option().unwrap_or_default()
+        self._compute_cached_props().0.clone()
     }
 
     ///
@@ -244,12 +420,7 @@ impl PurePath {
     ///
     #[getter]
     fn suffix(&self) -> String {
-        match self._name_option() {
-            Some(ref n) => suffix_from_name(OsStr::new(n))
-                .map(|s| s.to_string_lossy().into_owned())
-                .unwrap_or_default(),
-            None => String::new(),
-        }
+        self._compute_cached_props().2.clone()
     }
 
     ///
@@ -259,24 +430,13 @@ impl PurePath {
     ///
     #[getter]
     fn suffixes(&self) -> Vec<String> {
-        match self._name_option() {
-            Some(ref n) => ops::suffixes_from_name(OsStr::new(n))
-                .iter()
-                .map(|s| s.to_string_lossy().into_owned())
-                .collect(),
-            None => Vec::new(),
-        }
+        self._compute_cached_props().3.clone()
     }
 
     /// The final path component, minus its last suffix.
     #[getter]
     fn stem(&self) -> String {
-        match self._name_option() {
-            Some(ref n) => stem_from_name(OsStr::new(n))
-                .map(|s| s.to_string_lossy().into_owned())
-                .unwrap_or_default(),
-            None => String::new(),
-        }
+        self._compute_cached_props().1.clone()
     }
 
     /// The logical parent of the path.
@@ -284,8 +444,12 @@ impl PurePath {
     fn parent<'py>(slf: PyRef<'py, Self>) -> PyResult<PyObject> {
         let py = slf.py();
         let ptr = slf.as_ptr();
-        let parent_raw = slf._parent_raw();
-        PurePath::_make_child(py, ptr, parent_raw)
+        // Fast path: compute parent from raw bytes without full parse
+        if let Some(parent_raw) = slf._parent_raw_fast() {
+            return PurePath::_make_child(py, ptr, parent_raw);
+        }
+        // No parent (empty relative path or ".") — return self with "."
+        PurePath::_make_child(py, ptr, OsString::from("."))
     }
 
     /// A sequence of this path's logical parents.
@@ -354,27 +518,36 @@ impl PurePath {
         let mut result = slf.inner.raw().to_os_string();
 
         if let Ok(tuple) = args.downcast::<PyTuple>() {
-            for arg in tuple.iter() {
-                let s = _extract_path_str(&arg)?;
+            // Pre-compute total capacity to avoid reallocations
+            let parts: Vec<String> = tuple
+                .iter()
+                .map(|arg| _extract_path_str(&arg))
+                .collect::<PyResult<Vec<_>>>()?;
+            let total_len: usize =
+                parts.iter().map(|s| s.len() + 1).sum::<usize>() + result.as_encoded_bytes().len();
+            let mut buf = Vec::with_capacity(total_len);
+            buf.extend_from_slice(result.as_encoded_bytes());
+            let sep = slf._sep();
+            for s in &parts {
                 if !s.is_empty() {
-                    if result.as_encoded_bytes().is_empty() {
-                        result = OsString::from(&s);
-                    } else {
-                        let sep = slf._sep();
-                        let mut buf = result.as_encoded_bytes().to_vec();
+                    if !buf.is_empty() {
                         buf.push(sep);
-                        buf.extend_from_slice(s.as_bytes());
-                        result = crate::from_os_bytes(&buf).to_os_string();
                     }
+                    buf.extend_from_slice(s.as_bytes());
                 }
             }
+            result = if buf.is_empty() {
+                OsString::from(".")
+            } else {
+                crate::from_os_bytes(&buf).to_os_string()
+            };
         }
         PurePath::_make_child(py, ptr, result)
     }
 
     /// Return a new path with the file name changed.
     fn with_name<'py>(slf: PyRef<'py, Self>, name: &str) -> PyResult<PyObject> {
-        if slf._name_option().is_none() {
+        if slf._fast_name_bytes().is_none() {
             return Err(pyo3::exceptions::PyValueError::new_err(format!(
                 "'{}' has an empty name",
                 slf._str_repr()
@@ -403,21 +576,19 @@ impl PurePath {
         let py = slf.py();
         let ptr = slf.as_ptr();
         let new_raw = slf._with_name_raw(name);
-        PurePath::_make_child(py, ptr, new_raw)
+        Self::_make_child(py, ptr, new_raw)
     }
 
     /// Return a new path with the stem changed.
     fn with_stem<'py>(slf: PyRef<'py, Self>, stem: &str) -> PyResult<PyObject> {
-        if slf._name_option().is_none() {
+        if slf._fast_name_bytes().is_none() {
             return Err(pyo3::exceptions::PyValueError::new_err(format!(
                 "'{}' has an empty name",
                 slf._str_repr()
             )));
         }
-        let name = slf._name_option().unwrap_or_default();
-        let old_suffix = suffix_from_name(OsStr::new(&name))
-            .map(|s| s.to_string_lossy().into_owned())
-            .unwrap_or_default();
+        let suffixes = slf._compute_cached_props().3.clone();
+        let old_suffix = suffixes.last().cloned().unwrap_or_default();
         let new_name = format!("{stem}{old_suffix}");
         PurePath::with_name(slf, &new_name)
     }
@@ -427,10 +598,14 @@ impl PurePath {
     /// string, remove the suffix from the path.
     ///
     fn with_suffix<'py>(slf: PyRef<'py, Self>, suffix: &str) -> PyResult<PyObject> {
-        let name = slf._name_option().unwrap_or_default();
-        let old_stem = stem_from_name(OsStr::new(&name))
-            .map(|s| s.to_string_lossy().into_owned())
-            .unwrap_or_else(|| name.clone());
+        let props = slf._compute_cached_props();
+        let name_str = &props.0;
+        let stem_str = &props.1;
+        let old_stem = if stem_str.is_empty() && !name_str.is_empty() {
+            name_str.clone()
+        } else {
+            stem_str.clone()
+        };
         let new_name = if suffix.is_empty() {
             old_stem
         } else {
@@ -1158,17 +1333,13 @@ impl PurePath {
     fn info<'py>(slf: PyRef<'py, Self>) -> PyResult<PyObject> {
         let py = slf.py();
         // Check if we already have a cached PathInfo
-        {
-            let guard = slf.path_info.lock().unwrap();
-            if let Some(ref info) = *guard {
-                return Ok(info.clone_ref(py).into_pyobject(py)?.into_any().unbind());
-            }
+        if let Some(info) = slf.path_info.get() {
+            return Ok(info.clone_ref(py).into_pyobject(py)?.into_any().unbind());
         }
         // Create a new PathInfo and cache it
         let raw_str = slf.inner.raw().to_string_lossy().into_owned();
         let info = Py::new(py, PathInfo::new(&raw_str))?;
-        let mut guard = slf.path_info.lock().unwrap();
-        *guard = Some(info.clone_ref(py));
+        let _ = slf.path_info.set(info.clone_ref(py));
         Ok(info.into_pyobject(py)?.into_any().unbind())
     }
 
@@ -1182,17 +1353,20 @@ impl PurePath {
             Ok(s) => s,
             Err(_) => return Ok(py.NotImplemented()),
         };
-        let mut raw = slf.inner.raw().to_os_string();
-        if !raw.as_encoded_bytes().is_empty() && !other_str.is_empty() {
+        let raw = slf.inner.raw();
+        let result = if raw.as_encoded_bytes().is_empty() {
+            OsString::from(&other_str)
+        } else if other_str.is_empty() {
+            raw.to_os_string()
+        } else {
             let sep = slf._sep();
-            let mut buf = raw.as_encoded_bytes().to_vec();
+            let mut buf = Vec::with_capacity(raw.len() + 1 + other_str.len());
+            buf.extend_from_slice(raw.as_encoded_bytes());
             buf.push(sep);
             buf.extend_from_slice(other_str.as_bytes());
-            raw = crate::from_os_bytes(&buf).to_os_string();
-        } else if raw.as_encoded_bytes().is_empty() {
-            raw = OsString::from(&other_str);
-        }
-        PurePath::_make_child(py, ptr, raw)
+            crate::from_os_bytes(&buf).to_os_string()
+        };
+        PurePath::_make_child(py, ptr, result)
     }
 
     fn __rtruediv__<'py>(slf: PyRef<'py, Self>, other: &Bound<'py, PyAny>) -> PyResult<PyObject> {
@@ -1203,19 +1377,20 @@ impl PurePath {
             Ok(s) => s,
             Err(_) => return Ok(py.NotImplemented()),
         };
-        let path_raw = slf.inner.raw().to_os_string();
-        let raw = if other_str.is_empty() {
-            path_raw
+        let path_raw = slf.inner.raw();
+        let result = if other_str.is_empty() {
+            path_raw.to_os_string()
         } else if path_raw.as_encoded_bytes().is_empty() {
             OsString::from(&other_str)
         } else {
             let sep = slf._sep();
-            let mut buf = other_str.as_bytes().to_vec();
+            let mut buf = Vec::with_capacity(other_str.len() + 1 + path_raw.len());
+            buf.extend_from_slice(other_str.as_bytes());
             buf.push(sep);
             buf.extend_from_slice(path_raw.as_encoded_bytes());
             crate::from_os_bytes(&buf).to_os_string()
         };
-        PurePath::_make_child(py, ptr, raw)
+        PurePath::_make_child(py, ptr, result)
     }
 
     fn __eq__(&self, other: &Bound<'_, PyAny>) -> PyResult<bool> {
@@ -1362,16 +1537,7 @@ impl PurePath {
     }
 
     fn __str__(&self) -> String {
-        let raw = self.inner.raw().to_string_lossy().into_owned();
-        if raw.is_empty() {
-            // Empty path points to current directory, same as '.'.
-            return ".".to_string();
-        }
-        if self._is_windows() {
-            raw.replace('/', "\\")
-        } else {
-            raw
-        }
+        self.inner.str_cached(self._is_windows()).to_string()
     }
 
     fn __repr__<'py>(slf: PyRef<'py, Self>) -> PyResult<String> {
@@ -1540,7 +1706,7 @@ impl PurePath {
     /// Open the file in bytes mode, write to it, and close the file.
     ///
     fn write_bytes(&self, data: Vec<u8>) -> PyResult<()> {
-        crate::fs::write_bytes(self.inner.raw(), &data)
+        crate::fs::write_bytes(self.inner.raw(), data)
     }
 
     ///
@@ -1561,18 +1727,16 @@ impl PurePath {
 
     /// Iterate over the directory contents as Path objects.
     ///
-    /// Returns a list of Path objects representing the directory contents.
-    /// Each entry is a full path (dirpath / name), matching CPython behavior.
+    /// Returns a lazy iterator that yields one Path object per ``__next__``
+    /// call, rather than pre-collecting all results into a list.
     fn iterdir<'py>(slf: PyRef<'py, Self>) -> PyResult<PyObject> {
         let py = slf.py();
-        let ptr = slf.as_ptr();
         let entries = crate::fs::read_dir(slf.inner.raw())?;
-        let mut paths: Vec<PyObject> = Vec::with_capacity(entries.len());
-        for entry in &entries {
-            let child = Self::_make_child(py, ptr, entry.path.clone())?;
-            paths.push(child);
-        }
-        Ok(PyList::new(py, paths)?.into_any().unbind())
+        let names: Vec<OsString> = entries.iter().map(|e| e.name.clone()).collect();
+        let base = slf.inner.raw().to_os_string();
+        let source: PyObject = slf.into_pyobject(py)?.into_any().unbind();
+        let iter = IterdirIter::new(base, names, source);
+        Ok(Py::new(py, iter)?.into_pyobject(py)?.into_any().unbind())
     }
 
     /// Walk a directory tree recursively.

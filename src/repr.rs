@@ -104,12 +104,24 @@ impl ParsedPath {
 ///
 /// `PathRepr` is both [`Send`] and [`Sync`] — all fields are thread-safe
 /// and parsing uses interior mutability through [`OnceLock`].
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct PathRepr {
     /// The original path string.
     raw: OsString,
-    /// Lazily-computed parsed components.
-    parsed: OnceLock<Box<ParsedPath>>,
+    /// Lazily-computed parsed components (inlined, no Box).
+    parsed: OnceLock<ParsedPath>,
+    /// Cached string representation.
+    str_cache: OnceLock<String>,
+}
+
+impl Clone for PathRepr {
+    fn clone(&self) -> Self {
+        Self {
+            raw: self.raw.clone(),
+            parsed: OnceLock::new(),
+            str_cache: OnceLock::new(),
+        }
+    }
 }
 
 impl PathRepr {
@@ -118,6 +130,7 @@ impl PathRepr {
         Self {
             raw,
             parsed: OnceLock::new(),
+            str_cache: OnceLock::new(),
         }
     }
 
@@ -135,8 +148,27 @@ impl PathRepr {
     ///
     /// The first call parses the path; subsequent calls return the cached result.
     pub fn parsed(&self, flavour: PathFlavour) -> &ParsedPath {
-        self.parsed
-            .get_or_init(|| Box::new(parse_path(&self.raw, flavour)))
+        self.parsed.get_or_init(|| parse_path(&self.raw, flavour))
+    }
+
+    /// Get or compute the cached ``str()`` representation.
+    pub fn str_cached(&self, is_windows: bool) -> &str {
+        self.str_cache.get_or_init(|| {
+            let raw = self.raw.as_encoded_bytes();
+            if raw.is_empty() {
+                return ".".to_string();
+            }
+            if is_windows {
+                let mut s = Vec::with_capacity(raw.len());
+                for &b in raw {
+                    s.push(if b == b'/' { b'\\' } else { b });
+                }
+                unsafe { String::from_utf8_unchecked(s) }
+            } else {
+                // SAFETY: OsString bytes came from valid platform encoding
+                unsafe { String::from_utf8_unchecked(raw.to_vec()) }
+            }
+        })
     }
 }
 

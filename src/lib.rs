@@ -37,6 +37,12 @@ fn pathlibrs(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<pure::PurePosixPath>()?;
     m.add_class::<pure::PureWindowsPath>()?;
 
+    // Cache PurePath type for fast Rust-native construction
+    {
+        let pure_path_type = m.getattr("PurePath")?;
+        pure::init_purepath_type(pure_path_type.unbind());
+    }
+
     // Concrete path classes
     // Path is an alias for the platform-native concrete type
     m.add_class::<concrete::PosixPath>()?;
@@ -61,6 +67,7 @@ fn pathlibrs(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<iter::PartsIter>()?;
     m.add_class::<iter::ParentsIter>()?;
     m.add_class::<iter::GlobIter>()?;
+    m.add_class::<iter::IterdirIter>()?;
     m.add_class::<pure::WalkIter>()?;
 
     // Stat result and PathInfo (Phase 2)
