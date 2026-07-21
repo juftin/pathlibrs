@@ -116,6 +116,7 @@ Vendored CPython 3.14.6 test suite: **810 passed, 394 skipped, 0 failures**.
 - [x] `resolve()` cross-platform: canonicalize on POSIX, read_link on Windows
 - [x] Windows symlink+`..` lexical cancellation
 - [x] `absolute()` drive-relative path CWD on Windows
+- [x] Windows UNC/device/extended-path edge cases — 37 Rust unit tests covering all forms
 
 ### Remaining Skips — 2 entries (both permanently unfixable)
 
@@ -124,14 +125,13 @@ Vendored CPython 3.14.6 test suite: **810 passed, 394 skipped, 0 failures**.
 | `PurePathTest.test_concrete_class` | PyO3 `#[new]` must return `Self` — cannot auto-dispatch `PurePath('a')` to `PurePosixPath` |
 | `PathTest.test_delete_unwritable` | Windows `FILE_ATTRIBUTE_READONLY` on directories doesn't prevent file deletion inside |
 
-### Pending: Infrastructure & Benchmarks
+### Pending: Infrastructure
 
-- [ ] Windows UNC/device/extended-path edge cases
-- [ ] Automated upstream CPython test sync workflow
 - [x] Performance benchmark suite (`benchmarks/`) — 84 tests, 7 categories
-- [ ] Release-mode benchmarks (current `make bench` builds debug via `maturin develop`)
-- [ ] CI benchmark workflow with regression alerting
-- [ ] Published benchmark results
+- [x] Release-mode benchmarks (`make bench` builds via `maturin develop --release`)
+- [x] CI benchmark workflow with baseline storage and PR regression comparison
+- [x] Published benchmark results (`BENCHMARKS.md`, CI step summary)
+- [ ] Automated upstream CPython test sync workflow
 
 ## CI / Infrastructure
 
@@ -139,7 +139,8 @@ Vendored CPython 3.14.6 test suite: **810 passed, 394 skipped, 0 failures**.
 - [x] CLAUDE.md symlinked to AGENTS.md
 - [x] Makefile with self-documenting `make help`
 - [x] `.pre-commit-config.yaml` with Rust + Python hooks
-- [x] CI workflow (`.github/workflows/ci.yml`) using Make targets
+- [x] CI workflow (`.github/workflows/ci.yml`) — full Python matrix (3.10-3.14) on Linux/macOS/Windows
+- [x] CI benchmark job with baseline artifact storage and PR regression comment
 - [x] Vendored CPython 3.14.6 test suite
 - [x] `tests/conftest.py` with `--windows-flavour` support
 - [x] `pathlib._local` shim for CPython 3.13 unpickling
@@ -148,5 +149,3 @@ Vendored CPython 3.14.6 test suite: **810 passed, 394 skipped, 0 failures**.
 - [x] `infinite_recursion` monkey-patch for Python < 3.11
 - [x] `subst_drive` shim for Python < 3.14
 - [ ] Automated upstream test sync workflow
-- [ ] Automated benchmark workflow
-- [ ] Benchmark fixtures and helpers

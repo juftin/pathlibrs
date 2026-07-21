@@ -597,4 +597,314 @@ mod tests {
         assert_eq!(p.root, None);
         assert_eq!(p.parts, &["foo", "bar"]);
     }
+
+    #[test]
+    fn test_windows_unc_bare_double_slash() {
+        let p = parse_path(&win("\\\\"), PathFlavour::Windows);
+        assert_eq!(p.drive.as_deref(), Some(OsStr::new("\\\\")));
+        assert_eq!(p.root, None);
+        assert!(p.parts.is_empty());
+    }
+
+    #[test]
+    fn test_windows_unc_server_only() {
+        let p = parse_path(&win("\\\\server"), PathFlavour::Windows);
+        assert_eq!(p.drive.as_deref(), Some(OsStr::new("\\\\server")));
+        assert_eq!(p.root, None);
+        assert!(p.parts.is_empty());
+    }
+
+    #[test]
+    fn test_windows_unc_server_trailing_slash() {
+        let p = parse_path(&win("\\\\server\\"), PathFlavour::Windows);
+        assert_eq!(p.drive.as_deref(), Some(OsStr::new("\\\\server\\")));
+        assert_eq!(p.root, None);
+        assert!(p.parts.is_empty());
+    }
+
+    #[test]
+    fn test_windows_unc_share_no_trailing() {
+        let p = parse_path(&win("\\\\server\\share"), PathFlavour::Windows);
+        assert_eq!(p.drive.as_deref(), Some(OsStr::new("\\\\server\\share")));
+        assert_eq!(p.root.as_deref(), Some(OsStr::new("\\")));
+        assert!(p.parts.is_empty());
+    }
+
+    #[test]
+    fn test_windows_unc_share_trailing_slash() {
+        let p = parse_path(&win("\\\\server\\share\\"), PathFlavour::Windows);
+        assert_eq!(p.drive.as_deref(), Some(OsStr::new("\\\\server\\share")));
+        assert_eq!(p.root.as_deref(), Some(OsStr::new("\\")));
+        assert!(p.parts.is_empty());
+    }
+
+    #[test]
+    fn test_windows_unc_share_with_path() {
+        let p = parse_path(&win("\\\\server\\share\\path\\to\\file"), PathFlavour::Windows);
+        assert_eq!(p.drive.as_deref(), Some(OsStr::new("\\\\server\\share")));
+        assert_eq!(p.root.as_deref(), Some(OsStr::new("\\")));
+        assert_eq!(p.parts, &["path", "to", "file"]);
+    }
+
+    #[test]
+    fn test_windows_extended_drive_fwd_slash() {
+        let p = parse_path(&win("//?/c:/a"), PathFlavour::Windows);
+        assert_eq!(p.drive.as_deref(), Some(OsStr::new("\\\\?\\c:")));
+        assert_eq!(p.root.as_deref(), Some(OsStr::new("\\")));
+        assert_eq!(p.parts, &["a"]);
+    }
+
+    #[test]
+    fn test_windows_extended_drive_no_root() {
+        let p = parse_path(&win("//?/c:"), PathFlavour::Windows);
+        assert_eq!(p.drive.as_deref(), Some(OsStr::new("\\\\?\\c:")));
+        assert_eq!(p.root, None);
+        assert!(p.parts.is_empty());
+    }
+
+    #[test]
+    fn test_windows_extended_drive_root_only() {
+        let p = parse_path(&win("//?/c:/"), PathFlavour::Windows);
+        assert_eq!(p.drive.as_deref(), Some(OsStr::new("\\\\?\\c:")));
+        assert_eq!(p.root.as_deref(), Some(OsStr::new("\\")));
+        assert!(p.parts.is_empty());
+    }
+
+    #[test]
+    fn test_windows_extended_unc_bare_prefix() {
+        let p = parse_path(&win("\\\\?\\UNC"), PathFlavour::Windows);
+        assert_eq!(p.drive.as_deref(), Some(OsStr::new("\\\\?\\UNC")));
+        assert_eq!(p.root, None);
+        assert!(p.parts.is_empty());
+    }
+
+    #[test]
+    fn test_windows_extended_unc_server_only() {
+        let p = parse_path(&win("\\\\?\\UNC\\server"), PathFlavour::Windows);
+        assert_eq!(p.drive.as_deref(), Some(OsStr::new("\\\\?\\UNC\\server")));
+        assert_eq!(p.root, None);
+        assert!(p.parts.is_empty());
+    }
+
+    #[test]
+    fn test_windows_extended_unc_share_no_trailing() {
+        let p = parse_path(&win("\\\\?\\UNC\\server\\share"), PathFlavour::Windows);
+        assert_eq!(
+            p.drive.as_deref(),
+            Some(OsStr::new("\\\\?\\UNC\\server\\share"))
+        );
+        assert_eq!(p.root.as_deref(), Some(OsStr::new("\\")));
+        assert!(p.parts.is_empty());
+    }
+
+    #[test]
+    fn test_windows_extended_unc_share_with_path() {
+        let p = parse_path(&win("\\\\?\\UNC\\server\\share\\path"), PathFlavour::Windows);
+        assert_eq!(
+            p.drive.as_deref(),
+            Some(OsStr::new("\\\\?\\UNC\\server\\share"))
+        );
+        assert_eq!(p.root.as_deref(), Some(OsStr::new("\\")));
+        assert_eq!(p.parts, &["path"]);
+    }
+
+    #[test]
+    fn test_windows_device_path_boot_partition_root() {
+        let p = parse_path(&win("\\\\.\\BootPartition\\"), PathFlavour::Windows);
+        assert_eq!(p.drive.as_deref(), Some(OsStr::new("\\\\.\\BootPartition")));
+        assert_eq!(p.root.as_deref(), Some(OsStr::new("\\")));
+        assert!(p.parts.is_empty());
+    }
+
+    #[test]
+    fn test_windows_device_path_nul() {
+        let p = parse_path(&win("\\\\.\\nul"), PathFlavour::Windows);
+        assert_eq!(p.drive.as_deref(), Some(OsStr::new("\\\\.\\nul")));
+        assert_eq!(p.root, None);
+        assert!(p.parts.is_empty());
+    }
+
+    #[test]
+    fn test_windows_extended_device_volume_guid() {
+        let p = parse_path(&win("\\\\?\\Volume{abc}\\"), PathFlavour::Windows);
+        assert_eq!(p.drive.as_deref(), Some(OsStr::new("\\\\?\\Volume{abc}")));
+        assert_eq!(p.root.as_deref(), Some(OsStr::new("\\")));
+        assert!(p.parts.is_empty());
+    }
+
+    #[test]
+    fn test_windows_extended_device_boot_partition() {
+        let p = parse_path(&win("\\\\?\\BootPartition\\"), PathFlavour::Windows);
+        assert_eq!(p.drive.as_deref(), Some(OsStr::new("\\\\?\\BootPartition")));
+        assert_eq!(p.root.as_deref(), Some(OsStr::new("\\")));
+        assert!(p.parts.is_empty());
+    }
+
+    #[test]
+    fn test_windows_drive_letter_lowercase() {
+        let p = parse_path(&win("c:\\foo"), PathFlavour::Windows);
+        assert_eq!(p.drive.as_deref(), Some(OsStr::new("c:")));
+        assert_eq!(p.root.as_deref(), Some(OsStr::new("\\")));
+        assert_eq!(p.parts, &["foo"]);
+    }
+
+    #[test]
+    fn test_windows_forward_slash_drive_relative() {
+        let p = parse_path(&win("C:foo/bar"), PathFlavour::Windows);
+        assert_eq!(p.drive.as_deref(), Some(OsStr::new("C:")));
+        assert_eq!(p.root, None);
+        assert_eq!(p.parts, &["foo", "bar"]);
+    }
+
+    #[test]
+    fn test_windows_root_only_fwd_slash() {
+        let p = parse_path(&win("/"), PathFlavour::Windows);
+        assert_eq!(p.drive, None);
+        assert_eq!(p.root.as_deref(), Some(OsStr::new("\\")));
+        assert!(p.parts.is_empty());
+    }
+
+    #[test]
+    fn test_windows_excess_slashes_collapse() {
+        let p = parse_path(&win("Z://b//c/d/"), PathFlavour::Windows);
+        assert_eq!(p.drive.as_deref(), Some(OsStr::new("Z:")));
+        assert_eq!(p.root.as_deref(), Some(OsStr::new("\\")));
+        assert_eq!(p.parts, &["b", "c", "d"]);
+    }
+
+    #[test]
+    fn test_windows_unc_double_slash_in_path() {
+        let p = parse_path(&win("\\\\b\\c//d"), PathFlavour::Windows);
+        assert_eq!(p.drive.as_deref(), Some(OsStr::new("\\\\b\\c")));
+        assert_eq!(p.root.as_deref(), Some(OsStr::new("\\")));
+        assert_eq!(p.parts, &["d"]);
+    }
+
+    #[test]
+    fn test_windows_extended_unc_fwd_slash_forms() {
+        let p = parse_path(&win("//?/UNC/b/c/d"), PathFlavour::Windows);
+        assert_eq!(p.drive.as_deref(), Some(OsStr::new("\\\\?\\UNC\\b\\c")));
+        assert_eq!(p.root.as_deref(), Some(OsStr::new("\\")));
+        assert_eq!(p.parts, &["d"]);
+    }
+
+    #[test]
+    fn test_windows_ntfs_stream_path_cc_colon_s() {
+        let p = parse_path(&win("cc:s"), PathFlavour::Windows);
+        assert_eq!(p.drive, None);
+        assert_eq!(p.root, None);
+        assert_eq!(p.parts, &["cc:s"]);
+    }
+
+    #[test]
+    fn test_windows_ntfs_stream_path_dot_slash_c_colon_s() {
+        let p = parse_path(&win("./c:s"), PathFlavour::Windows);
+        assert_eq!(p.drive, None);
+        assert_eq!(p.root, None);
+        assert_eq!(p.parts, &["c:s"]);
+    }
+
+    #[test]
+    fn test_windows_ntfs_stream_path_drive_with_stream() {
+        let p = parse_path(&win("C:c:s"), PathFlavour::Windows);
+        assert_eq!(p.drive.as_deref(), Some(OsStr::new("C:")));
+        assert_eq!(p.root, None);
+        assert_eq!(p.parts, &["c:s"]);
+    }
+
+    #[test]
+    fn test_windows_ntfs_stream_path_drive_rooted_with_stream() {
+        let p = parse_path(&win("C:/c:s"), PathFlavour::Windows);
+        assert_eq!(p.drive.as_deref(), Some(OsStr::new("C:")));
+        assert_eq!(p.root.as_deref(), Some(OsStr::new("\\")));
+        assert_eq!(p.parts, &["c:s"]);
+    }
+
+    #[test]
+    fn test_windows_ntfs_stream_path_multi_part() {
+        let p = parse_path(&win("D:a/c:b"), PathFlavour::Windows);
+        assert_eq!(p.drive.as_deref(), Some(OsStr::new("D:")));
+        assert_eq!(p.root, None);
+        assert_eq!(p.parts, &["a", "c:b"]);
+    }
+
+    #[test]
+    fn test_windows_ntfs_stream_path_multi_part_rooted() {
+        let p = parse_path(&win("D:/a/c:b"), PathFlavour::Windows);
+        assert_eq!(p.drive.as_deref(), Some(OsStr::new("D:")));
+        assert_eq!(p.root.as_deref(), Some(OsStr::new("\\")));
+        assert_eq!(p.parts, &["a", "c:b"]);
+    }
+
+    #[test]
+    fn test_windows_device_path_fwd_slash_drive() {
+        let p = parse_path(&win("//./c:"), PathFlavour::Windows);
+        assert_eq!(p.drive.as_deref(), Some(OsStr::new("\\\\.\\c:")));
+        assert_eq!(p.root, None);
+        assert!(p.parts.is_empty());
+    }
+
+    #[test]
+    fn test_windows_device_path_fwd_physicaldrive() {
+        let p = parse_path(&win("//./PhysicalDrive0"), PathFlavour::Windows);
+        assert_eq!(p.drive.as_deref(), Some(OsStr::new("\\\\.\\PhysicalDrive0")));
+        assert_eq!(p.root, None);
+        assert!(p.parts.is_empty());
+    }
+
+    #[test]
+    fn test_windows_extended_unc_fwd_bare_prefix() {
+        let p = parse_path(&win("//?"), PathFlavour::Windows);
+        assert_eq!(p.drive.as_deref(), Some(OsStr::new("\\\\?")));
+        assert_eq!(p.root, None);
+        assert!(p.parts.is_empty());
+    }
+
+    #[test]
+    fn test_windows_extended_unc_fwd_prefix_with_slash() {
+        let p = parse_path(&win("//?/"), PathFlavour::Windows);
+        assert_eq!(p.drive.as_deref(), Some(OsStr::new("\\\\?\\")));
+        assert_eq!(p.root, None);
+        assert!(p.parts.is_empty());
+    }
+
+    #[test]
+    fn test_windows_extended_unc_fwd_server_only() {
+        let p = parse_path(&win("//?/UNC/b"), PathFlavour::Windows);
+        assert_eq!(p.drive.as_deref(), Some(OsStr::new("\\\\?\\UNC\\b")));
+        assert_eq!(p.root, None);
+        assert!(p.parts.is_empty());
+    }
+
+    #[test]
+    fn test_windows_extended_unc_fwd_server_trailing_slash() {
+        let p = parse_path(&win("//?/UNC/b/"), PathFlavour::Windows);
+        assert_eq!(p.drive.as_deref(), Some(OsStr::new("\\\\?\\UNC\\b\\")));
+        assert_eq!(p.root, None);
+        assert!(p.parts.is_empty());
+    }
+
+    #[test]
+    fn test_windows_extended_unc_fwd_bare_share() {
+        let p = parse_path(&win("//?/UNC/b/c/"), PathFlavour::Windows);
+        assert_eq!(p.drive.as_deref(), Some(OsStr::new("\\\\?\\UNC\\b\\c")));
+        assert_eq!(p.root.as_deref(), Some(OsStr::new("\\")));
+        assert!(p.parts.is_empty());
+    }
+
+    #[test]
+    fn test_windows_drive_only_no_colon_suffix() {
+        let p = parse_path(&win("C:"), PathFlavour::Windows);
+        assert_eq!(p.drive.as_deref(), Some(OsStr::new("C:")));
+        assert_eq!(p.root, None);
+        assert!(p.parts.is_empty());
+    }
+
+    #[test]
+    fn test_windows_drive_root_only_no_parts() {
+        let p = parse_path(&win("C:\\"), PathFlavour::Windows);
+        assert_eq!(p.drive.as_deref(), Some(OsStr::new("C:")));
+        assert_eq!(p.root.as_deref(), Some(OsStr::new("\\")));
+        assert!(p.parts.is_empty());
+    }
 }
