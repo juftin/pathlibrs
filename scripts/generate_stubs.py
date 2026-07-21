@@ -4,7 +4,7 @@
 Uses Python introspection (``__text_signature__``, ``inspect.signature``) to
 produce PEP 561-compatible type stubs. Run after ``maturin develop``:
 
-    uv run python scripts/generate_stubs.py --out pathlibrs-stubs/
+    uv run python scripts/generate_stubs.py --out stubs/
 """
 
 from __future__ import annotations
