@@ -153,6 +153,16 @@ bench-compare: install-release ## Run benchmarks and compare against saved basel
 		--benchmark-storage=$(BENCH_RESULTS) \
 		--benchmark-json=$(BENCH_RESULTS)/benchmark.json
 
+##@ Sync
+
+.PHONY: sync-vendored
+sync-vendored: ## Check for upstream CPython test changes (diff-only, no write).
+	uv run python scripts/sync_vendored_tests.py
+
+.PHONY: sync-vendored-write
+sync-vendored-write: ## Download and write the latest CPython vendored test files.
+	uv run python scripts/sync_vendored_tests.py --write
+
 ##@ Help
 
 .PHONY: help

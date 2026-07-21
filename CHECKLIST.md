@@ -125,13 +125,13 @@ Vendored CPython 3.14.6 test suite: **810 passed, 394 skipped, 0 failures**.
 | `PurePathTest.test_concrete_class` | PyO3 `#[new]` must return `Self` — cannot auto-dispatch `PurePath('a')` to `PurePosixPath` |
 | `PathTest.test_delete_unwritable` | Windows `FILE_ATTRIBUTE_READONLY` on directories doesn't prevent file deletion inside |
 
-### Pending: Infrastructure
+### Infrastructure — Complete
 
 - [x] Performance benchmark suite (`benchmarks/`) — 84 tests, 7 categories
 - [x] Release-mode benchmarks (`make bench` builds via `maturin develop --release`)
 - [x] CI benchmark workflow with baseline storage and PR regression comparison
 - [x] Published benchmark results (`BENCHMARKS.md`, CI step summary)
-- [ ] Automated upstream CPython test sync workflow
+- [x] Automated upstream test sync workflow (`scripts/sync_vendored_tests.py` + `make sync-vendored` + weekly CI)
 
 ## CI / Infrastructure
 

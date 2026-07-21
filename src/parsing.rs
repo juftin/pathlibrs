@@ -640,7 +640,10 @@ mod tests {
 
     #[test]
     fn test_windows_unc_share_with_path() {
-        let p = parse_path(&win("\\\\server\\share\\path\\to\\file"), PathFlavour::Windows);
+        let p = parse_path(
+            &win("\\\\server\\share\\path\\to\\file"),
+            PathFlavour::Windows,
+        );
         assert_eq!(p.drive.as_deref(), Some(OsStr::new("\\\\server\\share")));
         assert_eq!(p.root.as_deref(), Some(OsStr::new("\\")));
         assert_eq!(p.parts, &["path", "to", "file"]);
@@ -699,7 +702,10 @@ mod tests {
 
     #[test]
     fn test_windows_extended_unc_share_with_path() {
-        let p = parse_path(&win("\\\\?\\UNC\\server\\share\\path"), PathFlavour::Windows);
+        let p = parse_path(
+            &win("\\\\?\\UNC\\server\\share\\path"),
+            PathFlavour::Windows,
+        );
         assert_eq!(
             p.drive.as_deref(),
             Some(OsStr::new("\\\\?\\UNC\\server\\share"))
@@ -847,7 +853,10 @@ mod tests {
     #[test]
     fn test_windows_device_path_fwd_physicaldrive() {
         let p = parse_path(&win("//./PhysicalDrive0"), PathFlavour::Windows);
-        assert_eq!(p.drive.as_deref(), Some(OsStr::new("\\\\.\\PhysicalDrive0")));
+        assert_eq!(
+            p.drive.as_deref(),
+            Some(OsStr::new("\\\\.\\PhysicalDrive0"))
+        );
         assert_eq!(p.root, None);
         assert!(p.parts.is_empty());
     }
