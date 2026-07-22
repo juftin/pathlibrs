@@ -26,11 +26,27 @@ jobs:
             - name: Post or update PR comment
               uses: actions/github-script@v7
               env:
-                  PR_NUMBER: ${{ github.event.workflow_run.pull_requests[0].number }}
+                  BRANCH: ${{ github.event.workflow_run.head_branch }}
               with:
                   script: |
                       const fs = require('fs');
-                      const prNumber = parseInt(process.env.PR_NUMBER);
+                      const branch = process.env.BRANCH;
+
+                      let prNumber = null;
+                      // For fork PRs, workflow_run.pull_requests may be empty.
+                      // Fall back: find PR from branch name.
+                      if (context.payload.workflow_run.pull_requests?.length > 0) {
+                        prNumber = context.payload.workflow_run.pull_requests[0].number;
+                      }
+                      if (!prNumber) {
+                        const { data: prs } = await github.rest.pulls.list({
+                          owner: context.repo.owner,
+                          repo: context.repo.repo,
+                          state: 'open',
+                          head: `${context.repo.owner}:${branch}`,
+                        });
+                        if (prs.length > 0) prNumber = prs[0].number;
+                      }
                       if (!prNumber) {
                         core.warning('No PR number found; skipping.');
                         return;
